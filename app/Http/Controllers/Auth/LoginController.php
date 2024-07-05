@@ -27,6 +27,12 @@ class LoginController extends Controller
         }
 
         if(!Auth::attempt($request->only(['email', 'password']))){
+            $user = User::where('email', $request->email)->first();
+            if (isset($user->email)) {
+                return response()->json([
+                    'message' => 'La contraseña es incorrecta',
+                ], 401);
+            }
             return response()->json([
                 'message' => 'El email y el password no corresponden con alguno de los usuarios',
             ], 401);

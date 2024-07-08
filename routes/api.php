@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\CedulaCheck;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -21,6 +22,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/auth/user', function (Request $request) {
         return $request->user();
     });
+    Route::post('/verifyCedula', [CedulaCheck::class, 'checkCedula']);
 });
 
 Route::post('/auth/register', [RegisterController::class, 'registerUser']);

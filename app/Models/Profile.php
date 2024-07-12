@@ -5,14 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class EducationUser extends Model
+class Profile extends Model
 {
     use HasFactory;
 
+
     protected $fillable = [
-        "schools",
-        "certificates",
-        "diplomas",
+        "publicName",
+        "movil",
+        "office",
+        "whatsapp",
         "user_id"
     ];
 }

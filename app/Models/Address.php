@@ -5,14 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class EducationUser extends Model
+class Address extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        "schools",
-        "certificates",
-        "diplomas",
+        "street",
+        "zipcode",
+        "city",
+        "neighborhood",
+        "country",
+        "state",
         "user_id"
     ];
 }

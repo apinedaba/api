@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\EducationUser;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 class EducationUserController extends Controller
 {
     /**
@@ -12,7 +13,16 @@ class EducationUserController extends Controller
      */
     public function index()
     {
-        //
+        $user = Auth::user();
+        $education = EducationUser::where('user_id', $user->id);
+        $count = $education->count();
+
+        if ($count > 0) {            
+            $obj = $education->first();
+            $schools = json_decode($obj->schools);
+            return response()->json( $schools, 200);
+        }    
+        return response()->json([], 200);
     }
 
     /**
@@ -28,7 +38,27 @@ class EducationUserController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $user = Auth::user();
+        $education = EducationUser::where('user_id', $user->id);
+        $count = $education->count();
+
+        if ($count > 0) {
+            $obj = $education->first();
+            $schools = json_decode($obj->schools);
+            array_push($schools, $request->all());
+            $education = $education->update([
+                'schools' => json_encode($schools),                
+            ]);
+            return response()->json( $schools, 200);
+
+        }else {
+            $obj = EducationUser::create([
+                'schools' => json_encode([$request->all()]),
+                'user_id' => $user->id
+            ]);
+            $schools = json_decode($obj->schools);
+            return response()->json( $schools, 200);
+        }
     }
 
     /**

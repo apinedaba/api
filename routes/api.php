@@ -6,6 +6,9 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CedulaCheck;
+use App\Http\Controllers\EducationUserController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\AddressController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,6 +26,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
     Route::post('/verifyCedula', [CedulaCheck::class, 'checkCedula']);
+    Route::resource('/education', EducationUserController::class);
+    Route::resource('/address', AddressController::class);
+    Route::resource('/profile', ProfileController::class);
 });
 
 Route::post('/auth/register', [RegisterController::class, 'registerUser']);

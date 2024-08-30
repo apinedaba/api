@@ -9,27 +9,40 @@ use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AddressController;
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
-*/
+use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\Auth\PatientAuthController;
+use App\Http\Middleware\HandleInvalidToken;
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/auth/logout', [LogoutController::class, 'logoutUser']);
-    Route::get('/auth/user', function (Request $request) {
+
+
+
+//Rutas para profesionales
+Route::post('user/login', [UserAuthController::class, 'login']);
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+    Route::get('user/info', function (Request $request) {
         return $request->user();
     });
-    Route::post('/verifyCedula', [CedulaCheck::class, 'checkCedula']);
-    Route::resource('/education', EducationUserController::class);
-    Route::resource('/address', AddressController::class);
-    Route::resource('/profile', ProfileController::class);
+    Route::post('user/logout', [UserAuthController::class, 'logout']);
+    Route::post('user/verifyCedula', [CedulaCheck::class, 'checkCedula']);
+    Route::resource('user/education', EducationUserController::class);
+    Route::resource('user/address', AddressController::class);
+    Route::resource('user/profile', ProfileController::class);
 });
 
-Route::post('/auth/register', [RegisterController::class, 'registerUser']);
-Route::post('/auth/login', [LoginController::class, 'loginUser']);
+
+
+
+
+//Rutas para Pacientes
+Route::post('patient/login', [PatientAuthController::class, 'login']);
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(function () {
+    Route::get('patient/info', function (Request $request) {
+        return $request->user();
+    });
+    Route::post('patient/logout', [PatientAuthController::class, 'logout']);
+});
+
+
+ Route::post('/auth/register', [RegisterController::class, 'registerUser']);
+
+ 

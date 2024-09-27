@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Patient;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\JsonResponse;
 
-class PatientController extends Controller
+class UserController extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -29,16 +27,13 @@ class PatientController extends Controller
      */
     public function store(Request $request)
     {
-        $patient = new Patient();
-        $patient->fill($request->all());
-        $patient->save();        
-        return response()->json($patient, 200);
+        //
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Patient $patient)
+    public function show(string $id)
     {
         //
     }
@@ -46,7 +41,7 @@ class PatientController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Patient $patient)
+    public function edit(string $id)
     {
         //
     }
@@ -54,7 +49,7 @@ class PatientController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Patient $patient)
+    public function update(Request $request, string $id)
     {
         //
     }
@@ -62,7 +57,7 @@ class PatientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Patient $patient)
+    public function destroy(string $id)
     {
         //
     }

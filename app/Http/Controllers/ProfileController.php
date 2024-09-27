@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Profile;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -15,7 +15,7 @@ class ProfileController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $profile = Profile::where("user_id", $user->id)->first();
+        $profile = User::where("id", $user->id)->first();
         return response()->json($profile, 200);
     }
 
@@ -33,23 +33,12 @@ class ProfileController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        $profile = Profile::where("user_id", $user->id);
+        $profile = User::where("id", $user->id);
         $count = $profile->count();
-        $data = $request->all();
-        $data['user_id'] = $user->id;
+        $data = $request->all();       
         if ($count > 0) {
-            $profile->update([
-                "publicName"=>$data["publicName"]?:"",
-                "movil"=>$data["movil"]?:"",
-                "office"=>$data["office"]?:0,
-                "whatsapp"=>$data["whatsapp"]?:"",               
-                "user_id"=>$data["user_id"]?:""
-            ]);
-            $profile = Profile::where("user_id", $user->id)->first();
-            return response()->json($profile, 200);
-
-        }else {
-            $profile = Profile::create($data);
+            $profile->update($data);
+            $profile = User::where("id", $user->id)->first();
             return response()->json($profile, 200);
         }
     }
@@ -57,7 +46,7 @@ class ProfileController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Profile $profile)
+    public function show(User $profile)
     {
         //
     }
@@ -65,7 +54,7 @@ class ProfileController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Profile $profile)
+    public function edit(User $profile)
     {
         //
     }
@@ -73,7 +62,7 @@ class ProfileController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Profile $profile)
+    public function update(Request $request, User $profile)
     {
         //
     }
@@ -81,7 +70,7 @@ class ProfileController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Profile $profile)
+    public function destroy(User $profile)
     {
         //
     }

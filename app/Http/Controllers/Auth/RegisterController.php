@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
+use App\Models\Patient;
 use Illuminate\Http\Request;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
@@ -29,6 +30,33 @@ class RegisterController extends Controller
         }
 
         $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password)
+        ]);
+
+        return response()->json([
+            'message' => 'El usuario se ha creado',
+            'token' => $user->createToken("API ACCESS TOKEN")->plainTextToken
+        ], 200);
+    }
+
+    private $registerValidationRulesPatient = [
+        'name' => 'required',
+        'email' => 'required|email|unique:patients,email',
+        'password' => 'required'
+    ];
+    public function registerPatient(Request $request) {
+        $validateUser = Validator::make($request->all(), $this->registerValidationRulesPatient);
+        
+        if($validateUser->fails()){
+            return response()->json([
+                'message' => 'Ha ocurrido un error de validación',
+                'errors' => $validateUser->errors()
+            ], 400);
+        }
+
+        $user = Patient::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password)

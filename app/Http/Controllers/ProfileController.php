@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
@@ -35,7 +36,11 @@ class ProfileController extends Controller
         $user = Auth::user();
         $profile = User::where("id", $user->id);
         $count = $profile->count();
-        $data = $request->all();       
+        $data = $request->all();    
+        
+        if (isset($data["password"]) ) {
+            $data["password"] = Hash::make($request->password);
+        }   
         if ($count > 0) {
             $profile->update($data);
             $profile = User::where("id", $user->id)->first();

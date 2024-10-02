@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
 
 class PatientUserController extends Controller
 {
@@ -12,7 +14,8 @@ class PatientUserController extends Controller
      */
     public function index()
     {
-        //
+        $user = Auth::user();
+        return response()->json( data: PatientUser::with('patient')->where('user', $user->id)->where('activo', true)->get(), status: 200);
     }
 
     /**
@@ -29,6 +32,27 @@ class PatientUserController extends Controller
     public function store(Request $request)
     {
         //
+    }
+
+    public function enlacePacienteProfesional($patient){
+        $user = Auth::user();
+        $checkExist = PatientUser::where('user', $user->id)->where('patient', $patient)->first();
+        if (isset($checkExist->id)) {
+            return [
+                'rasson' => "Ya existe un paciente en tu lista con estos datos",
+                'message' => "Usuario existente",
+                'type' => "error"
+            ];
+        }
+        
+        $enlace = PatientUser::create([
+            'user' => $user->id,
+            'patient' => $patient
+        ]);
+
+        if ($enlace) {
+            return $enlace;
+        }
     }
 
     /**

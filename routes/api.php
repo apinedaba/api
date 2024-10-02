@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\PatientUserController;
 
 
 
@@ -29,6 +30,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::resource('user/address', AddressController::class);
     Route::resource('user/profile', ProfileController::class);
     Route::resource('user/patient', PatientController::class);
+    Route::resource('user/catalog/patients', PatientUserController::class);
 });
 
 

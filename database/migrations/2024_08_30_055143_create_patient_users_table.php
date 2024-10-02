@@ -16,6 +16,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user')->constrained()->cascadeOnDelete();
             $table->foreignId('patient')->constrained()->cascadeOnDelete();
+            $table->boolean('activo')->nullable()->default(false);
+            $table->string('status', 100)->nullable()->default('Esperando Validacion');
             $table->timestamps();
         });
     }

@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\PatientUserController;
+use Illuminate\Support\Facades\Auth;
 
 
 class PatientController extends Controller
@@ -98,7 +99,17 @@ class PatientController extends Controller
      */
     public function update(Request $request, Patient $patient)
     {
-        //
+        $user = Auth::user();
+        $patient = $patient->first();
+        $enlace = PatientUser::where('user', $user->id)->where('patient', $patient->id);
+        $enlace->update(["activo" => false]);
+        $response = [
+            'rasson' => "El usuario se a desactivo correctamente",
+            'message' => "Usuario desactivado",
+            'type' => "success"
+        ];
+        return response()->json($response, 200);
+
     }
 
     /**
@@ -106,6 +117,5 @@ class PatientController extends Controller
      */
     public function destroy(Patient $patient)
     {
-        //
     }
 }

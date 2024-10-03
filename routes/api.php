@@ -12,14 +12,12 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Middleware\HandleInvalidToken;
-use App\Http\Controllers\PatientController;
-use App\Http\Controllers\PatientUserController;
+
 
 
 
 //Rutas para profesionales
 Route::post('user/login', [UserAuthController::class, 'login']);
-Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     Route::get('user/info', function (Request $request) {
         return $request->user();
@@ -29,8 +27,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::resource('user/education', EducationUserController::class);
     Route::resource('user/address', AddressController::class);
     Route::resource('user/profile', ProfileController::class);
-    Route::resource('user/patient', PatientController::class);
-    Route::resource('user/catalog/patients', PatientUserController::class);
 });
 
 
@@ -47,7 +43,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
 });
 
 
-
- Route::post('patient/registro', [RegisterController::class, 'registerPatient']);
+ Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 
  

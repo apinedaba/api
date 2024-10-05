@@ -102,10 +102,12 @@ class PatientController extends Controller
         $user = Auth::user();
         $patient = $patient->first();
         $enlace = PatientUser::where('user', $user->id)->where('patient', $patient->id);
-        $enlace->update(["activo" => false]);
+        $currentActive = $enlace->first()['activo'];
+        $enlace->update(["activo" => !$currentActive]);
+        $currentActive = $currentActive === 1 ? "desactivado" : "activado";
         $response = [
-            'rasson' => "El usuario se a desactivo correctamente",
-            'message' => "Usuario desactivado",
+            'rasson' => 'El usuario se a '.$currentActive.' correctamente',
+            'message' => "Usuario $currentActive",
             'type' => "success"
         ];
         return response()->json($response, 200);

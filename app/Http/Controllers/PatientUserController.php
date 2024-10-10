@@ -60,7 +60,7 @@ class PatientUserController extends Controller
      */
     public function show(PatientUser $patientUser)
     {
-        //
+        return $patientUser->first();
     }
 
     /**
@@ -74,9 +74,19 @@ class PatientUserController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, PatientUser $patientUser)
+    public function update(Request $request)
     {
-        //
+        $user = Auth::user();        
+        $enlace = PatientUser::where('user', $user->id)->where('patient', $request->id);
+        $currentActive = $enlace->first()['activo'];
+        $enlace->update(["activo" => !$currentActive]);
+        $currentActive = $currentActive === 1 ? "desactivado" : "activado";
+        $response = [
+            'rasson' => 'El usuario se a '.$currentActive.' correctamente',
+            'message' => "Usuario $currentActive",
+            'type' => "success"
+        ];
+        return response()->json($response, 200);
     }
 
     /**

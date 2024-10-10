@@ -17,6 +17,9 @@ return new class extends Migration
             $table->foreignId('patient')->constrained()->cascadeOnDelete();
             $table->date('fecha');
             $table->time('hora');
+            $table->string('status', 100)->nullable()->default('Creado');
+            $table->string('state', 100)->nullable()->default('Creado');
+            
             $table->timestamps();
         });
     }

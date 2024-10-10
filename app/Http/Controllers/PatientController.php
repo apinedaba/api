@@ -83,7 +83,7 @@ class PatientController extends Controller
      */
     public function show(Patient $patient)
     {
-        //
+        return response()->json($patient->first(), 200);
     }
 
     /**
@@ -99,17 +99,22 @@ class PatientController extends Controller
      */
     public function update(Request $request, Patient $patient)
     {
-        $user = Auth::user();
-        $patient = $patient->first();
-        $enlace = PatientUser::where('user', $user->id)->where('patient', $patient->id);
-        $currentActive = $enlace->first()['activo'];
-        $enlace->update(["activo" => !$currentActive]);
-        $currentActive = $currentActive === 1 ? "desactivado" : "activado";
-        $response = [
-            'rasson' => 'El usuario se a '.$currentActive.' correctamente',
-            'message' => "Usuario $currentActive",
-            'type' => "success"
-        ];
+        try {
+            $patient->update($request->all());
+            $response = [
+                'rasson' => 'El usuario se a actualizado correctamente',
+                'message' => "Usuario actulizado ",
+                'type' => "success"
+            ];
+            
+        } catch (\Throwable $th) {
+            $response = [
+                'rasson' => 'El usuario no se a actualizado correctamente',
+                'message' => "Usuario no actulizado",
+                'type' => "error"
+            ];
+        }
+
         return response()->json($response, 200);
 
     }

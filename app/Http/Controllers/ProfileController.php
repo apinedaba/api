@@ -44,7 +44,12 @@ class ProfileController extends Controller
         if ($count > 0) {
             $profile->update($data);
             $profile = User::where("id", $user->id)->first();
-            return response()->json($profile, 200);
+            $response = [
+                'rasson' => 'Tu información se a actualizado correctamente',
+                'message' => "Usuario actulizado ",
+                'type' => "success"
+            ];            
+            return response()->json($response, 200);
         }
     }
 

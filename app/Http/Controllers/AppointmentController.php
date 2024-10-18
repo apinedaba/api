@@ -17,7 +17,9 @@ class AppointmentController extends Controller
      */
     public function index(Request $request)
     {
-        
+        $user = Auth::user();
+        $Appointments = Appointment::where("user", $user->id)->get();
+        return response()->json($Appointments, 200);
     }
     /**
      * Display a listing of the resource.
@@ -120,8 +122,12 @@ class AppointmentController extends Controller
     public function store(Request $request)
     {
         $appointment = Appointment::create($request->all())->save();
-        return response()->json($appointment, 200);
-    }
+        $response = [
+            'rasson' => 'Se creo la cita correctamente',
+            'message' => "Cita creada",
+            'type' => "success"
+        ];            
+        return response()->json($response, 200);    }
 
     /**
      * Display the specified resource.

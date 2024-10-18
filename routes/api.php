@@ -32,6 +32,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::resource('user/profile', ProfileController::class);
     Route::resource('user/patient', PatientController::class);
     Route::resource('user/catalog/patients', PatientUserController::class);
+    Route::resource('user/dict', UserController::class);
     Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);

@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
-
-
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use \Log;
 class UserController extends Controller
 {
     /**
@@ -13,7 +14,10 @@ class UserController extends Controller
      */
     public function index()
     {
-        //
+        $test = Auth::user();
+        Log::alert($test->currentAccessToken()->type);
+        $users = User::with('appointment')->get();
+        return response()->json($users, 200);
     }
 
     public function getAvailableSlots(Request $request)

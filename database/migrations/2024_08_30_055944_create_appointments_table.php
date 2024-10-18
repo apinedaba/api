@@ -14,12 +14,13 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('user')->constrained()->cascadeOnUpdate();
             $table->foreignId('patient')->constrained()->cascadeOnUpdate();
-            $table->date('fecha');
-            $table->time('hora');
+            $table->dateTimeTz('start');
+            $table->dateTimeTz('end');
+            $table->string('title', 100);
             $table->string('statusUser', 100)->nullable()->default('Pending Approve');
             $table->string('statusPatient', 100)->nullable()->default('Pending Approve');
             $table->string('state', 100)->nullable()->default('Creado');
-            $table->json('adicionales')->nullable();
+            $table->json('extendedProps')->nullable();
 
             $table->timestamps();
         });

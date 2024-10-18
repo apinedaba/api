@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Models\User;
 
 
 class UserController extends Controller
@@ -13,9 +14,14 @@ class UserController extends Controller
      */
     public function index()
     {
-        //
+    //
+    
     }
 
+    public function getProfessional(){
+        $allUser = User::all();
+        return response()->json($allUser, 200);
+    }
     public function getAvailableSlots(Request $request)
     {
         $userId  = $request->id;

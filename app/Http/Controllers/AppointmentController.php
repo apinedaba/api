@@ -150,7 +150,24 @@ class AppointmentController extends Controller
      */
     public function update(Request $request, Appointment $appointment)
     {
-        //
+
+        try {
+            //code...
+            $appointment->update($request->all());
+            return response()->json([
+                'rasson' => 'La cita cambio sus caracteristicas con exito',
+                'message' => "Cita modificada",
+                'type' => "success"
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                'rasson' => 'No se logro cambiar la cita con exito',
+                'message' => "Cita modificada",
+                'type' => "error"
+            ], 400);
+            //throw $th;
+        }
     }
 
     /**

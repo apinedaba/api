@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
+    
 });
 
 
@@ -48,10 +49,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
     Route::get('patient/info', function (Request $request) {
         return $request->user();
     });
+    Route::get('patient/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::post('patient/logout', [PatientAuthController::class, 'logout']);
 });
 
 
  Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-
- 
+Route::get('patient/profesional',[UserController::class, 'getProfessional']);

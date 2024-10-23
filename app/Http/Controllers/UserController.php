@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use \Log;
+use Illuminate\Support\Facades\Log;
 class UserController extends Controller
 {
     /**
@@ -15,11 +15,15 @@ class UserController extends Controller
     public function index()
     {
         $test = Auth::user();
-        Log::alert($test->currentAccessToken()->type);
+        //Log::alert($test->currentAccessToken()->type);
         $users = User::with('appointment')->get();
         return response()->json($users, 200);
     }
 
+    public function getProfessional(){
+        $allUser = User::all();
+        return response()->json($allUser, 200);
+    }
     public function getAvailableSlots(Request $request)
     {
         $userId  = $request->id;

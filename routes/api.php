@@ -56,3 +56,4 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
 
  Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 Route::get('patient/profesional',[UserController::class, 'getProfessional']);
+Route::get('patient/appointments/slots/{id}', [AppointmentController::class, 'getAvailableSlots']);

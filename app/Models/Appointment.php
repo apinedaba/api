@@ -17,7 +17,8 @@ class Appointment extends Model
         'end',
         'statusUser',
         'statusPatient',
-        'state'
+        'state', 
+        'comments'
     ];
 
     public function patient_user()

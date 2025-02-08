@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiDiagnoseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
@@ -20,6 +21,10 @@ use App\Http\Controllers\UserController;
 
 //Rutas para profesionales
 Route::post('user/login', [UserAuthController::class, 'login']);
+
+Route::resource('ai/diagnose', AiDiagnoseController::class);
+
+
 Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     Route::get('user/info', function (Request $request) {

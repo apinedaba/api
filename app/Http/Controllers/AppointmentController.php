@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Response;
 use Carbon\Carbon;
 use \Log;
+
 class AppointmentController extends Controller
 {
     /**
@@ -25,12 +26,12 @@ class AppointmentController extends Controller
      * Display a listing of the resource.
      */
     public function getAppoinmentsByPatient(Request $request)
-    {        
-        $user = Auth::user();   
+    {
+        $user = Auth::user();
         $requestAll = $request->all();
         $patientId = $requestAll['patient'];
-        $enlaceId= $requestAll['id'];
-        $filter=[
+        $enlaceId = $requestAll['id'];
+        $filter = [
             'id' => $enlaceId,
             'patient' => $patientId,
             'user' => $user->id
@@ -45,7 +46,7 @@ class AppointmentController extends Controller
             ], 400);
         }
 
-        $appoinments = Appointment::where('user',$user->id)->where('patient', $patientId)->get();
+        $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
 
 
         return response()->json($appoinments, 200);
@@ -57,53 +58,53 @@ class AppointmentController extends Controller
     {
         $userId  = $request->id;
 
-        
+
         // Aquí defines los horarios en los que el médico trabaja, por ejemplo, de 9am a 5pm
         $workingHours = [
-            '09:00:00', '10:00:00', '11:00:00', '12:00:00', '13:00:00',
-            '14:00:00', '15:00:00', '16:00:00', '17:00:00'
+            '09:00:00',
+            '10:00:00',
+            '11:00:00',
+            '12:00:00',
+            '13:00:00',
+            '14:00:00',
+            '15:00:00',
+            '16:00:00',
+            '17:00:00'
         ];
 
-        
+
         // Crear un array con los días y horarios disponibles
-        $availableSlots = []; 
+        $availableSlots = [];
 
         // Obtener citas del médico para los próximos 10 días
-        if(isset($request->fecha)){           
+        if (isset($request->fecha)) {
             $appointments = Appointment::where('user', $userId)->where('fecha', $request->fecha)->get();
             $bookedSlots = $appointments->where('fecha', $request->fecha)->pluck('hora')->toArray();
             $availableTimes = (array) array_diff($workingHours, $bookedSlots);
             $availableSlots = $availableTimes;
-        }else{
+        } else {
             // Obtener la fecha de hoy
             $today = Carbon::today();
             // Obtener la fecha de 10 días a partir de hoy
             $endDate = $today->copy()->addDays(10);
 
-            $appointments = Appointment::where('user', $userId)->whereBetween('fecha', [$today, $endDate])->get();
+            $appointments = Appointment::where('user', $userId)->whereBetween('start', [$today, $endDate])->get();
             // Iterar sobre los próximos 10 días
             for ($date = $today; $date->lte($endDate); $date->addDay()) {
                 $dateString = $date->format('Y-m-d');
-    
                 // Obtener las citas ya reservadas para ese día
-                $bookedSlots = $appointments->where('fecha', $dateString)->pluck('hora')->toArray();
-    
+                $bookedSlots = $appointments->where('start', $dateString)->pluck('hora')->toArray();
+
                 // Comparar horarios de trabajo con las citas reservadas para encontrar disponibles
                 $availableTimes =  array_diff($workingHours, $bookedSlots);
-                
+
                 // Añadir los horarios disponibles para este día
                 if (!empty($availableTimes)) {
                     $availableSlots[$dateString] = (array) $availableTimes;
-                }            
-    
-    
+                }
             }
         }
         Log::alert($appointments);
-
-
-
-
         return response()->json($availableSlots);
     }
 
@@ -111,10 +112,6 @@ class AppointmentController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
@@ -126,8 +123,9 @@ class AppointmentController extends Controller
             'rasson' => 'Se creo la cita correctamente',
             'message' => "Cita creada",
             'type' => "success"
-        ];            
-        return response()->json($response, 200);    }
+        ];
+        return response()->json($response, 200);
+    }
 
     /**
      * Display the specified resource.
@@ -159,7 +157,6 @@ class AppointmentController extends Controller
                 'message' => "Cita modificada",
                 'type' => "success"
             ], 200);
-
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',

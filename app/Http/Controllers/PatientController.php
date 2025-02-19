@@ -82,8 +82,9 @@ class PatientController extends Controller
      * Display the specified resource.
      */
     public function show(Patient $patient)
-    {
-        return response()->json($patient->first(), 200);
+    {   
+
+        return response()->json($patient, 200);
     }
 
     /**

@@ -71,19 +71,47 @@ class QuestionnaireController extends Controller
         ]);
         try {
             $qt = QuestionnaireLink::where('token', $questionnaireToken);
-            $qtObj = $qt->firstOrFail();
-            if ($qtObj && $qtObj->status == "pending") {                                
-                $response = QuestionnairesLinkResponses::create([
-                    'questionnaire_link_id' => $qtObj->id,
-                    'response' => $request->response
-                ]);                
-            }    
-            if ($response) {
+            $response = $qt->firstOrFail();
+            $checkResponse = QuestionnairesLinkResponses::where('questionnaire_link_id', $response->id)->count();
+            if ($checkResponse > 0) {
                 $update = $qt->update(["status"=>"completed"]);
+                return response()->json([
+                    'message' => 'Respuestas guardadas exitosamente.',
+                    "response"=> $update,
+                    "status"=>"completed",                    
+                    'alert' => [
+                        'rasson' => 'El cuestionario no puede ser respondido de nuevo, el estado del cuestionario se actualizo',
+                        'message' => "No es posible llenar de nuevo ",
+                        'type' => "error"
+                    ]
+                ]);
+
             }
-            return response()->json(['message' => 'Respuestas guardadas exitosamente.',"response"=> $update]);
+            if ($response && $response->status == "pending") {                                
+                $response = QuestionnairesLinkResponses::create([
+                    'questionnaire_link_id' => $response->id,
+                    'response' => $request->response,
+                    "status"=>"completed",                    
+                ]);
+                if ($response) {
+                    $update = $qt->update(["status"=>"completed"]);
+                }
+                return response()->json([
+                    'message' => 'Respuestas guardadas exitosamente.',
+                    "response"=> $update,
+                    'alert' => [
+                        'rasson' => 'El cuestionario se envio con exito, ya notificamos a tu profesional',
+                        'message' => "Cuestionario enviado ",
+                        'type' => "success"
+                    ]
+                ]);
+
+            }    
+
         } catch (\Throwable $th) {
             //throw $th;
+            return response()->json(['error' => $th->getMessage()]);
+
 
         }
 

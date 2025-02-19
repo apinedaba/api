@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AiDiagnoseController;
+use App\Http\Controllers\ChatPublicController;
+use App\Http\Controllers\SintomasController;
+use App\Models\Sintomas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
@@ -48,7 +51,14 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
     Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
     Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])
-    ->name('questionnaire.show.response');
+        ->name('questionnaire.show.response');
+    // Rutas para el chat público
+    Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
+    Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
+
+    Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
+    Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
+
 });
 
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
@@ -70,6 +80,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
 });
 
 
- Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-Route::get('patient/profesional',[UserController::class, 'getProfessional']);
+Route::post('patient/register', [RegisterController::class, 'registerPatient']);
+Route::get('patient/profesional', [UserController::class, 'getProfessional']);
 Route::get('patient/appointments/slots/{id}', [AppointmentController::class, 'getAvailableSlots']);

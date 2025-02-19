@@ -132,7 +132,9 @@ class AppointmentController extends Controller
      */
     public function show(Appointment $appointment)
     {
-        //
+        $appointment = Appointment::where('id', $appointment->id)->first();
+        $patient = Patient::where('id', $appointment->patient)->first();
+        return response()->json(['appointment' => $appointment, 'patient'=> $patient], 200);
     }
 
     /**

@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class ChatPublic extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'psicologo_id',
+        'paciente_id',
+        'messages',
+    ];
 }

@@ -16,7 +16,6 @@ return new class extends Migration
             $table->foreignId('psicologo_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('paciente_id')->constrained('patients')->onDelete('cascade');
             $table->json('sintoma');
-            $table->dateTime('fecha');
             $table->timestamps();
     
         });

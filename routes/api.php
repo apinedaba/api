@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AiDiagnoseController;
+use App\Http\Controllers\ChatPublicController;
+use App\Http\Controllers\SintomasController;
+use App\Models\Sintomas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
@@ -50,16 +53,12 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])
         ->name('questionnaire.show.response');
     // Rutas para el chat público
-    Route::get('user/chat-publico', [ChatController::class, 'obtenerChatPublico']);
-    Route::post('user//chat-publico', [ChatController::class, 'agregarComentarioPublico']);
+    Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
+    Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
 
-    // Rutas para el chat privado
-    Route::get('user/chat-privado', [ChatController::class, 'obtenerChatPrivado']);
-    Route::post('user/chat-privado', [ChatController::class, 'agregarComentarioPrivado']);
+    Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
+    Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
 
-    // Rutas para los síntomas
-    Route::get('user/sintomas', [SintomaController::class, 'obtenerSintomas']);
-    Route::post('user/sintomas', [SintomaController::class, 'agregarSintoma']);
 });
 
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])

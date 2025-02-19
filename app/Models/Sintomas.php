@@ -8,4 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class Sintomas extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'psicologo_id',
+        'paciente_id',
+        'sintoma'
+    ];
+
+    
 }

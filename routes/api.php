@@ -48,7 +48,18 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
     Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
     Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])
-    ->name('questionnaire.show.response');
+        ->name('questionnaire.show.response');
+    // Rutas para el chat público
+    Route::get('user/chat-publico', [ChatController::class, 'obtenerChatPublico']);
+    Route::post('user//chat-publico', [ChatController::class, 'agregarComentarioPublico']);
+
+    // Rutas para el chat privado
+    Route::get('user/chat-privado', [ChatController::class, 'obtenerChatPrivado']);
+    Route::post('user/chat-privado', [ChatController::class, 'agregarComentarioPrivado']);
+
+    // Rutas para los síntomas
+    Route::get('user/sintomas', [SintomaController::class, 'obtenerSintomas']);
+    Route::post('user/sintomas', [SintomaController::class, 'agregarSintoma']);
 });
 
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
@@ -70,6 +81,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
 });
 
 
- Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-Route::get('patient/profesional',[UserController::class, 'getProfessional']);
+Route::post('patient/register', [RegisterController::class, 'registerPatient']);
+Route::get('patient/profesional', [UserController::class, 'getProfessional']);
 Route::get('patient/appointments/slots/{id}', [AppointmentController::class, 'getAvailableSlots']);

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('title'); // Título del cuestionario
             $table->text('description')->nullable(); // Descripción del cuestionario
             $table->json('structure'); // Estructura del formulario en formato JSON
-            $table->foreignId('user')->constrained()->cascadeOnDelete();
+            $table->foreignId('user')->constrained('users')->cascadeOnDelete();
             $table->timestamps();
         });
     }

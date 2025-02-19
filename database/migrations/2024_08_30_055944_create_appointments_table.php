@@ -12,8 +12,8 @@ return new class extends Migration {
     {
         Schema::create('appointments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user')->constrained()->cascadeOnUpdate();
-            $table->foreignId('patient')->constrained()->cascadeOnUpdate();
+            $table->foreignId('user')->constrained('users')->cascadeOnUpdate();
+            $table->foreignId('patient')->constrained('patients')->cascadeOnUpdate();
             $table->dateTimeTz('start');
             $table->dateTimeTz('end');
             $table->string('title', 100);

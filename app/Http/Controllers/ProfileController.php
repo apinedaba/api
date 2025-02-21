@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
@@ -52,7 +54,40 @@ class ProfileController extends Controller
             return response()->json($response, 200);
         }
     }
+    public function upload(Request $request)
+    {
+        $request->validate([
+            'photo' => 'required|string', // La foto se envía como string (Base64)
+        ]);
 
+        // Obtener el Base64 de la solicitud
+        $base64Image = $request->input('photo');
+
+        // Decodificar el Base64 a un archivo temporal
+        $imageData = base64_decode($base64Image);
+        $tempFilePath = tempnam(sys_get_temp_dir(), 'photo');
+        file_put_contents($tempFilePath, $imageData);
+        // Subir el archivo temporal a Cloudinary
+        try {
+            $result = Cloudinary::upload($tempFilePath, [
+                'folder' => 'ProfilePhotos', // Opcional: Especifica una carpeta en Cloudinary
+            ]);
+            return response()->json($result, 500);
+
+            // Eliminar el archivo temporal después de subirlo
+            unlink($tempFilePath);
+
+            return response()->json([
+                'url' => $result->getSecurePath(),
+            ]);
+        } catch (\Exception $e) {
+            // Eliminar el archivo temporal en caso de error
+            unlink($tempFilePath);
+
+            Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al subir la foto'], 500);
+        }
+    }
     /**
      * Display the specified resource.
      */

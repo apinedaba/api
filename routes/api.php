@@ -35,10 +35,11 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         return $request->user();
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
-    Route::post('user/verifyCedula', [CedulaCheck::class, 'checkCedula']);
+    Route::get('user/verifyCedula/{cedula}', [CedulaCheck::class, 'checkCedula']);
     Route::resource('user/education', EducationUserController::class);
     Route::resource('user/address', AddressController::class);
     Route::resource('user/profile', ProfileController::class);
+    Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
     Route::resource('user/patient', PatientController::class);
     Route::resource('user/catalog/patients', PatientUserController::class);
     Route::resource('user/dict', UserController::class);

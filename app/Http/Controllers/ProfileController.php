@@ -7,9 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
-use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Support\Facades\Log;
-
+use Cloudinary\Api\Upload\UploadApi;
 class ProfileController extends Controller
 {
     /**
@@ -38,11 +37,11 @@ class ProfileController extends Controller
         $user = Auth::user();
         $profile = User::where("id", $user->id);
         $count = $profile->count();
-        $data = $request->all();    
-        
-        if (isset($data["password"]) ) {
+        $data = $request->all();
+
+        if (isset($data["password"])) {
             $data["password"] = Hash::make($request->password);
-        }   
+        }
         if ($count > 0) {
             $profile->update($data);
             $profile = User::where("id", $user->id)->first();
@@ -50,14 +49,14 @@ class ProfileController extends Controller
                 'rasson' => 'Tu información se a actualizado correctamente',
                 'message' => "Usuario actulizado ",
                 'type' => "success"
-            ];            
+            ];
             return response()->json($response, 200);
         }
     }
     public function upload(Request $request)
     {
         $request->validate([
-            'photo' => 'required|string', // La foto se envía como string (Base64)
+            'photo' => 'required|string', // La foto se envía como Base64
         ]);
 
         // Obtener el Base64 de la solicitud
@@ -65,25 +64,31 @@ class ProfileController extends Controller
 
         // Decodificar el Base64 a un archivo temporal
         $imageData = base64_decode($base64Image);
-        $tempFilePath = tempnam(sys_get_temp_dir(), 'photo');
-        file_put_contents($tempFilePath, $imageData);
-        // Subir el archivo temporal a Cloudinary
+        if ($imageData === false) {
+            return response()->json(['error' => 'Formato Base64 inválido'], 400);
+        }
+
+        // Crear archivo temporal
+        $tempFilePath = tempnam(sys_get_temp_dir(), 'photo') . '.jpg'; // Agregar extensión para evitar problemas
+        if (file_put_contents($tempFilePath, $imageData) === false) {
+            return response()->json(['error' => 'No se pudo guardar el archivo'], 500);
+        }
+
+        // Subir el archivo a Cloudinary
         try {
-            $result = Cloudinary::upload($tempFilePath, [
-                'folder' => 'ProfilePhotos', // Opcional: Especifica una carpeta en Cloudinary
+            $result = new UploadApi;
+            $result = $result->upload($tempFilePath, [
+                'folder' => 'ProfilePhotos',
             ]);
-            return response()->json($result, 500);
 
             // Eliminar el archivo temporal después de subirlo
             unlink($tempFilePath);
 
             return response()->json([
-                'url' => $result->getSecurePath(),
+                'url' => $result['secure_url'],
             ]);
         } catch (\Exception $e) {
-            // Eliminar el archivo temporal en caso de error
-            unlink($tempFilePath);
-
+            unlink($tempFilePath); // Asegurar que se borra el archivo
             Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
             return response()->json(['error' => 'Error al subir la foto'], 500);
         }

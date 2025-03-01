@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
 use App\Models\Patient;
+use App\Notifications\NuevoPsicologoRegistrado;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Auth\Events\Registered;
 
 class RegisterController extends Controller
 {
@@ -34,10 +37,21 @@ class RegisterController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password)
         ]);
-
+        
+        if ($user) {            
+            try {
+                //code...
+                $user->notify(new NuevoPsicologoRegistrado($user));
+                event(new Registered($user));
+            } catch (\Throwable $th) {
+                Log::error($th->getMessage());
+                //throw $th;
+            }
+        }
         return response()->json([
-            'message' => 'El usuario se ha creado',
-            'token' => $user->createToken("user_token")->plainTextToken
+            'rasson' => "Perfecto, te registraste con exito",
+            'message' => "¡Te haz registrado!",
+            'type' => "success",            
         ], 200);
     }
 

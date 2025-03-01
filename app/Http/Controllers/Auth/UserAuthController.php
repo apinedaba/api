@@ -33,4 +33,21 @@ class UserAuthController extends Controller
 
         return response()->json(['message' => 'Logged out'], 200);
     }
+
+    public function resendVerifyEmail(Request $request)
+    {
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'El correo ya está verificado'], 200);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Correo de verificación reenviado'], 200);
+    }
 }

@@ -22,14 +22,41 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireLinkController;
+use App\Models\User;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Hash;
 
-//Rutas para profesionales
+//Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
-
 Route::resource('ai/diagnose', AiDiagnoseController::class);
-
-
 Route::post('user/register', [RegisterController::class, 'registerUser']);
+Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
+    ->name('questionnaire.public.show');
+Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
+    ->name('questionnaire.public.submit');
+Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
+    $user = User::findOrFail($id);
+
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Enlace inválido'], 400);
+    }
+
+    if ($user->hasVerifiedEmail()) {
+        return response()->json(['message' => 'Email ya verificado'], 200);
+    }
+
+    if ($user->markEmailAsVerified()) {
+        event(new Verified($user));
+    }
+
+    return response()->json(['message' => 'Email verificado correctamente'], 200);
+})->middleware(['signed'])->name('verification.verify');
+
+
+
+
+// Rutas Usuario / Psicologos
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     Route::get('user/info', function (Request $request) {
         return $request->user();
@@ -59,13 +86,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
-
+    Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
 });
 
-Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
-    ->name('questionnaire.public.show');
-Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
-    ->name('questionnaire.public.submit');
+
 
 
 

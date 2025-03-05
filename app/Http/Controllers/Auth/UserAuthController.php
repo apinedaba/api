@@ -19,7 +19,11 @@ class UserAuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Credenciales inválidas'], 401);
+            return response()->json([
+                'rasson' => "Crea una cuenta para poder iniciar sesión",
+                'message' => "¡Oh, No! aun no estas registrado.",
+                'type' => "error",  
+            ], 404);
         }
 
         $token = $user->createToken('user_token')->plainTextToken;

@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\PatientUserController;
 use Illuminate\Support\Facades\Auth;
-
+use App\Notifications\PatientAssignedEmailNotification;
+use Illuminate\Support\Facades\Log;
 
 class PatientController extends Controller
 {
@@ -68,14 +69,42 @@ class PatientController extends Controller
         $enlace = $this->_patient->enlacePacienteProfesional($patient->id);  
         if (isset($enlace['message'])) {
             return response()->json($enlace, 400);
-        }      
-        return response()->json(  [
-            'rasson' => "El usuario se agrego con exito espera a que acepte la invitacion para poder agendarle citas",
-            'message' => "Usuario agregado",
-            'type' => "success",
-            "data" => $enlace
-        ]
-        , 200);
+        }
+        $user = Auth::user();
+        if ($enlace) {
+            $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace);
+            if ($send) {
+                return response()->json(  [
+                    'rasson' => "El paciente se agrego con exito espera a que acepte la invitacion para poder agendarle citas",
+                    'message' => "Paciente agregado",
+                    'type' => "success",
+                    "data" => $enlace
+                    ]
+                , 200);
+            }else{
+                return response()->json(  [
+                    'rasson' => "El paciente se agrego con exito pero no fue posible entregarle el correo, revisa sus datos e intent enviar de nuevo el correo",
+                    'message' => "Paciente agregado",
+                    'type' => "success",
+                    "data" => $enlace
+                    ]
+                , 200);
+            }
+            
+        }
+    }
+    
+    public function sendNotificacionEmailByUser($user, $patient, $enlace){
+        if ($enlace) {            
+            try {
+                //code...
+                $patient->notify(new PatientAssignedEmailNotification($user, $patient, $enlace));
+                return true;
+            } catch (\Throwable $th) {
+                Log::error($th->getMessage());
+                //throw $th;
+            }
+        }
     }
 
     /**

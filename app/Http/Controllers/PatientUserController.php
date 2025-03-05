@@ -79,8 +79,25 @@ class PatientUserController extends Controller
         $user = Auth::user();        
         $enlace = PatientUser::where('user', $user->id)->where('patient', $request->id);
         $currentActive = $enlace->first()['activo'];
-        $enlace->update(["activo" => !$currentActive]);
+        if (isset($request->isPatient) && !$currentActive) {
+            $enlace->update(["activo" => !$currentActive, 'status' => "Enlace Aceptado"]);
+            $response = [
+                'message' => 'Paciente activado con exito',
+                'rasson' => "Haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesarioq ue permanezcas en esta pagina",
+                'type' => "success"
+            ];
+            return response()->json($response, 200);
+        }
+        if (isset($request->isPatient) && $currentActive) {
+            $response = [
+                'message' => 'Paciente activado con exito',
+                'rasson' => "Ya haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesarioq ue permanezcas en esta pagina",
+                'type' => "success"
+            ];
+            return response()->json($response, 200);
+        }
         $currentActive = $currentActive === 1 ? "desactivado" : "activado";
+        $enlace->update(["activo" => !$currentActive]);
         $response = [
             'rasson' => 'El usuario se a '.$currentActive.' correctamente',
             'message' => "Usuario $currentActive",

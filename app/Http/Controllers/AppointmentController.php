@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Notifications\StateAppoinmentMail;
 use Response;
 use Carbon\Carbon;
 use \Log;
@@ -134,7 +135,7 @@ class AppointmentController extends Controller
     {
         $appointment = Appointment::where('id', $appointment->id)->first();
         $patient = Patient::where('id', $appointment->patient)->first();
-        return response()->json(['appointment' => $appointment, 'patient'=> $patient], 200);
+        return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
     }
 
     /**
@@ -154,6 +155,7 @@ class AppointmentController extends Controller
         try {
             //code...
             $appointment->update($request->all());
+            $send = $this->sendNotificacionStatusEmail($appointment);
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
                 'message' => "Cita modificada",
@@ -175,5 +177,21 @@ class AppointmentController extends Controller
     public function destroy(Appointment $appointment)
     {
         //
+    }
+
+    public function sendNotificacionStatusEmail($appointment)
+    {
+        try {
+            //code...
+            $patient = Patient::where('id', $appointment->patient)->first();
+            $estado = $appointment->status;
+            $fecha = $appointment->fecha;
+            $hora = $appointment->hora;
+            $patient->notify(new StateAppoinmentMail($patient, $estado, $fecha, $hora));
+            return true;
+        } catch (\Throwable $th) {
+            Log::error($th->getMessage());
+            //throw $th;
+        }
     }
 }

@@ -19,6 +19,7 @@ use App\Http\Middleware\HandleInvalidToken;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireLinkController;
@@ -60,6 +61,12 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     Route::get('user/info', function (Request $request) {
         return $request->user();
+    });
+    Route::prefix('user/patients/{patient}/medications')->group(function() {
+        Route::get('/',    [PatientMedicationController::class, 'index']);
+        Route::post('/',   [PatientMedicationController::class, 'store']);
+        Route::put('/{medication}',    [PatientMedicationController::class, 'update']);
+        Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::get('user/verifyCedula/{cedula}', [CedulaCheck::class, 'checkCedula']);

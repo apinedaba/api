@@ -90,7 +90,7 @@ class ProfileController extends Controller
         } catch (\Exception $e) {
             unlink($tempFilePath); // Asegurar que se borra el archivo
             Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al subir la foto'], 500);
+            return response()->json(['error' => 'Error al subir la foto', 'trace' => $e->getMessage()], 500);
         }
     }
     /**

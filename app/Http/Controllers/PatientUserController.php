@@ -83,7 +83,7 @@ class PatientUserController extends Controller
             $enlace->update(["activo" => !$currentActive, 'status' => "Enlace Aceptado"]);
             $response = [
                 'message' => 'Paciente activado con exito',
-                'rasson' => "Haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesarioq ue permanezcas en esta pagina",
+                'rasson' => "Haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
                 'type' => "success"
             ];
             return response()->json($response, 200);
@@ -91,7 +91,7 @@ class PatientUserController extends Controller
         if (isset($request->isPatient) && $currentActive) {
             $response = [
                 'message' => 'Paciente activado con exito',
-                'rasson' => "Ya haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesarioq ue permanezcas en esta pagina",
+                'rasson' => "Ya haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
                 'type' => "success"
             ];
             return response()->json($response, 200);

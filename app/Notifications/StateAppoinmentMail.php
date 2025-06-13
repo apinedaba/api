@@ -33,7 +33,7 @@ class StateAppoinmentMail extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject('Estado de tu cita en MindMeet')
-            ->view('emails.stateAppointment', [
+            ->view('email.stateAppointment', [
                 'usuario' => $this->usuario,
                 'estado' => $this->estado,
                 'fecha' => $this->fecha,

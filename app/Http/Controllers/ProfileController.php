@@ -37,7 +37,7 @@ class ProfileController extends Controller
         $user = Auth::user();
         $profile = User::where("id", $user->id);
         $count = $profile->count();
-        $data = $request->all();
+        $data = $request->except(['email_verified_at', 'created_at', 'updated_at', 'id', 'password']);
 
         if (isset($data["password"])) {
             $data["password"] = Hash::make($request->password);
@@ -46,8 +46,8 @@ class ProfileController extends Controller
             $profile->update($data);
             $profile = User::where("id", $user->id)->first();
             $response = [
-                'rasson' => 'Tu información se a actualizado correctamente',
-                'message' => "Usuario actulizado ",
+                'rasson' => 'Tu información se ha actualizado correctamente',
+                'message' => "Usuario actualizado ",
                 'type' => "success"
             ];
             return response()->json($response, 200);

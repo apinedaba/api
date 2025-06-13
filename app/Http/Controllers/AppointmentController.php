@@ -231,10 +231,22 @@ class AppointmentController extends Controller
     }
     public function sendNotificacionCreateAppoimentEmail($appointment)
     {
+        
+            // Convertir start y end a objetos Carbon
+            $start = Carbon::parse($appointment->start);
+            $end = Carbon::parse($appointment->end);
+            // Obtener el intervalo
+            $interval = $start->diff($end);
+            // Extraer la fecha en formato legible
+            $fecha = $start->format('d/m/Y');
+
+            // Extraer la hora en formato legible
+            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+
         try {
             //code...
             $patient = Patient::where('id', $appointment->patient)->first();
-            $patient->notify(new CreateAppoinmentMail($patient,$appointment));
+            $patient->notify(new CreateAppoinmentMail($appointment,$patient,  $hora, $fecha, $interval));
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());

@@ -14,14 +14,21 @@ class CreateAppoinmentMail extends Notification
     protected $appointment;
     protected $patient;
     protected $user;
+    protected $hora;
+    protected $fecha;
+    protected $interval;
+    
     /**
      * Create a new notification instance.
      */
-    public function __construct($appointment, $patient)
+    public function __construct($appointment, $patient, $hora, $fecha, $interval)
     {
         $this->appointment = $appointment;
         $this->patient = $patient;
         $this->user = auth()->user();
+        $this->hora = $hora;
+        $this->fecha = $fecha;
+        $this->interval = $interval;
     }
 
 
@@ -47,6 +54,11 @@ class CreateAppoinmentMail extends Notification
                         'paciente' => $this->patient,
                         'pacienteName' => $notifiable->name,
                         'user' => $this->user,
+                        'hora'=> $this->hora,
+                        'fecha' => $this->fecha,
+                        'interval' => $this->interval->format('%h horas %i minutos'),
+                        'url' => env('APP_FRONT', 'http://localhost:3000').'/appointments/status/'.base64_encode($this->appointment).'/'.'Confirmed',
+
                     ])
                     ->action('Confirmar cita', url('/'))
                     ->line('Gracias por usar nuestra aplicación!');

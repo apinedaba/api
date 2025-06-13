@@ -9,18 +9,24 @@
   <table align="center" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
     <tr>
       <td align="center" style="padding-bottom: 20px;">
-        <img src="{{ asset('logo.png') }}" alt="MindMeet" style="max-width: 150px;">
+        <img src="https://res.cloudinary.com/dabwvv94x/image/upload/v1734551039/eliotrope_1_zbbhby.svg" alt="MindMeet" style="max-width: 150px;">
       </td>
     </tr>
     <tr>
       <td>
         <h2 style="color: #333;">Hola {{ $pacienteName }},</h2>
         
-        <p>
-          Te informamos que <strong>{{$user->name}}</strong> agendo una cita contigo para el día <strong>{{ $paciente->start }}</strong>.
+        <p style="font-size: 16px; color: #555;">
+          Te informamos que <strong>{{$user->name}}</strong> agendo una cita contigo.
         </p>
         <p>
-          Informa a tu profesional de salud si estas de acuerdo o necesitas cancelar la fecha de tu cita.
+          <strong>Fecha:</strong> {{ $fecha }}<br>
+          <strong>Hora:</strong> {{ $hora }}<br>
+          <strong>Duración:</strong> {{ $interval}}<br>
+        </p>
+        <p style="font-size: 16px; color: #555;">
+          Confirma tu cita haciendo clic en el siguiente enlace:
+          <a href="{{ $url }}" style="color: #007bff; text-decoration: none;">Confirmar Cita</a>
         </p>
 
         <p style="font-size: 16px; color: #555;">Si tienes alguna pregunta, no dudes en responder este correo.</p>

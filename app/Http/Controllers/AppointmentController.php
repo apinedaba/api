@@ -7,6 +7,8 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Notifications\StateAppoinmentMail;
+use App\Notifications\CreateAppoinmentMail;
 use Response;
 use Carbon\Carbon;
 use \Log;
@@ -118,11 +120,31 @@ class AppointmentController extends Controller
      */
     public function store(Request $request)
     {
-        $appointment = Appointment::create($request->all())->save();
+        $appointment = Appointment::create($request->all());
+        if (!$appointment) {
+            return response()->json([
+                'rasson' => 'No se logro crear la cita',
+                'message' => "Cita no creada",
+                'type' => "error"
+            ], 400);
+        }
+        $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
+        Log::alert($send);
+        if (!$send) {
+            return response()->json([
+                'rasson' => 'No se logro enviar la notificacion de la cita',
+                'message' => "Cita creada sin notificacion",
+                'type' => "warning"
+            ], 200);
+        }
+        $appointment->save();
+
+        // Si la cita se creó correctamente, puedes devolver una respuesta exitosa
         $response = [
             'rasson' => 'Se creo la cita correctamente',
             'message' => "Cita creada",
-            'type' => "success"
+            'type' => "success",
+            '$appointment' => $appointment
         ];
         return response()->json($response, 200);
     }
@@ -134,7 +156,7 @@ class AppointmentController extends Controller
     {
         $appointment = Appointment::where('id', $appointment->id)->first();
         $patient = Patient::where('id', $appointment->patient)->first();
-        return response()->json(['appointment' => $appointment, 'patient'=> $patient], 200);
+        return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
     }
 
     /**
@@ -151,14 +173,37 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment)
     {
 
+        $originalData = $appointment->toArray();
+        $updatedData = $request->all();
+        $fieldsToUpdate = [];
+
+        foreach ($updatedData as $key => $value) {
+            if (array_key_exists($key, $originalData) && $originalData[$key] != $value) {
+                if ($key === 'created_at' || $key === 'updated_at') {
+                    continue;
+                }
+                $fieldsToUpdate[$key] = $value;
+            }
+        }
+        if (empty($fieldsToUpdate)) {
+            return response()->json([
+                'rasson' => 'No se detectaron cambios en la cita',
+                'message' => "Sin modificaciones",
+                'type' => "info"
+            ], 200);
+        }
+
         try {
-            //code...
-            $appointment->update($request->all());
+            
+            $appointment->update( $fieldsToUpdate);
+            $send = $this->sendNotificacionStatusEmail($appointment);
+            
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
                 'message' => "Cita modificada",
                 'type' => "success"
             ], 200);
+            
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',
@@ -175,5 +220,57 @@ class AppointmentController extends Controller
     public function destroy(Appointment $appointment)
     {
         //
+    }
+
+    public function sendNotificacionStatusEmail($appointment)
+    {
+        try {
+            // Obtener el paciente
+            $patient = Patient::where('id', $appointment->patient)->first();
+
+            // Obtener estado desde el status del usuario
+            $estado = $appointment->statusUser;
+
+            // Convertir start y end a objetos Carbon
+            $start = Carbon::parse($appointment->start);
+            $end = Carbon::parse($appointment->end);
+
+            // Extraer la fecha en formato legible
+            $fecha = $start->format('d/m/Y');
+
+            // Extraer la hora en formato legible
+            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+
+            // Enviar notificación
+            $patient->notify(new StateAppoinmentMail($patient, $estado, $fecha, $hora));
+
+            return true;
+        } catch (\Throwable $th) {
+            Log::error($th->getMessage());
+        }
+    }
+    public function sendNotificacionCreateAppoimentEmail($appointment)
+    {
+        
+            // Convertir start y end a objetos Carbon
+            $start = Carbon::parse($appointment->start);
+            $end = Carbon::parse($appointment->end);
+            // Obtener el intervalo
+            $interval = $start->diff($end);
+            // Extraer la fecha en formato legible
+            $fecha = $start->format('d/m/Y');
+
+            // Extraer la hora en formato legible
+            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+
+        try {
+            //code...
+            $patient = Patient::where('id', $appointment->patient)->first();
+            $patient->notify(new CreateAppoinmentMail($appointment,$patient,  $hora, $fecha, $interval));
+            return true;
+        } catch (\Throwable $th) {
+            Log::error($th->getMessage());
+            //throw $th;
+        }
     }
 }

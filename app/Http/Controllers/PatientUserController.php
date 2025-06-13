@@ -96,8 +96,10 @@ class PatientUserController extends Controller
             ];
             return response()->json($response, 200);
         }
+
+        $currentActive = !$currentActive;
+        $enlace->update(["activo" => $currentActive]);
         $currentActive = $currentActive === 1 ? "desactivado" : "activado";
-        $enlace->update(["activo" => !$currentActive]);
         $response = [
             'rasson' => 'El usuario se a '.$currentActive.' correctamente',
             'message' => "Usuario $currentActive",

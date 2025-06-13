@@ -205,16 +205,28 @@ class AppointmentController extends Controller
     public function sendNotificacionStatusEmail($appointment)
     {
         try {
-            //code...
+            // Obtener el paciente
             $patient = Patient::where('id', $appointment->patient)->first();
-            $estado = $appointment->status;
-            $fecha = $appointment->fecha;
-            $hora = $appointment->hora;
+
+            // Obtener estado desde el status del usuario
+            $estado = $appointment->statusUser;
+
+            // Convertir start y end a objetos Carbon
+            $start = Carbon::parse($appointment->start);
+            $end = Carbon::parse($appointment->end);
+
+            // Extraer la fecha en formato legible
+            $fecha = $start->format('d/m/Y');
+
+            // Extraer la hora en formato legible
+            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+
+            // Enviar notificación
             $patient->notify(new StateAppoinmentMail($patient, $estado, $fecha, $hora));
+
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
-            //throw $th;
         }
     }
     public function sendNotificacionCreateAppoimentEmail($appointment)

@@ -7,6 +7,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+
 
 class NuevoPsicologoRegistrado extends Notification
 {
@@ -35,10 +37,24 @@ class NuevoPsicologoRegistrado extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        Log::info($this->user);
+        // Enviar copia reducida a tus correos
+        $this->enviarNotificacionInterna($this->user);
+
+        // Correo normal al usuario
         return (new MailMessage)
-                    ->subject(' ¡Te damos la bienvenida a MindMeet!')
-                    ->view('email.registro', ['usuario'=> $this->user]);
+            ->subject('¡Te damos la bienvenida a MindMeet!')
+            ->view('email.registro', ['usuario' => $this->user]);
     }
 
+    protected function enviarNotificacionInterna($user)
+    {
+        $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com'];
+
+        foreach ($correosInternos as $correo) {
+            Mail::raw("Nuevo registro:\nNombre: {$user->name}\nCorreo: {$user->email}", function ($message) use ($correo) {
+                $message->to($correo)
+                    ->subject('Nuevo usuario registrado en MindMeet');
+            });
+        }
+    }
 }

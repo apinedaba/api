@@ -179,10 +179,12 @@ class AppointmentController extends Controller
 
         foreach ($updatedData as $key => $value) {
             if (array_key_exists($key, $originalData) && $originalData[$key] != $value) {
+                if ($key === 'created_at' || $key === 'updated_at') {
+                    continue;
+                }
                 $fieldsToUpdate[$key] = $value;
             }
         }
-
         if (empty($fieldsToUpdate)) {
             return response()->json([
                 'rasson' => 'No se detectaron cambios en la cita',

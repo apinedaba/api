@@ -45,26 +45,46 @@ class PatientController extends Controller
     private $registerValidationRules = [
         'name' => 'required',
         'email' => 'required|email|unique:patients,email',
+        'contacto.telefono' => 'required|regex:/^[0-9]{10}$/', // Assuming a 10-digit phone number
         'password' => 'required'
     ];
 
     public function store(Request $request)
     {
-        $patient = new Patient();
         $data = $request->all();
-        $telefono = $data['contacto']['telefono'];
+        $patient = new Patient();
+        $telefono = null;
+        if (isset($data['contacto']) && is_array($data['contacto'])) {
+            $telefono = $data['contacto']['telefono'];            
+        }
         if (!isset($data["password"])) {
-            $data["password"]= Hash::make($telefono);
+            if($telefono) {                
+                $data["password"]= Hash::make($telefono);
+            } else {
+                return response()->json([
+                    'rasson' => "El telefono es requerido",
+                    'message' => "Error al agregar paciente",
+                    'type' => "error"
+                ], 400);
+            }
         }    
         
         $validateUser = Validator::make($data, $this->registerValidationRules);
         
         if($validateUser->fails()){
-            $patient = $patient->where('email', $request->email)->firstOrFail();
+            return response()->json([
+                    'rasson' => $validateUser->fails() ? $validateUser->errors()->first() : "Error al agregar paciente",
+                    'message' => "Error al agregar paciente",
+                    'type' => "error"
+            ], 400);
         }else {
-            $data['contacto'] = json_encode($data['contacto']);
-            $patient->fill($data);
-            $patient->save();   
+            try {
+                $patient = $patient->where('email', $request->email)->firstOrFail();
+            } catch (\Throwable $th) {
+                $data['contacto'] = json_encode($data['contacto']);
+                $patient->fill($data);
+                $patient->save();   
+            }
         }
         $enlace = $this->_patient->enlacePacienteProfesional($patient->id);  
         if (isset($enlace['message'])) {

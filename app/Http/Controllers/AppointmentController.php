@@ -173,11 +173,29 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment)
     {
 
+        $originalData = $appointment->toArray();
+        $updatedData = $request->all();
+        $fieldsToUpdate = [];
+
+        foreach ($updatedData as $key => $value) {
+            if (array_key_exists($key, $originalData) && $originalData[$key] != $value) {
+                $fieldsToUpdate[$key] = $value;
+            }
+        }
+
+        if (empty($fieldsToUpdate)) {
+            return response()->json([
+                'rasson' => 'No se detectaron cambios en la cita',
+                'message' => "Sin modificaciones",
+                'type' => "info"
+            ], 200);
+        }
+
         try {
-            //code...
-            $appointment->update($request->all());
+            
+            $appointment->update( $fieldsToUpdate);
             $send = $this->sendNotificacionStatusEmail($appointment);
-            # code...
+            
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
                 'message' => "Cita modificada",

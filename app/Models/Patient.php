@@ -15,7 +15,9 @@ class Patient extends Authenticatable
     protected $fillable = ['name', 'email', 'password', 'address', 'contacto', 'historial', 'activo', 'status', 'historiaClinica','relevantes','personales', 'image'];
 
     protected $hidden = ['password', 'created_at', 'updated_at', 'remember_token', 'email_verified_at'];
-
+    protected $casts = [
+        'relationships' => 'array',
+    ];
     public function psychologist()
     {
         return $this->belongsTo(User::class, 'user_id');

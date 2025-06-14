@@ -90,6 +90,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     // Rutas para el chat público
     Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
     Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
+    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
 
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);

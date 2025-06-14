@@ -67,7 +67,7 @@ class PatientMedicationController extends Controller
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'notes' => 'nullable|string',
         ]);
-        $data['patient_id'] = $patient->patient->id; // Asigna el ID del paciente
+        $data['patient_id'] = $patient->patient; // Asigna el ID del paciente
         $data['user_id'] = auth()->id(); // Asigna el ID del usuario autenticado
         $med->update($data);
         return response()->json($med);

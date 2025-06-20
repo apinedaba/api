@@ -5,8 +5,8 @@ namespace App\Models;
 use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Patient_Medication;
+use App\Models\User;
 class PatientUser extends Model
 {
     use HasFactory;
@@ -17,10 +17,13 @@ class PatientUser extends Model
         'status'
     ];
 
-    protected $hidden =["created_at", "updated_at","user"];
+    protected $hidden =["created_at", "updated_at"];
 
     public function patient() {
         return $this->belongsTo(Patient::class, 'patient', 'id');
+    }
+    public function user() {
+        return $this->belongsTo(User::class, 'user', 'id');
     }
 
     public function medications()

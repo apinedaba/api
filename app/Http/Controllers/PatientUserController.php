@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PatientUser;
+use App\Models\Patient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -61,6 +62,19 @@ class PatientUserController extends Controller
     public function show(PatientUser $patientUser)
     {
         return $patientUser->first();
+    }
+
+    public function getCurrentProfesional(){
+        $user = Auth::user();
+        if (!$user->id) {
+            return response()->json([
+                'rasson' => "Tenemos problemas con tu usuario",
+                'message' => "Problema de usuario no encontrado",
+                'type' => "error"
+            ]);
+        }
+        $currentRelation = PatientUser::where('patient', $user->id)->where('activo', 1)->with('user')->get();
+        return response()->json( data: $currentRelation, status:200);
     }
 
     /**

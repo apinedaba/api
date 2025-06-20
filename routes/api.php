@@ -23,6 +23,7 @@ use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireLinkController;
+use App\Http\Controllers\UserStepsController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\URL;
@@ -36,10 +37,13 @@ Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::cl
     ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit');
+Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
+Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
+Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 
-    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+    if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
         return response()->json(['message' => 'Enlace inválido'], 400);
     }
 
@@ -62,10 +66,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/info', function (Request $request) {
         return $request->user();
     });
-    Route::prefix('user/patients/{patient}/medications')->group(function() {
-        Route::get('/',    [PatientMedicationController::class, 'index']);
-        Route::post('/',   [PatientMedicationController::class, 'store']);
-        Route::put('/{medication}',    [PatientMedicationController::class, 'update']);
+    Route::prefix('user/patients/{patient}/medications')->group(function () {
+        Route::get('/', [PatientMedicationController::class, 'index']);
+        Route::post('/', [PatientMedicationController::class, 'store']);
+        Route::put('/{medication}', [PatientMedicationController::class, 'update']);
         Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
@@ -109,6 +113,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
         return $request->user();
     });
     Route::get('patient/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+    Route::get('patient/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('patient/profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('patient/logout', [PatientAuthController::class, 'logout']);
 });
 

@@ -22,6 +22,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'isProfileComplete',
+        'personales',
+        'address',
+        'contacto',
+        'educacion',
+        'configurations',
+        'plan',
+        'image'
     ];
 
     /**
@@ -38,16 +46,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'updated_at',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
+    
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'isProfileComplete' => 'boolean',
     ];
-
     public function patientUsers()
     {
         return $this->hasMany(PatientUser::class, 'user', 'id')->with('patient');
@@ -56,5 +60,5 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Appointment::class, "user", "id");
     }
-    
+
 }

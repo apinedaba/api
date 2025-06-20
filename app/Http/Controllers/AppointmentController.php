@@ -12,6 +12,7 @@ use App\Notifications\CreateAppoinmentMail;
 use Response;
 use Carbon\Carbon;
 use \Log;
+use Illuminate\Support\Facades\Route;
 
 class AppointmentController extends Controller
 {
@@ -29,26 +30,37 @@ class AppointmentController extends Controller
      */
     public function getAppoinmentsByPatient(Request $request)
     {
+        $route = Route::getCurrentRoute();
+        $middlewares = $route->gatherMiddleware();
         $user = Auth::user();
         $requestAll = $request->all();
-        $patientId = $requestAll['patient'];
-        $enlaceId = $requestAll['id'];
-        $filter = [
-            'id' => $enlaceId,
-            'patient' => $patientId,
-            'user' => $user->id
-        ];
-        $enlace = PatientUser::where($filter)->first();
 
-        if (!isset($enlace['id'])) {
-            return response()->json([
-                'rasson' => 'No se pudo obtener informacion de la  consulta',
-                'message' => "No coincide la informacion",
-                'type' => "error"
-            ], 400);
+        if (in_array("user",$middlewares)) {
+            $patientId = $requestAll['patient'];
+            $enlaceId = $requestAll['id'];
+            $filter = [
+                'id' => $enlaceId,
+                'patient' => $patientId,
+                'user' => $user->id
+            ];
+            $enlace = PatientUser::where($filter)->first();
+
+            if (!isset($enlace['id'])) {
+                return response()->json([
+                    'rasson' => 'No se pudo obtener informacion de la  consulta',
+                    'message' => "No coincide la informacion",
+                    'type' => "error",
+                    'middleware' => $middlewares
+                ], 400);
+            }
+            $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
         }
 
-        $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
+        if (in_array("patient",$middlewares)) {
+            $appoinments = Appointment::where("patient", $user->id)->with("user")->get();
+        }
+
+
 
 
         return response()->json($appoinments, 200);
@@ -58,7 +70,7 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request)
     {
-        $userId  = $request->id;
+        $userId = $request->id;
 
 
         // Aquí defines los horarios en los que el médico trabaja, por ejemplo, de 9am a 5pm
@@ -98,7 +110,7 @@ class AppointmentController extends Controller
                 $bookedSlots = $appointments->where('start', $dateString)->pluck('hora')->toArray();
 
                 // Comparar horarios de trabajo con las citas reservadas para encontrar disponibles
-                $availableTimes =  array_diff($workingHours, $bookedSlots);
+                $availableTimes = array_diff($workingHours, $bookedSlots);
 
                 // Añadir los horarios disponibles para este día
                 if (!empty($availableTimes)) {
@@ -194,16 +206,16 @@ class AppointmentController extends Controller
         }
 
         try {
-            
-            $appointment->update( $fieldsToUpdate);
+
+            $appointment->update($fieldsToUpdate);
             $send = $this->sendNotificacionStatusEmail($appointment);
-            
+
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
                 'message' => "Cita modificada",
                 'type' => "success"
             ], 200);
-            
+
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',
@@ -251,22 +263,22 @@ class AppointmentController extends Controller
     }
     public function sendNotificacionCreateAppoimentEmail($appointment)
     {
-        
-            // Convertir start y end a objetos Carbon
-            $start = Carbon::parse($appointment->start);
-            $end = Carbon::parse($appointment->end);
-            // Obtener el intervalo
-            $interval = $start->diff($end);
-            // Extraer la fecha en formato legible
-            $fecha = $start->format('d/m/Y');
 
-            // Extraer la hora en formato legible
-            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+        // Convertir start y end a objetos Carbon
+        $start = Carbon::parse($appointment->start);
+        $end = Carbon::parse($appointment->end);
+        // Obtener el intervalo
+        $interval = $start->diff($end);
+        // Extraer la fecha en formato legible
+        $fecha = $start->format('d/m/Y');
+
+        // Extraer la hora en formato legible
+        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
 
         try {
             //code...
             $patient = Patient::where('id', $appointment->patient)->first();
-            $patient->notify(new CreateAppoinmentMail($appointment,$patient,  $hora, $fecha, $interval));
+            $patient->notify(new CreateAppoinmentMail($appointment, $patient, $hora, $fecha, $interval));
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());

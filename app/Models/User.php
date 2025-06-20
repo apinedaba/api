@@ -50,6 +50,11 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'contacto' => 'array',
+        'address' => 'array',
+        'educacion' => 'array',
+        'personales' => 'array',
+        'configuraciones' => 'array',
         'isProfileComplete' => 'boolean',
     ];
     public function patientUsers()

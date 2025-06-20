@@ -37,9 +37,7 @@ Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::cl
     ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit');
-Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
-Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
-Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
+
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 
@@ -66,6 +64,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/info', function (Request $request) {
         return $request->user();
     });
+    Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
+    Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
+    Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
     Route::prefix('user/patients/{patient}/medications')->group(function () {
         Route::get('/', [PatientMedicationController::class, 'index']);
         Route::post('/', [PatientMedicationController::class, 'store']);

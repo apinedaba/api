@@ -35,7 +35,7 @@ class AppointmentController extends Controller
         $user = Auth::user();
         $requestAll = $request->all();
 
-        if (in_array("user",$middlewares)) {
+        if (in_array("user", $middlewares)) {
             $patientId = $requestAll['patient'];
             $enlaceId = $requestAll['id'];
             $filter = [
@@ -56,7 +56,7 @@ class AppointmentController extends Controller
             $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
         }
 
-        if (in_array("patient",$middlewares)) {
+        if (in_array("patient", $middlewares)) {
             $appoinments = Appointment::where("patient", $user->id)->with("user")->get();
         }
 
@@ -66,61 +66,68 @@ class AppointmentController extends Controller
         return response()->json($appoinments, 200);
     }
 
-
-
-    public function getAvailableSlots(Request $request)
+    public function getAvailableSlots(Request $request, $id)
     {
-        $userId = $request->id;
+        $start = Carbon::parse($request->input('start'));
+        $end = Carbon::parse($request->input('end'));
 
-
-        // Aquí defines los horarios en los que el médico trabaja, por ejemplo, de 9am a 5pm
         $workingHours = [
-            '09:00:00',
-            '10:00:00',
-            '11:00:00',
-            '12:00:00',
-            '13:00:00',
-            '14:00:00',
-            '15:00:00',
-            '16:00:00',
-            '17:00:00'
+            '09:00',
+            '10:00',
+            '11:00',
+            '12:00',
+            '13:00',
+            '14:00',
+            '15:00',
+            '16:00',
+            '17:00'
         ];
 
-
-        // Crear un array con los días y horarios disponibles
         $availableSlots = [];
 
-        // Obtener citas del médico para los próximos 10 días
-        if (isset($request->fecha)) {
-            $appointments = Appointment::where('user', $userId)->where('fecha', $request->fecha)->get();
-            $bookedSlots = $appointments->where('fecha', $request->fecha)->pluck('hora')->toArray();
-            $availableTimes = (array) array_diff($workingHours, $bookedSlots);
-            $availableSlots = $availableTimes;
-        } else {
-            // Obtener la fecha de hoy
-            $today = Carbon::today();
-            // Obtener la fecha de 10 días a partir de hoy
-            $endDate = $today->copy()->addDays(10);
+        $appointments = Appointment::where('user', $id)
+            ->whereDate('start', '>=', $start->toDateString())
+            ->whereDate('start', '<=', $end->toDateString())
+            ->get();
 
-            $appointments = Appointment::where('user', $userId)->whereBetween('start', [$today, $endDate])->get();
-            // Iterar sobre los próximos 10 días
-            for ($date = $today; $date->lte($endDate); $date->addDay()) {
-                $dateString = $date->format('Y-m-d');
-                // Obtener las citas ya reservadas para ese día
-                $bookedSlots = $appointments->where('start', $dateString)->pluck('hora')->toArray();
+        $now = Carbon::now();
+        $current = $start->copy();
 
-                // Comparar horarios de trabajo con las citas reservadas para encontrar disponibles
-                $availableTimes = array_diff($workingHours, $bookedSlots);
+        while ($current->lte($end)) {
+            $fecha = $current->format('Y-m-d');
 
-                // Añadir los horarios disponibles para este día
-                if (!empty($availableTimes)) {
-                    $availableSlots[$dateString] = (array) $availableTimes;
+            $booked = $appointments
+                ->filter(fn($a) => Carbon::parse($a->start)->toDateString() === $fecha)
+                ->map(fn($a) => Carbon::parse($a->end)->format('H:i'))
+                ->toArray();
+
+            foreach ($workingHours as $hour) {
+                $slotStart = Carbon::parse($fecha . ' ' . $hour);
+                $slotEnd = $slotStart->copy()->addHour(); // asumimos duración fija de 1h
+
+                if ($slotStart->isPast())
+                    continue;
+
+                $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
+                    $aStart = Carbon::parse($a->start);
+                    $aEnd = Carbon::parse($a->end);
+                    return $slotStart < $aEnd && $slotEnd > $aStart;
+                });
+
+                if (!$empalme) {
+                    $availableSlots[] = [
+                        'date' => $fecha,
+                        'hour' => $hour,
+                    ];
                 }
             }
+
+            $current->addDay();
         }
-        Log::alert($appointments);
+
         return response()->json($availableSlots);
     }
+
 
 
     /**
@@ -132,33 +139,62 @@ class AppointmentController extends Controller
      */
     public function store(Request $request)
     {
-        $appointment = Appointment::create($request->all());
+        $route = Route::getCurrentRoute();
+        $middlewares = $route->gatherMiddleware();
+        $authUser = Auth::user();
+
+        // Validar campos mínimos requeridos
+        $validated = $request->validate([
+            'start' => 'required|date',
+            'end' => 'required',
+            'title' => 'required|string|max:255',
+            'user' => 'required_if:middleware,patient',
+            'patient' => 'required_if:middleware,user',
+        ]);
+
+        // Forzamos la asignación correcta según el tipo de usuario
+        if (in_array('user', $middlewares)) {
+            $validated['user'] = $authUser->id;
+        } elseif (in_array('patient', $middlewares)) {
+            $validated['patient'] = $authUser->id;
+        } else {
+            return response()->json([
+                'rasson' => 'Middleware inválido',
+                'message' => "No se pudo crear la cita",
+                'type' => "error"
+            ], 403);
+        }
+
+        // Crear la cita
+        $appointment = Appointment::create($validated);
+
         if (!$appointment) {
             return response()->json([
-                'rasson' => 'No se logro crear la cita',
+                'rasson' => 'No se logró crear la cita',
                 'message' => "Cita no creada",
                 'type' => "error"
             ], 400);
         }
+
+        // Notificación
         $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
         Log::alert($send);
+
         if (!$send) {
             return response()->json([
-                'rasson' => 'No se logro enviar la notificacion de la cita',
-                'message' => "Cita creada sin notificacion",
-                'type' => "warning"
+                'rasson' => 'No se logró enviar la notificación de la cita',
+                'message' => "Cita creada sin notificación",
+                'type' => "warning",
+                'appointment' => $appointment
             ], 200);
         }
-        $appointment->save();
 
-        // Si la cita se creó correctamente, puedes devolver una respuesta exitosa
-        $response = [
-            'rasson' => 'Se creo la cita correctamente',
+        return response()->json([
+            'rasson' => 'Se creó la cita correctamente',
             'message' => "Cita creada",
             'type' => "success",
-            '$appointment' => $appointment
-        ];
-        return response()->json($response, 200);
+            'appointment' => $appointment
+        ], 200);
     }
 
     /**

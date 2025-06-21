@@ -24,6 +24,10 @@ class UserController extends Controller
         $allUser = User::all();
         return response()->json($allUser, 200);
     }
+    public function getProfessionalById($id){
+        $allUser = User::where('id', $id)->first();
+        return response()->json($allUser, 200);
+    }
     public function getAvailableSlots(Request $request)
     {
         $userId  = $request->id;

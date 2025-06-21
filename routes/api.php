@@ -28,7 +28,9 @@ use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Hash;
-
+use App\Http\Controllers\EmotionLogController;
+use App\Http\Controllers\PsychologistReviewController;
+use App\Http\Controllers\AvailabilitiController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -117,9 +119,16 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
     Route::get('patient/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('patient/profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('patient/logout', [PatientAuthController::class, 'logout']);
+    Route::get('patient/emotion-logs', [EmotionLogController::class, 'index']);
+    Route::post('patient/emotion-logs', [EmotionLogController::class, 'store']);
+    Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
+    Route::post('patient/availability', [AvailabilitiController::class, 'store']);
 });
 
 
+Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
+Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 Route::get('patient/profesional', [UserController::class, 'getProfessional']);
-Route::get('patient/appointments/slots/{id}', [AppointmentController::class, 'getAvailableSlots']);
+Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
+Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);

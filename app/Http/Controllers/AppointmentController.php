@@ -68,8 +68,8 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request, $id)
     {
-        $start = Carbon::parse($request->input('start'));
-        $end = Carbon::parse($request->input('end'));
+        $start = Carbon::parse($request->input('start'))->startOfDay();
+        $end = Carbon::parse($request->input('end'))->endOfDay();
 
         $workingHours = [
             '09:00',
@@ -86,24 +86,17 @@ class AppointmentController extends Controller
         $availableSlots = [];
 
         $appointments = Appointment::where('user', $id)
-            ->whereDate('start', '>=', $start->toDateString())
-            ->whereDate('start', '<=', $end->toDateString())
+            ->whereBetween('start', [$start, $end])
             ->get();
-
         $now = Carbon::now();
         $current = $start->copy();
 
         while ($current->lte($end)) {
             $fecha = $current->format('Y-m-d');
 
-            $booked = $appointments
-                ->filter(fn($a) => Carbon::parse($a->start)->toDateString() === $fecha)
-                ->map(fn($a) => Carbon::parse($a->end)->format('H:i'))
-                ->toArray();
-
             foreach ($workingHours as $hour) {
-                $slotStart = Carbon::parse($fecha . ' ' . $hour);
-                $slotEnd = $slotStart->copy()->addHour(); // asumimos duración fija de 1h
+                $slotStart = Carbon::parse("$fecha $hour");
+                $slotEnd = $slotStart->copy()->addHour();
 
                 if ($slotStart->isPast())
                     continue;
@@ -111,7 +104,9 @@ class AppointmentController extends Controller
                 $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
                     $aStart = Carbon::parse($a->start);
                     $aEnd = Carbon::parse($a->end);
-                    return $slotStart < $aEnd && $slotEnd > $aStart;
+
+                    // Validar traslape real
+                    return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
                 });
 
                 if (!$empalme) {
@@ -127,6 +122,7 @@ class AppointmentController extends Controller
 
         return response()->json($availableSlots);
     }
+
 
 
 

@@ -18,7 +18,8 @@ class Appointment extends Model
         'statusUser',
         'statusPatient',
         'state', 
-        'comments'
+        'comments',
+        'video_call_room',
     ];
 
     public function patient_user()

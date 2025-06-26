@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\AvailabilitiController;
+use App\Http\Controllers\AppointmentCartController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -125,7 +126,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(fu
     Route::post('patient/availability', [AvailabilitiController::class, 'store']);
 });
 
-
+Route::middleware('auth:patient')->prefix('patient/cart')->group(function () {
+    Route::post('/', [AppointmentCartController::class, 'store']);
+    Route::get('/', [AppointmentCartController::class, 'show']);
+});
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);

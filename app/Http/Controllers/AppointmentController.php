@@ -203,6 +203,13 @@ class AppointmentController extends Controller
         $patient = Patient::where('id', $appointment->patient)->first();
         return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
     }
+    public function showABP($id)
+    {
+
+        $patient = Auth::user();
+        $appointment = Appointment::where('id', $id)->where('patient', $patient->id)->with(['cart', 'user'])->first();
+        return response()->json($appointment, 200);
+    }
 
     /**
      * Show the form for editing the specified resource.

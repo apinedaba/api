@@ -10,16 +10,23 @@ class AppointmentCart extends Model
     use HasFactory;
 
     protected $fillable = [
-        'patient_id', 'user_id',
-        'fecha', 'hora',
-        'tipoSesion', 'duracion', 'precio', 'estado'
+        'patient_id',
+        'user_id',
+        'fecha',
+        'hora',
+        'tipoSesion',
+        'duracion',
+        'precio',
+        'estado',
+        'payment_intent_id',
+
     ];
 
     public function patient()
     {
         return $this->belongsTo(Patient::class);
     }
-
+    
     public function user()
     {
         return $this->belongsTo(User::class);

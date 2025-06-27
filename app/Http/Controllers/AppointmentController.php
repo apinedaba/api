@@ -13,6 +13,7 @@ use Response;
 use Carbon\Carbon;
 use \Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
@@ -88,6 +89,7 @@ class AppointmentController extends Controller
         $appointments = Appointment::where('user', $id)
             ->whereBetween('start', [$start, $end])
             ->get();
+
         $now = Carbon::now();
         $current = $start->copy();
 
@@ -104,8 +106,6 @@ class AppointmentController extends Controller
                 $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
                     $aStart = Carbon::parse($a->start);
                     $aEnd = Carbon::parse($a->end);
-
-                    // Validar traslape real
                     return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
                 });
 
@@ -122,6 +122,7 @@ class AppointmentController extends Controller
 
         return response()->json($availableSlots);
     }
+
 
 
 
@@ -162,6 +163,7 @@ class AppointmentController extends Controller
         }
 
         // Crear la cita
+        $validated['video_call_room'] = 'mindmeet-' . Str::random(40);
         $appointment = Appointment::create($validated);
 
         if (!$appointment) {
@@ -171,7 +173,6 @@ class AppointmentController extends Controller
                 'type' => "error"
             ], 400);
         }
-
         // Notificación
         $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
         Log::alert($send);
@@ -201,6 +202,13 @@ class AppointmentController extends Controller
         $appointment = Appointment::where('id', $appointment->id)->first();
         $patient = Patient::where('id', $appointment->patient)->first();
         return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
+    }
+    public function showABP($id)
+    {
+
+        $patient = Auth::user();
+        $appointment = Appointment::where('id', $id)->where('patient', $patient->id)->with(['cart', 'user'])->first();
+        return response()->json($appointment, 200);
     }
 
     /**

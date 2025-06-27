@@ -54,7 +54,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'address' => 'array',
         'educacion' => 'array',
         'personales' => 'array',
-        'configuraciones' => 'array',
+        'configurations' => 'array',
         'isProfileComplete' => 'boolean',
     ];
     public function patientUsers()

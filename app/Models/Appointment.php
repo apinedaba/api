@@ -9,7 +9,7 @@ class Appointment extends Model
 {
     use HasFactory;
 
-    protected  $fillable = [
+    protected $fillable = [
         'user',
         'patient',
         'title',
@@ -17,8 +17,10 @@ class Appointment extends Model
         'end',
         'statusUser',
         'statusPatient',
-        'state', 
-        'comments'
+        'state',
+        'comments',
+        'video_call_room',
+        'cart_id'
     ];
 
     public function patient_user()
@@ -35,5 +37,10 @@ class Appointment extends Model
     public function user()
     {
         return $this->belongsTo(User::class, "user", "id");
+    }
+
+    public function cart()
+    {
+        return $this->belongsTo(\App\Models\AppointmentCart::class, 'cart_id');
     }
 }

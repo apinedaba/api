@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\AvailabilitiController;
+use App\Http\Controllers\AppointmentCartController;
+use App\Http\Controllers\StripeController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -111,20 +113,25 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
 //Rutas para Pacientes
 Route::post('patient/login', [PatientAuthController::class, 'login']);
-Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(function () {
-    Route::get('patient/info', function (Request $request) {
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
+    Route::get('info', function (Request $request) {
         return $request->user();
     });
-    Route::get('patient/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
-    Route::get('patient/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
-    Route::get('patient/profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
-    Route::post('patient/logout', [PatientAuthController::class, 'logout']);
-    Route::get('patient/emotion-logs', [EmotionLogController::class, 'index']);
-    Route::post('patient/emotion-logs', [EmotionLogController::class, 'store']);
-    Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
-    Route::post('patient/availability', [AvailabilitiController::class, 'store']);
-});
+    Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+    Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
+    Route::post('logout', [PatientAuthController::class, 'logout']);
+    Route::get('emotion-logs', [EmotionLogController::class, 'index']);
+    Route::post('emotion-logs', [EmotionLogController::class, 'store']);
+    Route::post('psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
+    Route::post('availability', [AvailabilitiController::class, 'store']);
+    Route::post('cart', [AppointmentCartController::class, 'store']);
+    Route::get('cart', [AppointmentCartController::class, 'show']);
+    Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
+    Route::get('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
 
+});
 
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);

@@ -12,9 +12,16 @@ use Illuminate\Support\Facades\Auth;
 
 class StripeController extends Controller
 {
+    protected $stripe_secretkey;
+    public function __construct()
+    {
+        $this->stripe_secretkey = env('APP_ENV') === 'local' ? env('STRIPE_SECRET_KEY'): env('STRIPE_SECRET_KEY_LIVE');
+        // Puedes agregar middleware aquí si es necesario
+        // $this->middleware('auth:patient');
+    }
     public function createPaymentIntent()
     {
-        Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        Stripe::setApiKey($this->stripe_secretkey);
 
         $patient = Auth::user();
 
@@ -45,7 +52,7 @@ class StripeController extends Controller
 
     public function confirmarPago(Request $request)
     {
-        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        \Stripe\Stripe::setApiKey($this->stripe_secretkey);
 
         $intentId = $request->query('intent');
         if (!$intentId) {

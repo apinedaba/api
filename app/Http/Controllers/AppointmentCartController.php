@@ -39,18 +39,32 @@ class AppointmentCartController extends Controller
         $patient = auth()->user(); // auth:patient
 
         // (opcional) eliminar carrito anterior del paciente
-        AppointmentCart::where('patient_id', $patient->id)->delete();
-
-        $cart = AppointmentCart::updateOrCreate([
-            'patient_id' => $patient->id,
-            'user_id' => $request->user_id,
-            'fecha' => $request->fecha,
-            'hora' => $request->hora,
-            'tipoSesion' => $request->tipoSesion,
-            'duracion' => $request->duracion,
-            'precio' => $request->precio,
-            'estado' => 'pendiente',
-        ]);
+        // AppointmentCart::where('patient_id', $patient->id)->delete();
+        $cart = AppointmentCart::where('patient_id', $patient->id)
+            ->where('estado', 'pendiente')
+            ->latest();
+        if($cart->exists()) {
+            $cart = $cart->update([
+                'patient_id' => $patient->id,
+                'user_id' => $request->user_id,
+                'fecha' => $request->fecha,
+                'hora' => $request->hora,
+                'tipoSesion' => $request->tipoSesion,
+                'duracion' => $request->duracion,
+                'precio' => $request->precio,
+            ]);
+        } else {
+            $cart = AppointmentCart::create([
+                'patient_id' => $patient->id,
+                'user_id' => $request->user_id,
+                'fecha' => $request->fecha,
+                'hora' => $request->hora,
+                'tipoSesion' => $request->tipoSesion,
+                'duracion' => $request->duracion,
+                'precio' => $request->precio,
+                'estado' => 'pendiente',
+            ]);
+        }
 
         return response()->json($cart);
     }
@@ -61,7 +75,8 @@ class AppointmentCartController extends Controller
     public function show(AppointmentCart $appointmentCart)
     {
         $patient = auth()->user();
-        $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
+        $cart = AppointmentCart::with('user')
+            ->where('patient_id', operator: $patient->id)
             ->where('estado', 'pendiente')
             ->latest()->first();
 

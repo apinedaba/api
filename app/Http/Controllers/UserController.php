@@ -21,7 +21,8 @@ class UserController extends Controller
     }
 
     public function getProfessional(){
-        $allUser = User::all();
+        $allUser = User::where("isProfileComplete", true)            
+            ->get();
         return response()->json($allUser, 200);
     }
     public function getProfessionalById($id){

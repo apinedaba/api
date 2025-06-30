@@ -46,7 +46,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'updated_at',
     ];
 
-    
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
@@ -55,6 +55,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'educacion' => 'array',
         'personales' => 'array',
         'configurations' => 'array',
+        'image' => 'string',
         'isProfileComplete' => 'boolean',
     ];
     public function patientUsers()
@@ -65,5 +66,4 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Appointment::class, "user", "id");
     }
-
 }

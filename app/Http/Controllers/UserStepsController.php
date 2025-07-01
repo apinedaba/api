@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -42,12 +43,11 @@ class UserStepsController extends Controller
             ->filter(fn($cast) => in_array($cast, ['array', 'json']))
             ->keys()
             ->toArray();
-
-        foreach ($jsonFields as $key) {
+        $result = array_merge($jsonFields, ['image']); // Agregamos 'image' al final
+        foreach ($result as $key) {
             if ($request->has($key)) {
                 $existing = $user->{$key} ?? [];
                 $incoming = $request->input($key);
-
                 if (is_array($existing) && is_array($incoming)) {
                     $user->{$key} = array_merge($existing, $incoming);
                 } else {

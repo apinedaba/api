@@ -93,6 +93,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
+    Route::get('user/cart', [AppointmentCartController::class, 'show']);
     // Rutas para los cuestionarios
     Route::apiResource('user/questionnaires', QuestionnaireController::class);
     // Rutas para los enlaces dinámicos

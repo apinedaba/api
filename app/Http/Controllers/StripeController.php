@@ -7,11 +7,19 @@ use Illuminate\Http\Request;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use App\Models\AppointmentCart;
+use App\Models\Appointment;
 use Illuminate\Support\Facades\Auth;
-
+use App\Services\AppointmentService; // 👈 Agregado
 
 class StripeController extends Controller
 {
+    protected $service;
+
+    public function __construct(AppointmentService $service)
+    {
+        $this->service = $service;
+    }
+
     public function createPaymentIntent()
     {
         Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
@@ -34,8 +42,9 @@ class StripeController extends Controller
                 'patient_id' => $patient->id,
             ],
         ]);
+
         $cart->update([
-            'payment_intent_id' => $intent->id // GUÁRDALO AQUÍ
+            'payment_intent_id' => $intent->id
         ]);
 
         return response()->json([
@@ -52,12 +61,12 @@ class StripeController extends Controller
             return response()->json(['message' => 'Falta el payment_intent_id'], 400);
         }
 
-        $cart = \App\Models\AppointmentCart::with('user')
+        $cart = AppointmentCart::with('user')
             ->where('payment_intent_id', $intentId)
             ->first();
 
         if (!$cart) {
-            $existing = \App\Models\Appointment::where('cart_id', function ($q) use ($intentId) {
+            $existing = Appointment::where('cart_id', function ($q) use ($intentId) {
                 $q->select('id')->from('appointment_carts')->where('payment_intent_id', $intentId)->limit(1);
             })->first();
 
@@ -66,20 +75,23 @@ class StripeController extends Controller
                 : response()->json(['message' => 'No se encontró carrito o cita'], 404);
         }
 
-        $existing = \App\Models\Appointment::where('cart_id', $cart->id)->first();
+        $existing = Appointment::where('cart_id', $cart->id)->first();
         if ($existing) {
             return response()->json($existing);
         }
 
-        $intent = \Stripe\PaymentIntent::retrieve($intentId);
+        $intent = PaymentIntent::retrieve($intentId);
         if ($intent->status !== 'succeeded') {
             return response()->json(['message' => 'El pago no fue exitoso'], 402);
         }
 
+        // 🟢 🔑 Aquí usamos el Service:
+        $relation = $this->service->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
+
         $inicio = "{$cart->fecha} {$cart->hora}";
         $fin = \Carbon\Carbon::parse($inicio)->addHours($cart->duracion);
 
-        $appointment = \App\Models\Appointment::create([
+        $appointment = Appointment::create([
             'user' => $cart->user_id,
             'patient' => $cart->patient_id,
             'start' => $inicio,
@@ -91,6 +103,7 @@ class StripeController extends Controller
             'precio' => $cart->precio,
             'tipoSesion' => $cart->tipoSesion,
             'cart_id' => $cart->id,
+            'video_call_room' => $relation->video_call_room, // 👈 NUEVO
         ]);
 
         $cart->update([
@@ -101,6 +114,4 @@ class StripeController extends Controller
 
         return response()->json($appointment);
     }
-
-
 }

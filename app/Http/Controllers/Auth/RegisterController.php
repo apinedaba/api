@@ -58,6 +58,12 @@ class RegisterController extends Controller
     private $registerValidationRulesPatient = [
         'name' => 'required',
         'email' => 'required|email|unique:patients,email',
+        [
+        'email.unique' => 'Este correo ya está registrado. Si tu minder creoo tu cuenta revisa tu correo para obtener la contraseña.',
+        'email.required' => 'El correo electrónico es obligatorio.',
+        'name.required' => 'El nombre es obligatorio.',
+        'password.required' => 'La contraseña es obligatoria.'
+        ],
         'password' => 'required'
     ];
     public function registerPatient(Request $request) {

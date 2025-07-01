@@ -14,12 +14,19 @@ use Carbon\Carbon;
 use \Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use App\Services\AppointmentService;
 
 class AppointmentController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    protected $service;
+
+    public function __construct(AppointmentService $service)
+    {
+        $this->service = $service;
+    }
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -127,13 +134,6 @@ class AppointmentController extends Controller
 
 
 
-    /**
-     * Show the form for creating a new resource.
-     */
-
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $route = Route::getCurrentRoute();
@@ -149,7 +149,7 @@ class AppointmentController extends Controller
             'patient' => 'required_if:middleware,user',
         ]);
 
-        // Forzamos la asignación correcta según el tipo de usuario
+        // Forzar asignación correcta
         if (in_array('user', $middlewares)) {
             $validated['user'] = $authUser->id;
         } elseif (in_array('patient', $middlewares)) {
@@ -162,8 +162,13 @@ class AppointmentController extends Controller
             ], 403);
         }
 
-        // Crear la cita
-        $validated['video_call_room'] = 'mindmeet-' . Str::random(40);
+        // 🔥 1️⃣ Usar el servicio para validar o crear relación con video_call_room
+        $relation = $this->service->ensureRelationshipAndRoom($validated['user'], $validated['patient']);
+
+
+        $validated['video_call_room'] = $relation->video_call_room;
+
+        // 🔥 2️⃣ Crear la cita con el room correcto
         $appointment = Appointment::create($validated);
 
         if (!$appointment) {
@@ -173,6 +178,7 @@ class AppointmentController extends Controller
                 'type' => "error"
             ], 400);
         }
+
         // Notificación
         $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
         Log::alert($send);

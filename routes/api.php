@@ -33,6 +33,7 @@ use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\StripeController;
+use App\Http\Controllers\Auth\PasswordResetController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -41,7 +42,10 @@ Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::cl
     ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit');
-
+// Rutas para el reseteo de contraseña
+Route::post('user/forgot-password', [PasswordResetController::class, 'sendResetCode']);
+Route::post('user/verify-code', [PasswordResetController::class, 'verifyCode']);
+Route::post('user/reset-password', [PasswordResetController::class, 'resetPassword']);
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 
@@ -130,7 +134,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('cart', [AppointmentCartController::class, 'show']);
     Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
     Route::get('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
-
 });
 
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);

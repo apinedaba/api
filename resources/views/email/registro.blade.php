@@ -173,13 +173,9 @@
 													<table class="button_block block-4" width="100%" border="0" cellpadding="10" cellspacing="0" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
 														<tr>
 															<td class="pad">
-																<div class="alignment" align="center"><!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"   style="height:42px;width:172px;v-text-anchor:middle;" arcsize="10%" fillcolor="#00c3b7">
-<v:stroke dashstyle="Solid" weight="0px" color="#00c3b7"/>
-<w:anchorlock/>
-<v:textbox inset="0px,0px,0px,0px">
-<center dir="false" style="color:#ffffff;font-family:sans-serif;font-size:16px">
-<![endif]--><a href="{{ $verificationUrl}}" class="button" style="background-color: #00c3b7; border-bottom: 0px solid transparent; border-left: 0px solid transparent; border-radius: 4px; border-right: 0px solid transparent; border-top: 0px solid transparent; color: #ffffff; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; font-weight: 400; mso-border-alt: none; padding-bottom: 5px; padding-top: 5px; padding-left: 20px; padding-right: 20px; text-align: center; width: auto; word-break: keep-all; letter-spacing: normal;"><span style="word-break: break-word; line-height: 32px;">Confirma tu correo</span></a><!--[if mso]></center></v:textbox></v:roundrect><![endif]--></div>
+																<div class="alignment" align="center">
+																	<a href="{{ $verificationUrl}}" class="button" style="background-color: #00c3b7; border-bottom: 0px solid transparent; border-left: 0px solid transparent; border-radius: 4px; border-right: 0px solid transparent; border-top: 0px solid transparent; color: #ffffff; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; font-weight: 400; mso-border-alt: none; padding-bottom: 5px; padding-top: 5px; padding-left: 20px; padding-right: 20px; text-align: center; width: auto; word-break: keep-all; letter-spacing: normal;"><span style="word-break: break-word; line-height: 32px;">Confirma tu correo</span></a>
+																</div>
 															</td>
 														</tr>
 													</table>

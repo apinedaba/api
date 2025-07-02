@@ -8,12 +8,15 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-
+use Illuminate\Support\Facades\URL;
+use Carbon\Carbon;
 
 class NuevoPsicologoRegistrado extends Notification
 {
     use Queueable;
+
     protected $user;
+
     /**
      * Create a new notification instance.
      */
@@ -24,8 +27,6 @@ class NuevoPsicologoRegistrado extends Notification
 
     /**
      * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
@@ -37,13 +38,30 @@ class NuevoPsicologoRegistrado extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        // Enviar copia reducida a tus correos
+        // ✅ Genera el link firmado de verificación
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            Carbon::now()->addMinutes(60),
+            [
+                'id' => $notifiable->getKey(),
+                'hash' => sha1($notifiable->getEmailForVerification()),
+            ]
+        );
+
+        // ✅ Forzar host minder.mindmeet.mx
+        $parsed = parse_url(config('app.url'), PHP_URL_HOST);
+        $verificationUrl = str_replace($parsed, 'minder.mindmeet.mx', $verificationUrl);
+
+        // 📩 Enviar copia interna
         $this->enviarNotificacionInterna($this->user);
 
-        // Correo normal al usuario
+        // 📩 Correo al usuario
         return (new MailMessage)
             ->subject('¡Te damos la bienvenida a MindMeet!')
-            ->view('email.registro', ['usuario' => $this->user]);
+            ->view('email.registro', [
+                'usuario' => $this->user,
+                'verificationUrl' => $verificationUrl
+            ]);
     }
 
     protected function enviarNotificacionInterna($user)

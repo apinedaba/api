@@ -243,7 +243,7 @@
                                                                             style="word-break: break-word; line-height: 32px;"
                                                                             href="{{str_replace(
                                                                         'https://api.mindmeet.mx/api/user/',
-                                                                        'https://mindmeet.mx/',
+                                                                        'https://minder.mindmeet.mx/',
                                                                         $actionUrl,
                                                                     )}}"
                                                                             >

@@ -20,7 +20,8 @@ class Appointment extends Model
         'state',
         'comments',
         'video_call_room',
-        'cart_id'
+        'cart_id',
+        'link'
     ];
 
     public function patient_user()

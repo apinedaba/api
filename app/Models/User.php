@@ -28,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'contacto',
         'educacion',
         'configurations',
+        'horarios',
         'plan',
         'image'
     ];
@@ -55,6 +56,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'educacion' => 'array',
         'personales' => 'array',
         'configurations' => 'array',
+        'horarios' => 'array',
         'image' => 'string',
         'isProfileComplete' => 'boolean',
     ];

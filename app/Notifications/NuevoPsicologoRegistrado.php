@@ -66,7 +66,7 @@ class NuevoPsicologoRegistrado extends Notification
 
     protected function enviarNotificacionInterna($user)
     {
-        $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com'];
+        $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com', 'axelboyzowork@gmail.com'];
 
         foreach ($correosInternos as $correo) {
             Mail::raw("Nuevo registro:\nNombre: {$user->name}\nCorreo: {$user->email}", function ($message) use ($correo) {

@@ -46,6 +46,9 @@ Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::clas
 Route::post('user/forgot-password', [PasswordResetController::class, 'sendResetCode']);
 Route::post('user/verify-code', [PasswordResetController::class, 'verifyCode']);
 Route::post('user/reset-password', [PasswordResetController::class, 'resetPassword']);
+Route::post('patient/forgot-password', [PasswordResetController::class, 'sendResetCodePatient']);
+Route::post('patient/verify-code', [PasswordResetController::class, 'verifyCodePatient']);
+Route::post('patient/reset-password', [PasswordResetController::class, 'resetPasswordPatient']);
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 

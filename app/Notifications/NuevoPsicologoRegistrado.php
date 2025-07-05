@@ -54,14 +54,19 @@ class NuevoPsicologoRegistrado extends Notification
 
         // 📩 Enviar copia interna
         $this->enviarNotificacionInterna($this->user);
+        $environtment = env('APP_ENV', 'local');
 
-        // 📩 Correo al usuario
-        return (new MailMessage)
-            ->subject('¡Te damos la bienvenida a MindMeet!')
-            ->view('email.registro', [
-                'usuario' => $this->user,
-                'verificationUrl' => $verificationUrl
-            ]);
+        if ($environtment === 'production') {
+            # code...
+            // 📩 Correo al usuario
+            return (new MailMessage)
+                ->subject('¡Te damos la bienvenida a MindMeet!')
+                ->view('email.registro', [
+                    'usuario' => $this->user,
+                    'verificationUrl' => $verificationUrl
+                ]);
+        }
+        return true;
     }
 
     protected function enviarNotificacionInterna($user)

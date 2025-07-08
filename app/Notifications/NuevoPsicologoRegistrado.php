@@ -53,26 +53,25 @@ class NuevoPsicologoRegistrado extends Notification
         $verificationUrl = str_replace($parsed, 'minder.mindmeet.mx', $verificationUrl);
 
         // 📩 Enviar copia interna
-        $this->enviarNotificacionInterna($this->user);
         $environtment = env('APP_ENV', 'local');
-
         if ($environtment === 'production') {
-            # code...
-            // 📩 Correo al usuario
-            return (new MailMessage)
-                ->subject('¡Te damos la bienvenida a MindMeet!')
-                ->view('email.registro', [
-                    'usuario' => $this->user,
-                    'verificationUrl' => $verificationUrl
-                ]);
+            $this->enviarNotificacionInterna($this->user);
         }
-        return true;
+
+        # code...
+        // 📩 Correo al usuario
+        return (new MailMessage)
+            ->subject('¡Te damos la bienvenida a MindMeet!')
+            ->view('email.registro', [
+                'usuario' => $this->user,
+                'verificationUrl' => $verificationUrl
+            ]);
+
     }
 
     protected function enviarNotificacionInterna($user)
     {
         $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com', 'axelboyzowork@gmail.com'];
-
         foreach ($correosInternos as $correo) {
             Mail::raw("Nuevo registro:\nNombre: {$user->name}\nCorreo: {$user->email}", function ($message) use ($correo) {
                 $message->to($correo)

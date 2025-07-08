@@ -30,7 +30,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'configurations',
         'horarios',
         'plan',
-        'image'
+        'image',
+        'verification_code',
+        'code_expires_at',
     ];
 
     /**
@@ -45,12 +47,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'activo',
         'created_at',
         'updated_at',
+        'verification_code',
     ];
 
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'code_expires_at' => 'datetime',
         'contacto' => 'array',
         'address' => 'array',
         'educacion' => 'array',

@@ -52,21 +52,29 @@ class NuevoPsicologoRegistrado extends Notification
         $parsed = parse_url(config('app.url'), PHP_URL_HOST);
         $verificationUrl = str_replace($parsed, 'minder.mindmeet.mx', $verificationUrl);
 
-        // 📩 Enviar copia interna
-        $this->enviarNotificacionInterna($this->user);
+
         $environtment = env('APP_ENV', 'local');
 
         if ($environtment === 'production') {
             # code...
             // 📩 Correo al usuario
+            // 📩 Enviar copia interna
+            $this->enviarNotificacionInterna($this->user);
             return (new MailMessage)
-                ->subject('¡Te damos la bienvenida a MindMeet!')
+                ->subject('Tu código de verificación de MindMeet')
                 ->view('email.registro', [
-                    'usuario' => $this->user,
-                    'verificationUrl' => $verificationUrl
+                    'usuario' => $this->user
+                ]);
+        } else {
+            // 📩 Correo al usuario en desarrollo
+            Log::info('Enviando correo de verificación en entorno de desarrollo');
+            Log::info('URL de verificación: ' . $verificationUrl);
+            return (new MailMessage)
+                ->subject('Tu código de verificación de MindMeet')
+                ->view('email.registro', [
+                    'usuario' => $this->user
                 ]);
         }
-        return true;
     }
 
     protected function enviarNotificacionInterna($user)

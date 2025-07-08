@@ -66,7 +66,6 @@ class NuevoPsicologoRegistrado extends Notification
                 'usuario' => $this->user,
                 'verificationUrl' => $verificationUrl
             ]);
-
     }
 
     protected function enviarNotificacionInterna($user)

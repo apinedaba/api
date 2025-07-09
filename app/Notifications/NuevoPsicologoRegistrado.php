@@ -10,10 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Carbon\Carbon;
+use App\Notifications\Traits\NotificaInternamente;
 
 class NuevoPsicologoRegistrado extends Notification
 {
-    use Queueable;
+    use Queueable, NotificaInternamente;
 
     protected $user;
 
@@ -53,10 +54,10 @@ class NuevoPsicologoRegistrado extends Notification
         $verificationUrl = str_replace($parsed, 'minder.mindmeet.mx', $verificationUrl);
 
         // 📩 Enviar copia interna
-        $environtment = env('APP_ENV', 'local');
-        if ($environtment === 'production') {
-            $this->enviarNotificacionInterna($this->user);
-        }
+        // 3. ✅ Llama al método del Trait
+        $asunto = 'Nuevo psicólogo registrado en MindMeet';
+        $cuerpo = "Nuevo registro de psicólogo:\nNombre: {$this->user->name}\nCorreo: {$this->user->email}";
+        $this->enviarNotificacionInterna($this->user, $asunto, $cuerpo);
 
         # code...
         // 📩 Correo al usuario
@@ -66,16 +67,5 @@ class NuevoPsicologoRegistrado extends Notification
                 'usuario' => $this->user,
                 'verificationUrl' => $verificationUrl
             ]);
-    }
-
-    protected function enviarNotificacionInterna($user)
-    {
-        $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com', 'axelboyzowork@gmail.com'];
-        foreach ($correosInternos as $correo) {
-            Mail::raw("Nuevo registro:\nNombre: {$user->name}\nCorreo: {$user->email}", function ($message) use ($correo) {
-                $message->to($correo)
-                    ->subject('Nuevo usuario registrado en MindMeet');
-            });
-        }
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Auth\Events\Registered;
+use App\Notifications\NuevoPacienteBienvenida;
 
 class RegisterController extends Controller
 {
@@ -131,15 +132,19 @@ class RegisterController extends Controller
             ], 400);
         }
 
-        $user = Patient::create([
+        $patient = Patient::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password)
         ]);
-
+        try {
+            $patient->notify(new NuevoPacienteBienvenida($patient));
+        } catch (\Throwable $th) {
+            Log::error("Error al notificar nuevo paciente auto-registrado: " . $th->getMessage());
+        }
         return response()->json([
             'message' => 'El usuario se ha creado',
-            'token' => $user->createToken("patient_token")->plainTextToken
+            'token' => $patient->createToken("patient_token")->plainTextToken
         ], 200);
     }
 }

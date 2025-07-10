@@ -16,7 +16,7 @@ class StripeController extends Controller
     protected $stripe_secretkey;
     public function __construct()
     {
-        $this->stripe_secretkey = env('APP_ENV') === 'local' ? env('STRIPE_SECRET_KEY'): env('STRIPE_SECRET_KEY_LIVE');
+        $this->stripe_secretkey = env('APP_ENV') === 'local' ? env('STRIPE_SECRET_KEY'): env('STRIPE_SECRET_KEY');
         // Puedes agregar middleware aquí si es necesario
         // $this->middleware('auth:patient');
     }

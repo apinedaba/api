@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Patient;
 use App\Models\PatientMedication;
 use Illuminate\Http\Request;
-
+use \Log;
 class PatientMedicationController extends Controller
 {
     public function __construct()
@@ -16,9 +16,7 @@ class PatientMedicationController extends Controller
     // Listado de medicamentos (solo de pacientes propios)
     public function index($patientId)
     {
-        $patient = auth()->user()
-            ->patientUsers()
-            ->findOrFail($patientId);
+        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
         // Verifica que el paciente pertenezca al usuario autenticado
 
         return $patient
@@ -30,10 +28,8 @@ class PatientMedicationController extends Controller
     // Nuevo medicamento
     public function store(Request $request, $patientId)
     {
-        $patient = auth()->user()
-            ->patientUsers()
-            ->findOrFail($patientId);
-
+        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
+        Log::info($patient);
         $data = $request->validate([
             'medication_name' => 'required|string|max:255',
             'dosage' => 'nullable|string|max:100',
@@ -43,7 +39,7 @@ class PatientMedicationController extends Controller
             'notes' => 'nullable|string',
         ]);
         // return response()->json($patient->patient, 200);
-        $data['patient_id'] = $patient->patient; // Asigna el ID del paciente
+        $data['patient_id'] = $patientId; // Asigna el ID del paciente
         $data['user_id'] = auth()->id(); // Asigna el ID del usuario autenticado
         $med = $patient->medications()->create($data);
 
@@ -53,9 +49,7 @@ class PatientMedicationController extends Controller
     // Actualizar
     public function update(Request $request, $patientId, $id)
     {
-        $patient = auth()->user()
-            ->patientUsers()
-            ->findOrFail($patientId);
+        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
 
         $med = $patient->medications()->findOrFail($id);
 
@@ -76,9 +70,7 @@ class PatientMedicationController extends Controller
     // Eliminar
     public function destroy($patientId, $id)
     {
-        $patient = auth()->user()
-                         ->patientUsers()
-                         ->findOrFail($patientId);;
+        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
 
         $patient->medications()
             ->findOrFail($id)

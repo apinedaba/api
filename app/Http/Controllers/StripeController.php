@@ -14,9 +14,12 @@ use App\Services\AppointmentService; // 👈 Agregado
 class StripeController extends Controller
 {
     protected $stripe_secretkey;
-    public function __construct()
+    protected $service;
+
+    public function __construct(AppointmentService $service)
     {
-        $this->stripe_secretkey = env('APP_ENV') === 'local' ? env('STRIPE_SECRET_KEY'): env('STRIPE_SECRET_KEY');
+        $this->stripe_secretkey = env('APP_ENV') === 'local' ? env('STRIPE_SECRET_KEY') : env('STRIPE_SECRET_KEY');
+        $this->service = $service;
         // Puedes agregar middleware aquí si es necesario
         // $this->middleware('auth:patient');
     }

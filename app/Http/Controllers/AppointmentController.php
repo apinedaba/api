@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Patient;
+use App\Models\User;
 use App\Models\PatientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -76,39 +77,52 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request, $id)
     {
-        $start = Carbon::parse($request->input('start'))->startOfDay();
-        $end = Carbon::parse($request->input('end'))->endOfDay();
+$now = Carbon::now();
+    $start = $now->copy()->startOfDay();
+    $end = $start->copy()->addDays(30); // rango máximo
 
-        $workingHours = [
-            '09:00',
-            '10:00',
-            '11:00',
-            '12:00',
-            '13:00',
-            '14:00',
-            '15:00',
-            '16:00',
-            '17:00'
-        ];
+    $user = User::findOrFail($id);
+    $workingHours = $user->horarios;
 
-        $availableSlots = [];
+    $appointments = Appointment::where('user', $id)
+        ->whereBetween('start', [$now, $end])
+        ->get();
 
-        $appointments = Appointment::where('user', $id)
-            ->whereBetween('start', [$start, $end])
-            ->get();
+    $slots = [];
+    $uniqueDays = [];
 
-        $now = Carbon::now();
-        $current = $start->copy();
+    $current = $start->copy();
 
-        while ($current->lte($end)) {
-            $fecha = $current->format('Y-m-d');
+    while ($current->lte($end) && count($uniqueDays) < 5) {
+        $weekday = strtolower($current->format('l'));
+        $fecha = $current->format('Y-m-d');
 
-            foreach ($workingHours as $hour) {
-                $slotStart = Carbon::parse("$fecha $hour");
+        if (empty($workingHours[$weekday])) {
+            $current->addDay();
+            continue;
+        }
+
+        $slotsFoundToday = false;
+
+        foreach ($workingHours[$weekday] as $block) {
+            $blockStart = Carbon::parse($fecha . ' ' . $block['start']);
+            $blockEnd = Carbon::parse($fecha . ' ' . $block['end']);
+
+            if ($blockStart->gte($blockEnd)) {
+                continue; // Bloque inválido
+            }
+
+            $slotStart = $blockStart->greaterThan($now) ? $blockStart->copy() : max($blockStart, $now->copy());
+
+            while ($slotStart->lt($blockEnd)) {
                 $slotEnd = $slotStart->copy()->addHour();
 
-                if ($slotStart->isPast())
+                if ($slotEnd->gt($blockEnd)) break;
+
+                if ($slotStart->isPast()) {
+                    $slotStart->addHour();
                     continue;
+                }
 
                 $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
                     $aStart = Carbon::parse($a->start);
@@ -117,17 +131,25 @@ class AppointmentController extends Controller
                 });
 
                 if (!$empalme) {
-                    $availableSlots[] = [
+                    $slots[] = [
                         'date' => $fecha,
-                        'hour' => $hour,
+                        'hour' => $slotStart->format('H:i'),
                     ];
+                    $slotsFoundToday = true;
                 }
-            }
 
-            $current->addDay();
+                $slotStart->addHour();
+            }
         }
 
-        return response()->json($availableSlots);
+        if ($slotsFoundToday) {
+            $uniqueDays[] = $fecha; // Agrega este día a los días únicos con slots
+        }
+
+        $current->addDay();
+    }
+
+    return response()->json($slots);
     }
 
 

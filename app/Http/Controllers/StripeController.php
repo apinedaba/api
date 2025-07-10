@@ -127,7 +127,8 @@ class StripeController extends Controller
         
         $enlace = PatientUser::create([
             'user' => $user,
-            'patient' => $patient
+            'patient' => $patient,
+            'status' => 'Vinculado desde portal'
         ]);
 
         if ($enlace) {

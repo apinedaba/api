@@ -74,12 +74,10 @@ class AppointmentCartController extends Controller
      */
     public function show(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
-        $cart = AppointmentCart::with('user')
-            ->where('estado', 'pagado')
-            ->latest()
-            ->get(); 
-
+       $patient = auth()->user();
+        $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
+            ->where('estado', 'pendiente')
+            ->latest()->first();
 
         return response()->json($cart);
     }

@@ -38,6 +38,9 @@ use App\Http\Controllers\Auth\PasswordResetController;
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
+Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
+Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])
+    ->middleware('throttle:resend');
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
     ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])

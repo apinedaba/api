@@ -82,6 +82,17 @@ class AppointmentCartController extends Controller
         return response()->json($cart);
     }
 
+    public function pays(AppointmentCart $appointmentCart)
+    {
+        $patient = auth()->user();
+        $cart = AppointmentCart::with('user')
+            ->where('estado', 'pagado')
+            ->latest()
+            ->get(); 
+
+
+        return response()->json($cart);
+    }
     /**
      * Show the form for editing the specified resource.
      */

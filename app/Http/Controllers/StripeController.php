@@ -10,7 +10,7 @@ use App\Models\AppointmentCart;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\Auth;
 use App\Services\AppointmentService; // 👈 Agregado
-
+use App\Models\PatientUser;
 class StripeController extends Controller
 {
     protected $stripe_secretkey;
@@ -108,7 +108,8 @@ class StripeController extends Controller
             'cart_id' => $cart->id,
             'video_call_room' => $relation->video_call_room, // 👈 NUEVO
         ]);
-
+        $enlace = $this->generarEnlace($cart->user_id, $cart->patient_id);
+        
         $cart->update([
             'estado' => 'pagado',
             'payment_intent_id' => null,
@@ -116,5 +117,23 @@ class StripeController extends Controller
         ]);
 
         return response()->json($appointment);
+    }
+
+    public function generarEnlace($user, $patient) {
+        $checkExist = PatientUser::where('user', $user)->where('patient', $patient)->first();
+        if (isset($checkExist->id)) {
+            return true;
+        }
+        
+        $enlace = PatientUser::create([
+            'user' => $user,
+            'patient' => $patient
+        ]);
+
+        if ($enlace) {
+            return true;
+        }else {
+            return false;
+        }
     }
 }

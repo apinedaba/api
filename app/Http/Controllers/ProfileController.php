@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Cloudinary\Api\Upload\UploadApi;
+
 class ProfileController extends Controller
 {
     /**
@@ -35,23 +36,25 @@ class ProfileController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        $profile = User::where("id", $user->id);
-        $count = $profile->count();
+
         $data = $request->except(['email_verified_at', 'created_at', 'updated_at', 'id', 'password']);
 
-        if (isset($data["password"])) {
-            $data["password"] = Hash::make($request->password);
+        if ($request->has('password')) {
+            $data['password'] = Hash::make($request->password);
         }
-        if ($count > 0) {
-            $profile->update($data);
-            $profile = User::where("id", $user->id)->first();
-            $response = [
-                'rasson' => 'Tu información se ha actualizado correctamente',
-                'message' => "Usuario actualizado ",
-                'type' => "success"
-            ];
-            return response()->json($response, 200);
+        if ($user instanceof \Illuminate\Database\Eloquent\Model) {
+            $user->update($data);
+        } else {
+            return response()->json(['error' => 'Usuario no válido'], 400);
         }
+
+        // 4. Prepara y devuelve la respuesta.
+        $response = [
+            'rasson' => 'Tu información se ha actualizado correctamente',
+            'message' => "Usuario actualizado",
+            'type' => "success"
+        ];
+        return response()->json($response, 200);
     }
     public function upload(Request $request)
     {

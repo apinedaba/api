@@ -64,6 +64,7 @@ class UserStepsController extends Controller
 
         if ((int) $currentStepId === (int) $lastStepId) {
             $user->isProfileComplete = true;
+            $user->activo = true;
         }
 
         $user->save();

@@ -135,6 +135,7 @@ class RegisterController extends Controller
         $patient = Patient::create([
             'name' => $request->name,
             'email' => $request->email,
+            'contacto' => $request->contacto,
             'password' => Hash::make($request->password)
         ]);
         try {

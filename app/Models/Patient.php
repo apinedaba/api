@@ -17,6 +17,7 @@ class Patient extends Authenticatable
     protected $hidden = ['password', 'created_at', 'updated_at', 'remember_token', 'email_verified_at'];
     protected $casts = [
         'relationships' => 'array',
+        'contacto' => 'array'        
     ];
     public function psychologist()
     {

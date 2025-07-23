@@ -34,6 +34,8 @@ use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\IdentityController;
+use App\Http\Controllers\PhotoUploadController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -69,7 +71,6 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 
     return response()->json(['message' => 'Email verificado correctamente'], 200);
 })->middleware(['signed'])->name('verification.verify');
-
 
 
 
@@ -116,12 +117,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
+    Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
+    Route::post('user/identity/upload', [IdentityController::class, 'store']);
 });
-
-
-
-
-
 
 //Rutas para Pacientes
 Route::post('patient/login', [PatientAuthController::class, 'login']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppointmentCart;
+use App\Models\Patient;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
@@ -27,6 +28,12 @@ class AppointmentCartController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class, 'patient_id');
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -77,6 +84,7 @@ class AppointmentCartController extends Controller
        $patient = auth()->user();
         $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
+            ->where('patient_id', $patient->id)
             ->latest()->first();
 
         return response()->json($cart);
@@ -85,7 +93,7 @@ class AppointmentCartController extends Controller
     public function pays(AppointmentCart $appointmentCart)
     {
         $user = auth()->user();
-        $cart = AppointmentCart::with('user')
+        $cart = AppointmentCart::with(['user', 'patient'])
             ->where('estado', 'pagado')
             ->where('user_id', $user->id)
             ->latest()

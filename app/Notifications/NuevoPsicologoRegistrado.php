@@ -21,9 +21,16 @@ class NuevoPsicologoRegistrado extends Notification
     /**
      * Create a new notification instance.
      */
-    public function __construct($user)
+    protected $esRegistro;
+
+    /**
+     * Create a new notification instance.
+     * ✅ El nuevo parámetro $esRegistro será `true` por defecto.
+     */
+    public function __construct($user, $esRegistro = true)
     {
         $this->user = $user;
+        $this->esRegistro = $esRegistro;
     }
 
     /**
@@ -55,10 +62,11 @@ class NuevoPsicologoRegistrado extends Notification
 
         // 📩 Enviar copia interna
         // 3. ✅ Llama al método del Trait
-        $asunto = 'Nuevo psicólogo registrado en MindMeet';
-        $cuerpo = "Nuevo registro de psicólogo:\nNombre: {$this->user->name}\nCorreo: {$this->user->email}";
-        $this->enviarNotificacionInterna($this->user, $asunto, $cuerpo);
-
+        if ($this->esRegistro) {
+            $asunto = 'Nuevo psicólogo registrado en MindMeet';
+            $cuerpo = "Nuevo registro de psicólogo:\nNombre: {$this->user->name}\nCorreo: {$this->user->email}";
+            $this->enviarNotificacionInterna($this->user, $asunto, $cuerpo);
+        }
         # code...
         // 📩 Correo al usuario
         return (new MailMessage)

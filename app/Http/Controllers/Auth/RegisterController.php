@@ -46,7 +46,7 @@ class RegisterController extends Controller
         if ($user) {
             try {
                 //code...
-                $user->notify(new NuevoPsicologoRegistrado($user));
+                $user->notify(new NuevoPsicologoRegistrado($user, true));
                 event(new Registered($user));
             } catch (\Throwable $th) {
                 Log::error($th->getMessage());
@@ -105,7 +105,7 @@ class RegisterController extends Controller
             'code_expires_at' => now()->addMinutes(10),
         ])->save();
 
-        $user->notify(new NuevoPsicologoRegistrado($user));
+        $user->notify(new NuevoPsicologoRegistrado($user, false));
 
         return response()->json(['message' => 'Se ha enviado un nuevo código de verificación.']);
     }

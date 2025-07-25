@@ -84,9 +84,10 @@ class AppointmentCartController extends Controller
 
     public function pays(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
+        $user = auth()->user();
         $cart = AppointmentCart::with('user')
             ->where('estado', 'pagado')
+            ->where('user_id', $user->id)
             ->latest()
             ->get(); 
 

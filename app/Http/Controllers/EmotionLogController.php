@@ -25,6 +25,7 @@ class EmotionLogController extends Controller
             'intensity' => 'required|integer|min:0|max:10',
             'behavior' => 'required|string',
             'adaptive_response' => 'nullable|string',
+            'feeling' => 'nullable|string|max:255', // New field validation
         ]);
 
         $validated['patient_id'] = $patient->id;

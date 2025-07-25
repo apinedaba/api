@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class EmotionLog extends Model
 {
     use HasFactory;
-     protected $fillable = [
+    protected $fillable = [
         'patient_id',
         'date',
         'time',
@@ -17,6 +17,7 @@ class EmotionLog extends Model
         'intensity',
         'behavior',
         'adaptive_response',
+        'feeling',
     ];
 
     public function patient()

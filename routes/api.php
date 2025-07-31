@@ -148,3 +148,4 @@ Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 Route::get('patient/profesional', [UserController::class, 'getProfessional']);
 Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
 Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
+Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);

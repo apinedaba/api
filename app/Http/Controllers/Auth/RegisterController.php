@@ -148,4 +148,24 @@ class RegisterController extends Controller
             'token' => $patient->createToken("patient_token")->plainTextToken
         ], 200);
     }
+    public function checkPatientEmail(Request $request)
+    {
+        // 1. Validamos que la petición contenga un email válido.
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // 2. Buscamos en la tabla de 'patients' si el email existe.
+        // El método ->exists() es muy eficiente porque devuelve true/false y detiene la búsqueda al encontrar el primer resultado.
+        $patientExists = Patient::where('email', $request->email)->exists();
+
+        // 3. Devolvemos la respuesta que el frontend espera.
+        return response()->json([
+            'exists' => $patientExists,
+        ]);
+    }
 }

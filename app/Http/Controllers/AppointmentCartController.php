@@ -59,6 +59,7 @@ class AppointmentCartController extends Controller
                 'tipoSesion' => $request->tipoSesion,
                 'duracion' => $request->duracion,
                 'precio' => $request->precio,
+                'formato' => $request->formato
             ]);
         } else {
             $cart = AppointmentCart::create([

@@ -18,6 +18,7 @@ class AppointmentCart extends Model
         'duracion',
         'precio',
         'estado',
+        'formato', // Nueva columna agregada
         'payment_intent_id',
 
     ];
@@ -26,7 +27,7 @@ class AppointmentCart extends Model
     {
         return $this->belongsTo(Patient::class);
     }
-    
+
     public function user()
     {
         return $this->belongsTo(User::class);

@@ -1,0 +1,170 @@
+[
+    {
+        "label": "Adicciones",
+        "description": "Especialidad enfocada en el tratamiento de dependencias a sustancias o comportamientos adictivos.",
+        "value": "addictions",
+        "key": "addictions"
+    },
+    {
+        "label": "Ansiedad y Estrés",
+        "description": "Especialidad dedicada al diagnóstico y tratamiento de trastornos de ansiedad y manejo del estrés.",
+        "value": "anxiety_stress",
+        "key": "anxiety_stress"
+    },
+    {
+        "label": "Autismo y Trastornos del Desarrollo",
+        "description": "Especialidad que trabaja con personas con trastornos del espectro autista y otros problemas del desarrollo.",
+        "value": "autism_developmental_disorders",
+        "key": "autism_developmental_disorders"
+    },
+    {
+        "label": "Depresión y Trastornos del Estado de Ánimo",
+        "description": "Especialidad enfocada en el tratamiento de la depresión y otros trastornos del estado de ánimo.",
+        "value": "depression_mood_disorders",
+        "key": "depression_mood_disorders"
+    },
+    {
+        "label": "Duelo y Pérdida",
+        "description": "Especialidad que ayuda a las personas a superar el duelo y las pérdidas emocionales.",
+        "value": "grief_loss",
+        "key": "grief_loss"
+    },
+    {
+        "label": "Esquizofrenia y Trastornos Psicóticos",
+        "description": "Especialidad dedicada al tratamiento de la esquizofrenia y otros trastornos psicóticos.",
+        "value": "schizophrenia_psychotic_disorders",
+        "key": "schizophrenia_psychotic_disorders"
+    },
+    {
+        "label": "Evaluación Psicológica",
+        "description": "Especialidad que se enfoca en la evaluación y diagnóstico de condiciones psicológicas.",
+        "value": "psychological_assessment",
+        "key": "psychological_assessment"
+    },
+    {
+        "label": "Neuropsicología",
+        "description": "Especialidad que estudia la relación entre el cerebro y el comportamiento, enfocada en lesiones o enfermedades cerebrales.",
+        "value": "neuropsychology",
+        "key": "neuropsychology"
+    },
+    {
+        "label": "Paidopsiquiatría",
+        "description": "Subespecialidad de la psiquiatría enfocada en el diagnóstico y tratamiento de trastornos mentales en niños y adolescentes.",
+        "value": "child_adolescent_psychiatry",
+        "key": "child_adolescent_psychiatry"
+    },
+    {
+        "label": "Psicología Clínica",
+        "description": "Especialidad que se enfoca en el diagnóstico y tratamiento de trastornos mentales y emocionales.",
+        "value": "clinical_psychology",
+        "key": "clinical_psychology"
+    },
+    {
+        "label": "Psicología Comunitaria",
+        "description": "Especialidad que trabaja en la promoción del bienestar mental en comunidades y grupos sociales.",
+        "value": "community_psychology",
+        "key": "community_psychology"
+    },
+    {
+        "label": "Psicología Educativa",
+        "description": "Especialidad que se enfoca en el desarrollo y aplicación de estrategias psicológicas en el ámbito educativo.",
+        "value": "educational_psychology",
+        "key": "educational_psychology"
+    },
+    {
+        "label": "Psicología Forense",
+        "description": "Especialidad que aplica principios psicológicos en el ámbito legal y judicial.",
+        "value": "forensic_psychology",
+        "key": "forensic_psychology"
+    },
+    {
+        "label": "Psicología Infantil y Adolescente",
+        "description": "Especialidad dedicada al diagnóstico y tratamiento de problemas psicológicos en niños y adolescentes.",
+        "value": "child_adolescent_psychology",
+        "key": "child_adolescent_psychology"
+    },
+    {
+        "label": "Psicología Laboral y Organizacional",
+        "description": "Especialidad que se enfoca en el comportamiento humano en el ámbito laboral y organizacional.",
+        "value": "industrial_organizational_psychology",
+        "key": "industrial_organizational_psychology"
+    },
+    {
+        "label": "Psicología Positiva",
+        "description": "Especialidad que se centra en el estudio de las emociones positivas y el bienestar psicológico.",
+        "value": "positive_psychology",
+        "key": "positive_psychology"
+    },
+    {
+        "label": "Psicología Social",
+        "description": "Especialidad que estudia cómo los pensamientos, sentimientos y comportamientos son influenciados por la presencia de otros.",
+        "value": "social_psychology",
+        "key": "social_psychology"
+    },
+    {
+        "label": "Psicoterapia",
+        "description": "Especialidad que utiliza técnicas terapéuticas para tratar problemas emocionales y psicológicos.",
+        "value": "psychotherapy",
+        "key": "psychotherapy"
+    },
+    {
+        "label": "Psiquiatría General",
+        "description": "Especialidad médica dedicada al diagnóstico y tratamiento de trastornos mentales en adultos.",
+        "value": "general_psychiatry",
+        "key": "general_psychiatry"
+    },
+    {
+        "label": "Psiquiatría Geriátrica",
+        "description": "Especialidad médica enfocada en el diagnóstico y tratamiento de trastornos mentales en adultos mayores.",
+        "value": "geriatric_psychiatry",
+        "key": "geriatric_psychiatry"
+    },
+    {
+        "label": "Sexología",
+        "description": "Especialidad que estudia y trata problemas relacionados con la sexualidad y la intimidad.",
+        "value": "sexology",
+        "key": "sexology"
+    },
+    {
+        "label": "Tanatología",
+        "description": "Especialidad que se enfoca en el acompañamiento emocional y psicológico durante el duelo y el proceso de morir.",
+        "value": "thanatology",
+        "key": "thanatology"
+    },
+    {
+        "label": "Terapia de Pareja y Familia",
+        "description": "Especialidad que se enfoca en resolver conflictos y mejorar las relaciones en parejas y familias.",
+        "value": "couple_family_therapy",
+        "key": "couple_family_therapy"
+    },
+    {
+        "label": "Trastornos de la Conducta Alimentaria",
+        "description": "Especialidad dedicada al diagnóstico y tratamiento de trastornos como la anorexia y la bulimia.",
+        "value": "eating_disorders",
+        "key": "eating_disorders"
+    },
+    {
+        "label": "Trastornos de Personalidad",
+        "description": "Especialidad que trata a personas con patrones de pensamiento y comportamiento rígidos y desadaptativos.",
+        "value": "personality_disorders",
+        "key": "personality_disorders"
+    },
+    {
+        "label": "Trastornos del Sueño",
+        "description": "Especialidad que se enfoca en el diagnóstico y tratamiento de problemas relacionados con el sueño.",
+        "value": "sleep_disorders",
+        "key": "sleep_disorders"
+    },
+    {
+        "label": "Trastornos Obsesivo-Compulsivos (TOC)",
+        "description": "Especialidad dedicada al tratamiento del trastorno obsesivo-compulsivo y condiciones relacionadas.",
+        "value": "ocd_related_disorders",
+        "key": "ocd_related_disorders"
+    },
+    {
+        "label": "Trauma y Estrés Postraumático",
+        "description": "Especialidad que trata a personas que han experimentado eventos traumáticos y sufren de estrés postraumático.",
+        "value": "trauma_ptsd",
+        "key": "trauma_ptsd"
+    }
+]

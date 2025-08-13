@@ -145,7 +145,11 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-Route::get('patient/profesional', [UserController::class, 'getProfessional']);
+// Route::get('patient/profesional', [UserController::class, 'getProfessional']);
 Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
 Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
+
+
+require __DIR__.'/api/catalogos.php';
+require __DIR__.'/api/professional.php';

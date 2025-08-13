@@ -42,7 +42,7 @@ class ProfessionalController extends Controller
         // 2) Lee valores desde el arreglo normalizado
         $page = (int) ($params['params']['page'] ?? 1);
         $perPage = (int) ($params['params']['perPage'] ?? 12);
-        $search = trim((string) ($params['params']['search'] ?? ''));
+        $search = (string) ($params['params']['search'] ?? '');
         $precioMax = $params['params']['precioMax'] ?? null;
         $pais = $params['params']['pais'] ?? null;
         $idioma = $params['params']['idioma'] ?? null;
@@ -54,13 +54,12 @@ class ProfessionalController extends Controller
         $enfoques = !empty($params['params']['enfoques'])
             ? array_values(array_filter(array_map('trim', explode(',', $params['params']['enfoques']))))
             : [];
-        Log::info($params['params']);
         $q = User::query()
             ->where('isProfileComplete', true)
             ->where('activo', true);
 
         if ($search !== '') {
-            $q->where('contacto->publicName', 'like', "%{$search}%");
+            $q->where('name', 'like', "%{$search}%");        
         }
         if (!empty($pais))
             $q->where('address->pais', $pais);
@@ -98,7 +97,7 @@ class ProfessionalController extends Controller
             });
         }
 
-        $result = $q->orderByDesc('id')->paginate($perPage);
+        $result = $q->inRandomOrder()->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'data' => $result->items(),

@@ -59,7 +59,7 @@ class ProfessionalController extends Controller
             ->where('activo', true);
 
         if ($search !== '') {
-            $q->where('name', 'like', "%{$search}%");        
+            $q->where('name', 'like', "%{$search}%");
         }
         if (!empty($pais))
             $q->where('address->pais', $pais);
@@ -96,8 +96,11 @@ class ProfessionalController extends Controller
                     ->havingRaw('MIN(CAST(jt.precio AS UNSIGNED)) <= ?', [$precioMax]);
             });
         }
-
-        $result = $q->inRandomOrder()->paginate($perPage, ['*'], 'page', $page);
+        $seed = $params['seed'] ?? 'default-seed';
+        $result = $q
+            ->orderByRaw('RAND(?)', [$seed]) // mismo orden para esa semilla
+            ->paginate($perPage, ['*'], 'page', $page);
+        
 
         return response()->json([
             'data' => $result->items(),

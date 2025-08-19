@@ -10,9 +10,21 @@ class EmotionLogController extends Controller
 {
     public function index(Request $request)
     {
-        $patient = $request->user(); // auth:patient
-        return EmotionLog::where('patient_id', $patient->id)->with('patient')->orderByDesc('date')->get();
+        if ($request->has('patient_id')) {
+            return EmotionLog::where('patient_id', $request->patient_id)
+                            ->with('patient')
+                            ->orderByDesc('date')
+                            ->get();
+        }
+
+        $patient = $request->user(); 
+        return EmotionLog::where('patient_id', $patient->id)
+                        ->with('patient')
+                        ->orderByDesc('date')
+                        ->get();
     }
+
+
 
     public function store(Request $request)
     {

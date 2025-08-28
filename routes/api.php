@@ -140,16 +140,20 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('cart', [AppointmentCartController::class, 'show']);
     Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
     Route::get('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
+    // OXXO con Elements (nuevo / ajustado)
+    Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
+    // (opcional) Checkout OXXO por si lo usas en otro lado
+    Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
 });
-
+Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-// Route::get('patient/profesional', [UserController::class, 'getProfessional']);
 Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
 Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
 
 
-require __DIR__.'/api/catalogos.php';
-require __DIR__.'/api/professional.php';
+require __DIR__ . '/api/catalogos.php';
+require __DIR__ . '/api/professional.php';
+require __DIR__ . '/api/deviceToken.php';

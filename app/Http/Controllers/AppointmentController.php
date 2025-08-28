@@ -77,79 +77,80 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request, $id)
     {
-$now = Carbon::now();
-    $start = $now->copy()->startOfDay();
-    $end = $start->copy()->addDays(30); // rango máximo
+        $now = Carbon::now();
+        $start = $now->copy()->startOfDay();
+        $end = $start->copy()->addDays(30); // rango máximo
 
-    $user = User::findOrFail($id);
-    $workingHours = $user->horarios;
+        $user = User::findOrFail($id);
+        $workingHours = $user->horarios;
 
-    $appointments = Appointment::where('user', $id)
-        ->whereBetween('start', [$now, $end])
-        ->get();
+        $appointments = Appointment::where('user', $id)
+            ->whereBetween('start', [$now, $end])
+            ->get();
 
-    $slots = [];
-    $uniqueDays = [];
+        $slots = [];
+        $uniqueDays = [];
 
-    $current = $start->copy();
+        $current = $start->copy();
 
-    while ($current->lte($end) && count($uniqueDays) < 5) {
-        $weekday = strtolower($current->format('l'));
-        $fecha = $current->format('Y-m-d');
+        while ($current->lte($end) && count($uniqueDays) < 5) {
+            $weekday = strtolower($current->format('l'));
+            $fecha = $current->format('Y-m-d');
 
-        if (empty($workingHours[$weekday])) {
-            $current->addDay();
-            continue;
-        }
-
-        $slotsFoundToday = false;
-
-        foreach ($workingHours[$weekday] as $block) {
-            $blockStart = Carbon::parse($fecha . ' ' . $block['start']);
-            $blockEnd = Carbon::parse($fecha . ' ' . $block['end']);
-
-            if ($blockStart->gte($blockEnd)) {
-                continue; // Bloque inválido
+            if (empty($workingHours[$weekday])) {
+                $current->addDay();
+                continue;
             }
 
-            $slotStart = $blockStart->greaterThan($now) ? $blockStart->copy() : max($blockStart, $now->copy());
+            $slotsFoundToday = false;
 
-            while ($slotStart->lt($blockEnd)) {
-                $slotEnd = $slotStart->copy()->addHour();
+            foreach ($workingHours[$weekday] as $block) {
+                $blockStart = Carbon::parse($fecha . ' ' . $block['start']);
+                $blockEnd = Carbon::parse($fecha . ' ' . $block['end']);
 
-                if ($slotEnd->gt($blockEnd)) break;
+                if ($blockStart->gte($blockEnd)) {
+                    continue; // Bloque inválido
+                }
 
-                if ($slotStart->isPast()) {
+                $slotStart = $blockStart->greaterThan($now) ? $blockStart->copy() : max($blockStart, $now->copy());
+
+                while ($slotStart->lt($blockEnd)) {
+                    $slotEnd = $slotStart->copy()->addHour();
+
+                    if ($slotEnd->gt($blockEnd))
+                        break;
+
+                    if ($slotStart->isPast()) {
+                        $slotStart->addHour();
+                        continue;
+                    }
+
+                    $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
+                        $aStart = Carbon::parse($a->start);
+                        $aEnd = Carbon::parse($a->end);
+                        return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
+                    });
+
+                    if (!$empalme) {
+                        $slots[] = [
+                            'date' => $fecha,
+                            'hour' => $slotStart->format('H:i'),
+                        ];
+                        $slotsFoundToday = true;
+                    }
+
                     $slotStart->addHour();
-                    continue;
                 }
-
-                $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
-                    $aStart = Carbon::parse($a->start);
-                    $aEnd = Carbon::parse($a->end);
-                    return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
-                });
-
-                if (!$empalme) {
-                    $slots[] = [
-                        'date' => $fecha,
-                        'hour' => $slotStart->format('H:i'),
-                    ];
-                    $slotsFoundToday = true;
-                }
-
-                $slotStart->addHour();
             }
+
+            if ($slotsFoundToday) {
+                $uniqueDays[] = $fecha; // Agrega este día a los días únicos con slots
+            }
+
+            $current->addDay();
         }
 
-        if ($slotsFoundToday) {
-            $uniqueDays[] = $fecha; // Agrega este día a los días únicos con slots
-        }
-
-        $current->addDay();
-    }
-
-    return response()->json($slots);
+        return response()->json($slots);
     }
 
 
@@ -203,11 +204,14 @@ $now = Carbon::now();
 
         // Notificación
         $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
-        Log::alert($send);
-
+        event(new \App\Events\AppointmentCreated(
+            appointmentId: $appointment->id,
+            psychologistId: $appointment->user,
+            patientId: $appointment->patient
+        ));
         if (!$send) {
             return response()->json([
-                'rasson' => 'No se logró enviar la notificación de la cita',
+                'rasson' => 'No se logró enviar la notificación vía email',
                 'message' => "Cita creada sin notificación",
                 'type' => "warning",
                 'appointment' => $appointment

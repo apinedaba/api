@@ -102,6 +102,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::resource('user/appointments', AppointmentController::class);
     Route::get('user/cart', [AppointmentCartController::class, 'show']);
     Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
+    Route::get('user/emotion-logs', [EmotionLogController::class, 'index']);
+
     // Rutas para los cuestionarios
     Route::apiResource('user/questionnaires', QuestionnaireController::class);
     // Rutas para los enlaces dinámicos

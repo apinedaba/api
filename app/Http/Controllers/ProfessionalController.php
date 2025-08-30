@@ -179,13 +179,13 @@ class ProfessionalController extends Controller
             ],
             [
                 'key' => 'enfoques',
-                'type' => 'checkbox',
+                'type' => 'autocomplete',
                 'label' => 'Enfoque',
                 'values' => collect($enfoques)->map(fn($e) => ['label' => $e, 'value' => $e])->values(),
             ],
             [
                 'key' => 'pais',
-                'type' => 'select',
+                'type' => 'autocomplete',
                 'label' => 'País',
                 'values' => $paises,
             ],

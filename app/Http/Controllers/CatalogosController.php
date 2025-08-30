@@ -23,7 +23,7 @@ class CatalogosController extends Controller
             "type" => "checkbox",
             "values" => $generos,
             "label" => "Generos",
-            "key" =>"generos"
+            "key" => "generos"
         ];
 
         return $response;
@@ -39,12 +39,15 @@ class CatalogosController extends Controller
             ->filter()
             ->unique()
             ->values();
-
+        $result = $sesiones
+            ->map(fn($key) => ['label' => $key, 'value' => $key])
+            ->filter() // Por si hay claves sin traducción
+            ->values();
         $response = [
-            "type" => "checkbox",
-            "values" => $sesiones,
+            "type" => "autocomplete",
+            "values" => $result,
             "label" => "Enfoque",
-            "key" =>"enfoque"
+            "key" => "enfoque"
         ];
 
         return $response;
@@ -76,7 +79,7 @@ class CatalogosController extends Controller
             "type" => "autocomplete",
             "values" => $result,
             "label" => "Especialidades",
-            "key"=>"especialidades"
+            "key" => "especialidades"
         ];
 
         return $response;
@@ -107,10 +110,10 @@ class CatalogosController extends Controller
             ]);
 
         $response = [
-            "type" => "checkbox",
+            "type" => "autocomplete",
             "values" => $pais,
             "label" => "País",
-            "key" =>"pais"
+            "key" => "pais"
         ];
 
         return $response;

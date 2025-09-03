@@ -46,6 +46,16 @@ class NuevoPsicologoRegistrado extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
+
+        if ($notifiable->hasVerifiedEmail()) {
+            return (new MailMessage)
+                ->subject('¡Te damos la bienvenida a MindMeet!')
+                ->greeting("¡Hola, {$notifiable->name}!")
+                ->line('Gracias por registrarte en MindMeet a través de tu cuenta de Google. Tu cuenta ya está activa y lista para usar.')
+                ->line('¡Ya puedes empezar a explorar la plataforma!')
+                ->action('Ir a mi panel', url(env('FRONTEND_URL_USER', 'http://localhost:3000')));
+        }
+
         // ✅ Genera el link firmado de verificación
         $verificationUrl = URL::temporarySignedRoute(
             'verification.verify',

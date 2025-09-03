@@ -159,6 +159,12 @@ Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalB
 Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
 
+Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
+Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
+
+Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
+Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
+
 
 require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/professional.php';

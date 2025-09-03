@@ -20,7 +20,10 @@ class SocialiteController extends Controller
      */
     public function redirectProfessional($provider)
     {
-        return Socialite::driver($provider)->stateless()->redirect();
+        return Socialite::driver($provider)
+            ->stateless()
+            ->redirectUrl(env('GOOGLE_REDIRECT_URI_USER')) // Le decimos qué URL usar
+            ->redirect();
     }
 
     /**
@@ -65,7 +68,10 @@ class SocialiteController extends Controller
 
     public function redirectPatient($provider)
     {
-        return Socialite::driver($provider)->stateless()->redirect();
+        return Socialite::driver($provider)
+            ->stateless()
+            ->redirectUrl(env('GOOGLE_REDIRECT_URI_PATIENT')) // Le decimos qué URL usar
+            ->redirect();
     }
 
     public function callbackPatient($provider)

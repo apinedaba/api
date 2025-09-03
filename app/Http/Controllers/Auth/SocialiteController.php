@@ -56,8 +56,8 @@ class SocialiteController extends Controller
                     'password' => Hash::make(uniqid()),
                     'email_verified_at' => now(),
                 ]);
+                $user->notify(new NuevoPsicologoRegistrado($user, true));
             }
-            $user->notify(new NuevoPsicologoRegistrado($user, true));
 
             $token = $user->createToken('user_token')->plainTextToken;
             return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/auth/callback?token=' . $token);

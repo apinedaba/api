@@ -36,6 +36,7 @@ use App\Http\Controllers\StripeController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\PhotoUploadController;
+use App\Http\Controllers\Auth\SocialiteController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -43,6 +44,9 @@ Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])
     ->middleware('throttle:resend');
+
+Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
+Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
     ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
@@ -154,6 +158,12 @@ Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
 Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
+
+Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
+Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
+
+Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
+Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
 
 
 require __DIR__ . '/api/catalogos.php';

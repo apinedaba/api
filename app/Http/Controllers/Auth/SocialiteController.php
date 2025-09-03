@@ -33,7 +33,10 @@ class SocialiteController extends Controller
     public function callbackProfessional($provider)
     {
         try {
-            $socialUser = Socialite::driver($provider)->stateless()->user();
+            $socialUser = Socialite::driver($provider)
+                ->stateless()
+                ->redirectUrl(env('GOOGLE_REDIRECT_URI_USER'))
+                ->user();
 
             $user = User::where('email', $socialUser->email)->first();
 
@@ -77,7 +80,10 @@ class SocialiteController extends Controller
     public function callbackPatient($provider)
     {
         try {
-            $socialUser = Socialite::driver($provider)->stateless()->user();
+            $socialUser = Socialite::driver($provider)
+                ->stateless()
+                ->redirectUrl(env('GOOGLE_REDIRECT_URI_PATIENT'))
+                ->user();
 
             $patient = Patient::where('email', $socialUser->email)->first();
 

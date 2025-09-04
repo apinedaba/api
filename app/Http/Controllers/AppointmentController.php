@@ -52,6 +52,7 @@ class AppointmentController extends Controller
                 'patient' => $patientId,
                 'user' => $user->id
             ];
+            \Log::alert($filter);
             $enlace = PatientUser::where($filter)->first();
 
             if (!isset($enlace['id'])) {

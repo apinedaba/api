@@ -41,8 +41,9 @@ class QuestionnaireController extends Controller
         $validate = Validator::make($request->all(), [
             'title' => 'required|string|max:255|min:10',
             'description' => 'nullable|string',
-            'structure' => 'required|json',
+            'structure' => 'required|array',
         ], $this->messages);
+
         if ($validate->fails()) {
             return response()->json([
                 'message' => 'Ha ocurrido un error de validación',
@@ -51,7 +52,9 @@ class QuestionnaireController extends Controller
             ], 400);
         }
 
-        $questionnaire = Questionnaire::create($request->only('title', 'description', 'structure', 'user'));
+        $user = Auth::user()->id;
+        $request['user'] = $user;
+        $questionnaire = Questionnaire::create($request->only('id','title', 'description', 'structure', 'user'));
         return response()->json(
             [
                 'rasson' => "El cuestionario se creo con exito",
@@ -67,7 +70,7 @@ class QuestionnaireController extends Controller
     public function submitResponses(Request $request, $questionnaireToken)
     {
         $request->validate([
-            'response' => 'required|json',
+            'response' => 'required|array',
         ]);
         try {
             $qt = QuestionnaireLink::where('token', $questionnaireToken);
@@ -140,7 +143,17 @@ class QuestionnaireController extends Controller
      */
     public function update(Request $request, Questionnaire $questionnaire)
     {
-        //
+        $response = $questionnaire->update($request->only('id','title', 'description', 'structure', 'user'));
+        return response()->json(
+            [
+                'rasson' => "El cuestionario se creo con exito",
+                'message' => "Cuestionario agregado",
+                'type' => "success",
+                "data" => $questionnaire
+            ]
+            ,
+            200
+        );
     }
 
     /**

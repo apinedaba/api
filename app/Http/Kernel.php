@@ -40,7 +40,7 @@ class Kernel extends HttpKernel
 
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
+            \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
     ];
@@ -72,5 +72,6 @@ class Kernel extends HttpKernel
         'handle_invalid_token' => \App\Http\Middleware\HandleInvalidToken::class,
         'user' => \App\Http\Middleware\EnsureUser::class,
         'patient' => \App\Http\Middleware\EnsurePatient::class,
+        'subscribed' => \App\Http\Middleware\CheckSubscriptionStatus::class,
     ];
 }

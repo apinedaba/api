@@ -79,7 +79,7 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 
 
 // Rutas Usuario / Psicologos
-Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+/* Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     Route::get('user/info', function (Request $request) {
         return $request->user();
     });
@@ -125,7 +125,70 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
     Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
     Route::post('user/identity/upload', [IdentityController::class, 'store']);
+}); */
+
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+    // Info básica y gestión de cuenta
+    Route::get('user/info', function (Request $request) {
+        return $request->user()->load('subscription');
+    });
+    Route::post('user/logout', [UserAuthController::class, 'logout']);
+    Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
+
+    // Onboarding y configuración de perfil
+    Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
+    Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
+    Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
+    Route::get('user/verifyCedula/{cedula}', [CedulaCheck::class, 'checkCedula']);
+    Route::resource('user/education', EducationUserController::class);
+    Route::resource('user/address', AddressController::class);
+    Route::resource('user/profile', ProfileController::class);
+    Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
+    Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
+    Route::post('user/identity/upload', [IdentityController::class, 'store']);
+
+    // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
+    Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
+    Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
+    Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
+    Route::resource('user/appointments', AppointmentController::class);
+    Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
 });
+
+
+// Grupo 2: Requiere autenticación Y una suscripción activa.
+// Aquí van todas las funcionalidades principales de la plataforma.
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'subscribed'])->group(function () {
+    // Gestión de pacientes
+    Route::resource('user/patient', PatientController::class);
+    Route::resource('user/catalog/patients', PatientUserController::class);
+    Route::prefix('user/patients/{patient}/medications')->group(function () {
+        Route::get('/', [PatientMedicationController::class, 'index']);
+        Route::post('/', [PatientMedicationController::class, 'store']);
+        Route::put('/{medication}', [PatientMedicationController::class, 'update']);
+        Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
+    });
+    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
+
+    // Agenda y citas
+    Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+
+
+    // Funcionalidades avanzadas (cuestionarios, chat, etc.)
+    Route::apiResource('user/questionnaires', QuestionnaireController::class);
+    Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
+    Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
+    Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->name('questionnaire.show.response');
+    Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
+    Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
+
+    // Datos clínicos del paciente
+    Route::get('user/emotion-logs', [EmotionLogController::class, 'index']);
+    Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
+    Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
+});
+
 
 //Rutas para Pacientes
 Route::post('patient/login', [PatientAuthController::class, 'login']);
@@ -152,6 +215,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
 });
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
+Route::post('/stripe/subscription/webhook', [StripeController::class, 'handleWebhook']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);

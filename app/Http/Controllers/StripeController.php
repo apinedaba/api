@@ -16,6 +16,10 @@ use App\Models\AppointmentCart;
 use App\Models\Appointment;
 use App\Models\PatientUser;
 use App\Services\AppointmentService;
+use App\Models\User;
+use App\Models\Subscription;
+use Stripe\Checkout\Session as CheckoutSession;
+use Stripe\BillingPortal\Session as BillingPortalSession;
 
 class StripeController extends Controller
 {
@@ -176,7 +180,7 @@ class StripeController extends Controller
         }
 
         // Log de diagnóstico
-        \Log::info('OXXO Checkout URLs', [
+        Log::info('OXXO Checkout URLs', [
             'frontend' => $frontend,
             'success' => $frontend . '/pago/oxxo/exito?session_id={CHECKOUT_SESSION_ID}',
             'cancel' => $frontend . '/pago/oxxo/cancelado',
@@ -287,81 +291,208 @@ class StripeController extends Controller
         switch ($event->type) {
             // Checkout completado (solo significa voucher generado en OXXO)
             case 'checkout.session.completed': {
-                $session = $event->data->object;
-                Log::info('Checkout session completed (voucher generado): ' . $session->id);
-                // Puedes actualizar estado del cart a "voucher_generado" si gustas:
-                if (!empty($session->metadata->appointment_cart_id)) {
-                    AppointmentCart::where('id', $session->metadata->appointment_cart_id)
-                        ->update(['estado' => 'voucher_generado']);
+                    $session = $event->data->object;
+                    Log::info('Checkout session completed (voucher generado): ' . $session->id);
+                    // Puedes actualizar estado del cart a "voucher_generado" si gustas:
+                    if (!empty($session->metadata->appointment_cart_id)) {
+                        AppointmentCart::where('id', $session->metadata->appointment_cart_id)
+                            ->update(['estado' => 'voucher_generado']);
+                    }
+                    break;
                 }
-                break;
-            }
 
-            // 💰 Para OXXO, el pago real llega aquí (acreditado)
+                // 💰 Para OXXO, el pago real llega aquí (acreditado)
             case 'payment_intent.succeeded': {
-                $pi = $event->data->object; // \Stripe\PaymentIntent
-                $meta = (array) ($pi->metadata ?? []);
+                    $pi = $event->data->object; // \Stripe\PaymentIntent
+                    $meta = (array) ($pi->metadata ?? []);
 
-                if (($meta['type'] ?? null) === 'session_pago_oxxo') {
-                    $cartId = $meta['appointment_cart_id'] ?? null;
-                    $patientId = $meta['patient_id'] ?? null;
-                    $userId = $meta['user_id'] ?? null;
+                    if (($meta['type'] ?? null) === 'session_pago_oxxo') {
+                        $cartId = $meta['appointment_cart_id'] ?? null;
+                        $patientId = $meta['patient_id'] ?? null;
+                        $userId = $meta['user_id'] ?? null;
 
-                    if ($cartId && $patientId && $userId) {
-                        $cart = AppointmentCart::with('user')->find($cartId);
-                        if ($cart && $cart->estado !== 'pagado') {
-                            // Relación + sala
-                            $relation = $this->service->ensureRelationshipAndRoom($userId, $patientId);
+                        if ($cartId && $patientId && $userId) {
+                            $cart = AppointmentCart::with('user')->find($cartId);
+                            if ($cart && $cart->estado !== 'pagado') {
+                                // Relación + sala
+                                $relation = $this->service->ensureRelationshipAndRoom($userId, $patientId);
 
-                            $inicio = "{$cart->fecha} {$cart->hora}";
-                            $fin = \Carbon\Carbon::parse($inicio)->addHours($cart->duracion);
+                                $inicio = "{$cart->fecha} {$cart->hora}";
+                                $fin = \Carbon\Carbon::parse($inicio)->addHours($cart->duracion);
 
-                            $appointment = Appointment::firstOrCreate(
-                                ['cart_id' => $cart->id],
-                                [
-                                    'user' => $userId,
-                                    'patient' => $patientId,
-                                    'start' => $inicio,
-                                    'end' => $fin,
-                                    'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
-                                    'statusUser' => 'Pending Approve',
-                                    'statusPatient' => 'Pending Approve',
-                                    'state' => 'Creado',
-                                    'precio' => $cart->precio,
-                                    'tipoSesion' => $cart->tipoSesion,
-                                    'video_call_room' => $relation->video_call_room,
-                                ]
-                            );
+                                $appointment = Appointment::firstOrCreate(
+                                    ['cart_id' => $cart->id],
+                                    [
+                                        'user' => $userId,
+                                        'patient' => $patientId,
+                                        'start' => $inicio,
+                                        'end' => $fin,
+                                        'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
+                                        'statusUser' => 'Pending Approve',
+                                        'statusPatient' => 'Pending Approve',
+                                        'state' => 'Creado',
+                                        'precio' => $cart->precio,
+                                        'tipoSesion' => $cart->tipoSesion,
+                                        'video_call_room' => $relation->video_call_room,
+                                    ]
+                                );
 
-                            $this->generarEnlace($userId, $patientId);
+                                $this->generarEnlace($userId, $patientId);
 
-                            $cart->update([
-                                'estado' => 'pagado',
-                                'payment_intent_id' => $pi->id,
-                                'stripe_session_id' => $cart->stripe_session_id, // lo conservas si quieres
-                            ]);
+                                $cart->update([
+                                    'estado' => 'pagado',
+                                    'payment_intent_id' => $pi->id,
+                                    'stripe_session_id' => $cart->stripe_session_id, // lo conservas si quieres
+                                ]);
 
-                            Log::info("OXXO pago acreditado. Cart {$cart->id} -> Appointment {$appointment->id}");
+                                Log::info("OXXO pago acreditado. Cart {$cart->id} -> Appointment {$appointment->id}");
+                            }
                         }
                     }
+
+                    break;
                 }
 
-                break;
-            }
-
-            // ❌ Voucher expiró / pago falló
+                // ❌ Voucher expiró / pago falló
             case 'payment_intent.payment_failed': {
-                $pi = $event->data->object;
-                $meta = (array) ($pi->metadata ?? []);
-                if (($meta['type'] ?? null) === 'session_pago_oxxo' && !empty($meta['appointment_cart_id'])) {
-                    AppointmentCart::where('id', $meta['appointment_cart_id'])
-                        ->update(['estado' => 'cancelado']);
-                    Log::warning("OXXO voucher expiró / fallo. Cart {$meta['appointment_cart_id']} cancelado.");
+                    $pi = $event->data->object;
+                    $meta = (array) ($pi->metadata ?? []);
+                    if (($meta['type'] ?? null) === 'session_pago_oxxo' && !empty($meta['appointment_cart_id'])) {
+                        AppointmentCart::where('id', $meta['appointment_cart_id'])
+                            ->update(['estado' => 'cancelado']);
+                        Log::warning("OXXO voucher expiró / fallo. Cart {$meta['appointment_cart_id']} cancelado.");
+                    }
+                    break;
                 }
-                break;
-            }
         }
 
         return response()->json(['received' => true]);
+    }
+
+    public function getSubscriptionStatus(Request $request)
+    {
+        return response()->json($request->user()->subscription);
+    }
+
+    public function createSubscriptionCheckoutSession(Request $request)
+    {
+        Stripe::setApiKey($this->stripe_secretkey);
+        $request->validate(['plan_id' => 'required|string']);
+        $user = $request->user();
+        $planId = $request->plan_id;
+
+        if (!$user->stripe_id) {
+            $customer = \Stripe\Customer::create(['email' => $user->email, 'name' => $user->name]);
+            $user->stripe_id = $customer->id;
+            $user->save();
+        }
+
+        $session = CheckoutSession::create([
+            'mode' => 'subscription',
+            'customer' => $user->stripe_id,
+            'line_items' => [['price' => $planId, 'quantity' => 1]],
+            'success_url' => env('FRONTEND_URL_USER') . '/suscripcion?status=success',
+            'cancel_url' => env('FRONTEND_URL_USER') . '/suscripcion?status=canceled',
+            'metadata' => ['user_id' => $user->id],
+            'locale' => 'es-419',
+        ]);
+
+        return response()->json(['url' => $session->url]);
+    }
+
+    public function createCustomerPortalSession(Request $request)
+    {
+        Stripe::setApiKey($this->stripe_secretkey);
+        $user = $request->user();
+        if (!$user->stripe_id) {
+            return response()->json(['error' => 'Usuario no tiene cliente de Stripe.'], 400);
+        }
+
+        $portalSession = BillingPortalSession::create([
+            'customer' => $user->stripe_id,
+            'return_url' => env('FRONTEND_URL_USER') . '/suscripcion',
+        ]);
+
+        return response()->json(['url' => $portalSession->url]);
+    }
+
+    // --- WEBHOOK UNIFICADO ---
+    public function handleWebhook(Request $request)
+    {
+        $payload = $request->getContent();
+        $sigHeader = $request->header('Stripe-Signature');
+        $endpointSecret = env('STRIPE_WEBHOOK_SECRET');
+        $event = null;
+
+        try {
+            $event = Webhook::constructEvent($payload, $sigHeader, $endpointSecret);
+        } catch (\UnexpectedValueException $e) {
+            return response()->json(['error' => 'Invalid payload'], 400);
+        } catch (\Stripe\Exception\SignatureVerificationException $e) {
+            return response()->json(['error' => 'Invalid signature'], 400);
+        }
+
+        switch ($event->type) {
+            case 'checkout.session.completed':
+                $session = $event->data->object;
+                if ($session->mode == 'subscription') {
+                    $this->handleNewSubscription($session);
+                }
+                break;
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                $this->handleSubscriptionChange($event->data->object);
+                break;
+            case 'invoice.payment_failed':
+                $this->handleFailedPayment($event->data->object);
+                break;
+                // Aquí puedes añadir tus cases para pagos de citas si es necesario
+                // por ejemplo, `payment_intent.succeeded` para OXXO.
+        }
+
+        return response()->json(['status' => 'success']);
+    }
+
+    // --- MÉTODOS AUXILIARES PARA EL WEBHOOK ---
+    protected function handleNewSubscription($session)
+    {
+        $user = User::find($session->metadata->user_id);
+        if ($user) {
+            $stripeSubscription = \Stripe\Subscription::retrieve($session->subscription);
+            Subscription::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'stripe_id'     => $stripeSubscription->id,
+                    'stripe_plan'   => $stripeSubscription->items->data[0]->price->id,
+                    'stripe_status' => $stripeSubscription->status,
+                    'ends_at'       => null,
+                ]
+            );
+            Log::info("Nueva suscripción creada para el usuario: {$user->id}");
+        }
+    }
+
+    protected function handleSubscriptionChange($stripeSubscription)
+    {
+        $subscription = Subscription::where('stripe_id', $stripeSubscription->id)->first();
+        if ($subscription) {
+            $subscription->update([
+                'stripe_plan'   => $stripeSubscription->items->data[0]->price->id,
+                'stripe_status' => $stripeSubscription->status,
+                'ends_at'       => $stripeSubscription->cancel_at_period_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->current_period_end) : null,
+            ]);
+            Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
+        }
+    }
+
+    protected function handleFailedPayment($invoice)
+    {
+        if ($invoice->subscription) {
+            $subscription = Subscription::where('stripe_id', $invoice->subscription)->first();
+            if ($subscription) {
+                $subscription->update(['stripe_status' => 'past_due']);
+                Log::warning("Fallo en pago de suscripción: {$invoice->subscription}");
+            }
+        }
     }
 }

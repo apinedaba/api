@@ -214,8 +214,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     // (opcional) Checkout OXXO por si lo usas en otro lado
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
 });
-//Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
-Route::post('/stripe/webhook', [StripeController::class, 'handleWebhook']);
+Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
+Route::post('/stripe/subscription/webhook', [StripeController::class, 'handleWebhook']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);

@@ -33,6 +33,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'image',
         'verification_code',
         'code_expires_at',
+        'has_lifetime_access',
         'activo'
     ];
 
@@ -63,7 +64,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'horarios' => 'array',
         'image' => 'string',
         'isProfileComplete' => 'boolean',
-        'activo' => 'boolean'
+        'activo' => 'boolean',
+        'has_lifetime_access' => 'boolean',
     ];
     public function patientUsers()
     {

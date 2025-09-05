@@ -415,8 +415,6 @@ class StripeController extends Controller
 
         return response()->json(['url' => $portalSession->url]);
     }
-
-    // --- WEBHOOK UNIFICADO ---
     public function handleWebhook(Request $request)
     {
         $payload = $request->getContent();
@@ -452,10 +450,10 @@ class StripeController extends Controller
 
         return response()->json(['status' => 'success']);
     }
-
-    // --- MÉTODOS AUXILIARES PARA EL WEBHOOK ---
     protected function handleNewSubscription($session)
     {
+        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+
         $user = User::find($session->metadata->user_id);
         if ($user) {
             $stripeSubscription = \Stripe\Subscription::retrieve($session->subscription);
@@ -479,7 +477,7 @@ class StripeController extends Controller
             $subscription->update([
                 'stripe_plan'   => $stripeSubscription->items->data[0]->price->id,
                 'stripe_status' => $stripeSubscription->status,
-                'ends_at'       => $stripeSubscription->cancel_at_period_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->current_period_end) : null,
+                'ends_at' => $stripeSubscription->cancel_at ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
             ]);
             Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
         }

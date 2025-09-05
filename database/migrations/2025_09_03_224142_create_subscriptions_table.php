@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('stripe_id')->unique(); // ID de la suscripción (sub_...)
             $table->string('stripe_plan'); // El Price ID del plan (price_...)
             $table->string('stripe_status'); // ej. 'active', 'canceled', 'past_due'
+            $table->timestamp('trial_ends_at')->nullable();
             $table->timestamp('ends_at')->nullable(); // Fecha de finalización si se cancela
             $table->timestamps();
         });

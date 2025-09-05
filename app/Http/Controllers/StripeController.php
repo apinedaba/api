@@ -387,7 +387,7 @@ class StripeController extends Controller
             $user->save();
         }
 
-        $session = CheckoutSession::create([
+        $sessionData = [
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
             'line_items' => [['price' => $planId, 'quantity' => 1]],
@@ -395,7 +395,15 @@ class StripeController extends Controller
             'cancel_url' => env('FRONTEND_URL_USER') . '/suscripcion?status=canceled',
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
-        ]);
+        ];
+        $hasHadSubscriptionBefore = $user->subscription()->exists();
+
+        if (!$hasHadSubscriptionBefore) {
+            $sessionData['subscription_data'] = [
+                'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
+            ];
+        }
+        $session = CheckoutSession::create($sessionData);
 
         return response()->json(['url' => $session->url]);
     }
@@ -463,6 +471,7 @@ class StripeController extends Controller
                     'stripe_id'     => $stripeSubscription->id,
                     'stripe_plan'   => $stripeSubscription->items->data[0]->price->id,
                     'stripe_status' => $stripeSubscription->status,
+                    'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
                     'ends_at'       => null,
                 ]
             );
@@ -477,6 +486,7 @@ class StripeController extends Controller
             $subscription->update([
                 'stripe_plan'   => $stripeSubscription->items->data[0]->price->id,
                 'stripe_status' => $stripeSubscription->status,
+                'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
                 'ends_at' => $stripeSubscription->cancel_at ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
             ]);
             Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");

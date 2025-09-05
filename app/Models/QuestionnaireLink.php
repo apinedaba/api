@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\QuestionnairesLinkResponses;
+use App\Models\Patient;
 class QuestionnaireLink extends Model
 {
     use HasFactory;
@@ -28,5 +29,9 @@ class QuestionnaireLink extends Model
     public function questionnaireLink()
     {
         return $this->hasOne(QuestionnairesLinkResponses::class);
+    }
+        public function patient()
+    {
+        return $this->belongsTo(Patient::class, 'patient', 'id');
     }
 }

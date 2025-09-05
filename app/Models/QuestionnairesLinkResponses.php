@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\QuestionnaireLink;
+use App\Models\Patient;
 
 class QuestionnairesLinkResponses extends Model
 {
@@ -16,11 +17,15 @@ class QuestionnairesLinkResponses extends Model
     ];
 
     protected $casts = [
-        'response' => 'json',
+        'response' => 'array',
     ];
 
     public function questionnaireLink()
     {
         return $this->hasOne(QuestionnaireLink::class);
+    }
+    public function patient()
+    {
+        return $this->hasOne(Patient::class);
     }
 }

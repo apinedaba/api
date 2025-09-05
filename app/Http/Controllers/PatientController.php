@@ -81,8 +81,7 @@ class PatientController extends Controller
         } else {
             try {
                 $patient = $patient->where('email', $request->email)->firstOrFail();
-            } catch (\Throwable $th) {
-                $data['contacto'] = json_encode($data['contacto']);
+            } catch (\Throwable $th) {                
                 $patient->fill($data);
                 $patient->save();
             }

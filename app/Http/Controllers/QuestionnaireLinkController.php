@@ -64,7 +64,7 @@ class QuestionnaireLinkController extends Controller
         $userAuth = Auth::user();
         if ((int)$user === $userAuth->id) {
             $link = QuestionnaireLink::where('token', $token)->where('user', (int)$user)
-            ->with('questionnaireLink')->with('questionnaire')
+            ->with('questionnaireLink')->with('questionnaire')->with('patient')
             ->firstOrFail();
             return response()->json($link, 200);
         }

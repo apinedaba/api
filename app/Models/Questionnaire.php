@@ -9,6 +9,7 @@ class Questionnaire extends Model
 {
     use HasFactory;
     protected $fillable = [
+        'id',
         'title',
         'description',
         'structure',
@@ -16,7 +17,7 @@ class Questionnaire extends Model
     ];
 
     protected $casts = [
-        'structure' => 'json',
+        'structure' => 'array',
     ];
 
     public function links()

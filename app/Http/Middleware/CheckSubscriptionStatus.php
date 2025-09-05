@@ -11,6 +11,9 @@ class CheckSubscriptionStatus
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        if ($user && $user->has_lifetime_access) {
+            return $next($request); // Sí, permitir acceso.
+        }
         if ($user && $user->subscription && $user->subscription->stripe_status === 'active') {
             return $next($request);
         }

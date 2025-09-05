@@ -158,7 +158,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.
 // Aquí van todas las funcionalidades principales de la plataforma.
-Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'subscribed'])->group(function () {
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
     Route::resource('user/catalog/patients', PatientUserController::class);
@@ -216,6 +216,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
 });
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::post('/stripe/subscription/webhook', [StripeController::class, 'handleWebhook']);
+
+
+
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);

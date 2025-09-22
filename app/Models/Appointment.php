@@ -21,9 +21,14 @@ class Appointment extends Model
         'comments',
         'video_call_room',
         'cart_id',
-        'link'
+        'link',
+        'tipo',
+        'costo',
+        'payments'
     ];
-
+    protected $casts = [
+        'payments' => 'array',
+    ];
     public function patient_user()
     {
         return $this->belongsTo(PatientUser::class, 'patient_user', 'id');

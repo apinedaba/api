@@ -171,6 +171,8 @@ class AppointmentController extends Controller
             'title' => 'required|string|max:255',
             'user' => 'required_if:middleware,patient',
             'patient' => 'required_if:middleware,user',
+            'costo' => 'nullable|numeric', 
+            'tipo' => 'nullable|string',
         ]);
 
         // Forzar asignación correcta

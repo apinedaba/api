@@ -234,5 +234,6 @@ Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::cla
 
 
 require __DIR__ . '/api/catalogos.php';
+require __DIR__ . '/api/contratos.php';
 require __DIR__ . '/api/professional.php';
 require __DIR__ . '/api/deviceToken.php';

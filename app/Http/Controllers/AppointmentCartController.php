@@ -25,15 +25,6 @@ class AppointmentCartController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-
-    public function patient()
-    {
-        return $this->belongsTo(Patient::class, 'patient_id');
-    }
-
     public function store(Request $request)
     {
         $request->validate([
@@ -42,38 +33,20 @@ class AppointmentCartController extends Controller
             'duracion' => 'required|string',
             'precio' => 'required|integer',
         ]);
-
+        // return response()->json($request->except(['categoria', 'user']) + [
+        //         'estado' => 'pendiente',
+        //     ]);
         $patient = auth()->user(); // auth:patient
-
-        // (opcional) eliminar carrito anterior del paciente
-        // AppointmentCart::where('patient_id', $patient->id)->delete();
-        $cart = AppointmentCart::where('patient_id', $patient->id)
-            ->where('estado', 'pendiente')
-            ->latest();
-        if($cart->exists()) {
-            $cart = $cart->update([
+        $cart = AppointmentCart::updateOrCreate([
+            'patient_id' => $patient->id,
+            'user_id' => $request->user_id,
+            'estado' => "pendiente"
+        ], 
+            $request->except(['categoria', 'user']) + [
                 'patient_id' => $patient->id,
-                'user_id' => $request->user_id,
-                'fecha' => $request->fecha,
-                'hora' => $request->hora,
-                'tipoSesion' => $request->tipoSesion,
-                'duracion' => $request->duracion,
-                'precio' => $request->precio,
-                'formato' => $request->formato
-            ]);
-        } else {
-            $cart = AppointmentCart::create([
-                'patient_id' => $patient->id,
-                'user_id' => $request->user_id,
-                'fecha' => $request->fecha,
-                'hora' => $request->hora,
-                'tipoSesion' => $request->tipoSesion,
-                'duracion' => $request->duracion,
-                'precio' => $request->precio,
                 'estado' => 'pendiente',
-            ]);
-        }
-
+            ]
+        );
         return response()->json($cart);
     }
 
@@ -82,7 +55,7 @@ class AppointmentCartController extends Controller
      */
     public function show(AppointmentCart $appointmentCart)
     {
-       $patient = auth()->user();
+        $patient = auth()->user();
         $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
             ->where('patient_id', $patient->id)
@@ -98,7 +71,7 @@ class AppointmentCartController extends Controller
             ->where('estado', 'pagado')
             ->where('user_id', $user->id)
             ->latest()
-            ->get(); 
+            ->get();
 
 
         return response()->json($cart);

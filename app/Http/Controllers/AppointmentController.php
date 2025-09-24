@@ -31,7 +31,7 @@ class AppointmentController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $Appointments = Appointment::where("user", $user->id)->get();
+        $Appointments = Appointment::where("user", $user->id)-with('payments')->get();
         return response()->json($Appointments, 200);
     }
     /**
@@ -52,7 +52,6 @@ class AppointmentController extends Controller
                 'patient' => $patientId,
                 'user' => $user->id
             ];
-            \Log::alert($filter);
             $enlace = PatientUser::where($filter)->first();
 
             if (!isset($enlace['id'])) {
@@ -67,7 +66,7 @@ class AppointmentController extends Controller
         }
 
         if (in_array("patient", $middlewares)) {
-            $appoinments = Appointment::where("patient", $user->id)->with("user")->get();
+            $appoinments = Appointment::where("patient", $user->id)->with(['user', 'payments'])->get();
         }
 
 

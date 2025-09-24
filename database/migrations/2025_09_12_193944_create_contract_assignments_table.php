@@ -22,7 +22,6 @@ return new class extends Migration {
             $table->timestamp('signed_at')->nullable();
             $table->timestamps();
 
-
             $table->index(['account_id', 'patient_id']);
             $table->index(['account_id', 'template_id']);
         });

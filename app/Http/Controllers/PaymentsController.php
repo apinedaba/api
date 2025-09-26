@@ -13,7 +13,13 @@ class PaymentsController extends Controller
      */
     public function index()
     {
-        //
+        $user = auth()->user();
+        $payments = Payment::where('user_id', $user->id)->with(['appointment', 'patient']);
+        return response()->json([
+            'payments'=> $payments->get(),
+            'total' => $payments->sum('amount')
+        ], 200);
+
     }
 
     /**
@@ -29,8 +35,22 @@ class PaymentsController extends Controller
      */
     public function store(Request $request)
     {
-        $payment = Payment::create($request->all());
-        return response()->json($payment, 201);
+        try {
+            $payment = Payment::create($request->all());
+            return response()->json([
+                'rasson' => 'El pago se registro exitosamente.',
+                'message' => "Pago registrado",
+                'type' => "success",
+                'payment' => $payment
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'rasson' => 'Ocurrio un errro al registrar el pago',
+                'message' => "Pago no registrado",
+                'type' => "error",
+            ],  400);
+
+        }
     }
 
     /**

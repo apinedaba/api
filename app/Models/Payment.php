@@ -20,6 +20,7 @@ class Payment extends Model
         'status',
         'stripe_payment_id',
         'receipt_url',
+        'id_transaccion_reembolsada'
     ];
    
 

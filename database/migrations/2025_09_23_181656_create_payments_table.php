@@ -24,15 +24,17 @@ return new class extends Migration {
                 ->nullable()
                 ->constrained('patients')
                 ->onDelete('set null');
+            $table->foreignId('id_transaccion_reembolsada')
+                ->nullable()
+                ->constrained('payments')
+                ->onDelete('set null');
             $table->decimal('amount', 10, 2);
             $table->string('currency', 10)->default('MXN');
             $table->string('payment_method');
             $table->string('status')->default('pending');
             $table->string('stripe_payment_id')->nullable();
             $table->string('receipt_url')->nullable();
-            $table->string('motivo_devolucion')->nullable();
-            $table->string('fecha_devolucion')->nullable();
-            $table->string('id_transaccion_reembolsada')->nullable();
+            $table->string('concepto')->nullable();
             $table->timestamps();
         });
     }

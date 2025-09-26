@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\AppointmentCart;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\PatientUser;
@@ -189,15 +190,9 @@ class AppointmentController extends Controller
                 'type' => "error"
             ], 403);
         }
-
-        // 🔥 1️⃣ Usar el servicio para validar o crear relación con video_call_room
-        $relation = $this->service->ensureRelationshipAndRoom($validated['user'], $validated['patient']);
-
-
-        $request['video_call_room'] = $relation->video_call_room;
-
-        // 🔥 2️⃣ Crear la cita con el room correcto
-        $appointment = Appointment::create($request->except(['costo', 'tipo']));
+        $relation = $this->service->ensureRelationshipAndRoom($request['user'], $request['patient']);
+        $request->video_call_room = $relation->video_call_room;
+        $appointment = Appointment::create($request->except(['costo', 'formato', 'tipoSesion']));
 
         if (!$appointment) {
             return response()->json([
@@ -214,6 +209,7 @@ class AppointmentController extends Controller
             psychologistId: $appointment->user,
             patientId: $appointment->patient
         ));
+
         if (!$send) {
             return response()->json([
                 'rasson' => 'No se logró enviar la notificación vía email',
@@ -221,6 +217,24 @@ class AppointmentController extends Controller
                 'type' => "warning",
                 'appointment' => $appointment
             ], 200);
+        }
+
+
+        $cart = AppointmentCart::create([
+            'appointment_id' => $appointment->id,
+            'tipoSesion' => $request->tipoSesion,
+            'formato' => $request->formato ?? 'online',
+            'precio' => $request->costo ?? 0,
+            'status' => 'pending',
+            'patient_id' => $appointment->patient,
+            'user_id' => $appointment->user,
+            'duracion' => "0"
+
+        ]);
+
+        if ($cart) {
+            $appointment->cart_id = $cart->id;
+            $appointment->save();
         }
 
         return response()->json([
@@ -262,7 +276,7 @@ class AppointmentController extends Controller
     {
 
         $originalData = $appointment->toArray();
-        $updatedData = $request->all();
+        $updatedData = $request->except(['patient', 'cart', 'payments']);
         $fieldsToUpdate = [];
 
         foreach ($updatedData as $key => $value) {
@@ -295,7 +309,7 @@ class AppointmentController extends Controller
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',
-                'message' => "Cita modificada",
+                'message' => "Cita no modificada",
                 'type' => "error"
             ], 400);
             //throw $th;

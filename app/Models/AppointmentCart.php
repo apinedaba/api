@@ -20,6 +20,7 @@ class AppointmentCart extends Model
         'estado',
         'formato', // Nueva columna agregada
         'payment_intent_id',
+        'appointment_id',
 
     ];
 

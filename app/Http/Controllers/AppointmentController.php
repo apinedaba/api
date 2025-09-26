@@ -31,7 +31,7 @@ class AppointmentController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $Appointments = Appointment::where("user", $user->id)-with('payments')->get();
+        $Appointments = Appointment::with('payments')->where("user", $user->id)->get();
         return response()->json($Appointments, 200);
     }
     /**
@@ -62,7 +62,10 @@ class AppointmentController extends Controller
                     'middleware' => $middlewares
                 ], 400);
             }
-            $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
+            $appoinments = Appointment::where('user', $user->id)
+                ->where('patient', $patientId)
+                ->orderBy('id', 'desc')
+                ->get();
         }
 
         if (in_array("patient", $middlewares)) {
@@ -170,15 +173,15 @@ class AppointmentController extends Controller
             'title' => 'required|string|max:255',
             'user' => 'required_if:middleware,patient',
             'patient' => 'required_if:middleware,user',
-            'costo' => 'nullable|numeric', 
+            'costo' => 'nullable|numeric',
             'tipo' => 'nullable|string',
         ]);
 
         // Forzar asignación correcta
         if (in_array('user', $middlewares)) {
-            $validated['user'] = $authUser->id;
+            $request['user'] = $authUser->id;
         } elseif (in_array('patient', $middlewares)) {
-            $validated['patient'] = $authUser->id;
+            $request['patient'] = $authUser->id;
         } else {
             return response()->json([
                 'rasson' => 'Middleware inválido',
@@ -191,10 +194,10 @@ class AppointmentController extends Controller
         $relation = $this->service->ensureRelationshipAndRoom($validated['user'], $validated['patient']);
 
 
-        $validated['video_call_room'] = $relation->video_call_room;
+        $request['video_call_room'] = $relation->video_call_room;
 
         // 🔥 2️⃣ Crear la cita con el room correcto
-        $appointment = Appointment::create($validated);
+        $appointment = Appointment::create($request->except(['costo', 'tipo']));
 
         if (!$appointment) {
             return response()->json([
@@ -233,9 +236,8 @@ class AppointmentController extends Controller
      */
     public function show(Appointment $appointment)
     {
-        $appointment = Appointment::where('id', $appointment->id)->first();
-        $patient = Patient::where('id', $appointment->patient)->first();
-        return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
+        $appointment = Appointment::where('id', $appointment->id)->with(['patient', 'payments', 'cart'])->first();
+        return response()->json(['appointment' => $appointment], 200);
     }
     public function showABP($id)
     {

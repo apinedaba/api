@@ -141,6 +141,7 @@ class StripeController extends Controller
             'estado' => 'pagado',
             'payment_intent_id' => null,
             'stripe_session_id' => null,
+            'appointment_id' => $appointment->id
         ]);
 
 

@@ -12,7 +12,6 @@ return new class extends Migration {
     {
         Schema::table('appointment_carts', function (Blueprint $table) {
             $table->foreignId('appointment_id')->nullable()->constrained('appointments')->nullOnDelete();
-            $table->string('motivo_reembolso')->nullable();
         });
     }
 
@@ -24,7 +23,6 @@ return new class extends Migration {
         Schema::table('appointment_carts', function (Blueprint $table) {
             $table->dropForeign(['appointment_id']);
             $table->dropColumn(['appointment_id']);
-            $table->dropColumn('motivo_reembolso');
         });
     }
 };

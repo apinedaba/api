@@ -30,6 +30,9 @@ return new class extends Migration {
             $table->string('status')->default('pending');
             $table->string('stripe_payment_id')->nullable();
             $table->string('receipt_url')->nullable();
+            $table->string('motivo_devolucion')->nullable();
+            $table->string('fecha_devolucion')->nullable();
+            $table->string('id_transaccion_reembolsada')->nullable();
             $table->timestamps();
         });
     }

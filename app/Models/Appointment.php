@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Payment;
+use App\Models\Patient;
 class Appointment extends Model
 {
     use HasFactory;
@@ -36,7 +37,7 @@ class Appointment extends Model
 
     public function patient()
     {
-        return $this->hasOne(Patient::class);
+        return $this->hasOne(Patient::class, "id", "patient");
     }
 
 

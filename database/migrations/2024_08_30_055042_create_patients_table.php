@@ -17,6 +17,11 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->json('address')->nullable();
+            $table->json('contacto')->nullable();
+            $table->json('historial')->nullable();
+            $table->boolean('activo')->nullable()->default(false);
+            $table->string('status', 100)->nullable()->default('Registrado');
             $table->rememberToken();
             $table->timestamps();
         });

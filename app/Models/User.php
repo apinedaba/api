@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -21,6 +22,19 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'isProfileComplete',
+        'personales',
+        'address',
+        'contacto',
+        'educacion',
+        'configurations',
+        'horarios',
+        'plan',
+        'image',
+        'verification_code',
+        'code_expires_at',
+        'has_lifetime_access',
+        'activo'
     ];
 
     /**
@@ -31,15 +45,38 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'validado',
+        'created_at',
+        'updated_at',
+        'verification_code',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'code_expires_at' => 'datetime',
+        'contacto' => 'array',
+        'address' => 'array',
+        'educacion' => 'array',
+        'personales' => 'array',
+        'configurations' => 'array',
+        'horarios' => 'array',
+        'image' => 'string',
+        'isProfileComplete' => 'boolean',
+        'activo' => 'boolean',
+        'has_lifetime_access' => 'boolean',
     ];
+    public function patientUsers()
+    {
+        return $this->hasMany(PatientUser::class, 'user', 'id')->with('patient');
+    }
+    public function appointment()
+    {
+        return $this->hasMany(Appointment::class, "user", "id");
+    }
+    public function subscription()
+    {
+        return $this->hasOne(Subscription::class);
+    }
 }

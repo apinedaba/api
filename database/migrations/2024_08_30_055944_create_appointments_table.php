@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -13,6 +12,16 @@ return new class extends Migration
     {
         Schema::create('appointments', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user')->constrained('users')->cascadeOnUpdate();
+            $table->foreignId('patient')->constrained('patients')->cascadeOnUpdate();
+            $table->dateTimeTz('start');
+            $table->dateTimeTz('end');
+            $table->string('title', 100);
+            $table->string('statusUser', 100)->nullable()->default('Pending Approve');
+            $table->string('statusPatient', 100)->nullable()->default('Pending Approve');
+            $table->string('state', 100)->nullable()->default('Creado');
+            $table->json('extendedProps')->nullable();
+
             $table->timestamps();
         });
     }

@@ -17,9 +17,21 @@ class PatientAuthController extends Controller
         ]);
 
         $patient = Patient::where('email', $request->email)->first();
-
-        if (!$patient || !Hash::check($request->password, $patient->password)) {
-            return response()->json(['message' => 'Credenciales inválidas'], 401);
+        
+        if (!$patient) {
+            return response()->json([
+                'rasson' => "Crea una cuenta para poder iniciar sesión",
+                'message' => "¡Oh, No! aun no estas registrado.",
+                'type' => "error",  
+            ], 404);
+        }
+        if ($patient && !Hash::check($request->password, $patient->password)) {
+            return response()->json([
+                'rasson' => "Los datos ingresados no son correctos",
+                'message' => "¡Oh, No! algo esta mal.",
+                'type' => "error",
+                'check' => Hash::check($request->password, $patient->password)
+            ], 400);
         }
 
         $token = $patient->createToken('patient_token')->plainTextToken;

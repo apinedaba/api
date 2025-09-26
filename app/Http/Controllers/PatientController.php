@@ -3,10 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
+use App\Models\PatientUser;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Controllers\PatientUserController;
+use Illuminate\Support\Facades\Auth;
+use App\Notifications\PatientAssignedEmailNotification;
+use Illuminate\Support\Facades\Log;
 
 class PatientController extends Controller
 {
+
+    protected $_patient;
+
+    public function __construct()
+    {
+        $this->_patient = new PatientUserController;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -26,9 +42,121 @@ class PatientController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+    private $registerValidationRules = [
+        'name' => 'required',
+        'email' => 'required|email|unique:patients,email',
+        'contacto.telefono' => 'required|regex:/^[0-9]{10}$/', // Assuming a 10-digit phone number
+        'password' => 'required'
+    ];
+
     public function store(Request $request)
     {
-        //
+        $data = $request->all();
+        $patient = new Patient();
+        $telefono = null;
+        if (isset($data['contacto']) && is_array($data['contacto'])) {
+            $telefono = $data['contacto']['telefono'];
+        }
+        if (!isset($data["password"])) {
+            if ($telefono) {
+                $data["password"] = Hash::make($telefono);
+            } else {
+                return response()->json([
+                    'rasson' => "El telefono es requerido",
+                    'message' => "Error al agregar paciente",
+                    'type' => "error"
+                ], 400);
+            }
+        }
+
+        $validateUser = Validator::make($data, $this->registerValidationRules);
+
+        if ($validateUser->fails()) {
+            return response()->json([
+                'rasson' => $validateUser->fails() ? $validateUser->errors()->first() : "Error al agregar paciente",
+                'message' => "Error al agregar paciente",
+                'type' => "error"
+            ], 400);
+        } else {
+            try {
+                $patient = $patient->where('email', $request->email)->firstOrFail();
+            } catch (\Throwable $th) {                
+                $patient->fill($data);
+                $patient->save();
+            }
+        }
+        $enlace = $this->_patient->enlacePacienteProfesional($patient->id);
+        if (isset($enlace['message'])) {
+            return response()->json($enlace, 400);
+        }
+        $user = Auth::user();
+        if ($enlace) {
+            $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace);
+            if ($send) {
+                return response()->json(
+                    [
+                        'rasson' => "El paciente se agrego con exito espera a que acepte la invitacion para poder agendarle citas",
+                        'message' => "Paciente agregado",
+                        'type' => "success",
+                        "data" => $enlace
+                    ]
+                    ,
+                    200
+                );
+            } else {
+                return response()->json(
+                    [
+                        'rasson' => "El paciente se agrego con exito pero no fue posible entregarle el correo, revisa sus datos e intent enviar de nuevo el correo",
+                        'message' => "Paciente agregado",
+                        'type' => "success",
+                        "data" => $enlace
+                    ]
+                    ,
+                    200
+                );
+            }
+
+        }
+    }
+    public function updateRelationships(Request $request, $id)
+    {
+        $patient = Patient::findOrFail($id);
+
+        $validated = $request->validate([
+            'relationships' => 'array',
+            'relationships.*.nombre' => 'required|string',
+            'relationships.*.parentesco' => 'required|string',
+            'relationships.*.telefono' => 'required|string',
+            'relationships.*.correo' => 'nullable|email',
+            'relationships.*.es_contacto_emergencia' => 'required|boolean',
+        ]);
+
+        $patient->relationships = $validated['relationships'];
+        $patient->save();
+
+         return response()->json(
+                    [
+                        'rasson' => "Actualizacion de relaciones exitosa",
+                        'message' => "Modificacion exitosa",
+                        'type' => "success",                        
+                    ]
+                    ,
+                    200
+                );
+    }
+    public function sendNotificacionEmailByUser($user, $patient, $enlace)
+    {
+        if ($enlace) {
+            try {
+                //code...
+                $patient->notify(new PatientAssignedEmailNotification($user, $patient, $enlace));
+                return true;
+            } catch (\Throwable $th) {
+                Log::error($th->getMessage());
+                //throw $th;
+            }
+        }
     }
 
     /**
@@ -36,7 +164,8 @@ class PatientController extends Controller
      */
     public function show(Patient $patient)
     {
-        //
+
+        return response()->json($patient, 200);
     }
 
     /**
@@ -52,7 +181,24 @@ class PatientController extends Controller
      */
     public function update(Request $request, Patient $patient)
     {
-        //
+        try {
+            $patient->update($request->all());
+            $response = [
+                'rasson' => 'El usuario se a actualizado correctamente',
+                'message' => "Usuario actulizado ",
+                'type' => "success"
+            ];
+
+        } catch (\Throwable $th) {
+            $response = [
+                'rasson' => 'El usuario no se a actualizado correctamente',
+                'message' => "Usuario no actulizado",
+                'type' => "error"
+            ];
+        }
+
+        return response()->json($response, 200);
+
     }
 
     /**
@@ -60,6 +206,5 @@ class PatientController extends Controller
      */
     public function destroy(Patient $patient)
     {
-        //
     }
 }

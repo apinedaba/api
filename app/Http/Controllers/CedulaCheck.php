@@ -6,15 +6,14 @@ use Illuminate\Http\Request;
 
 class CedulaCheck extends Controller
 {
-    public function checkCedula (Request $request){
-        $cedula = $request->all()[0];
+    public function checkCedula ($cedula){
         
         $data = '{"maxResult":"1000","nombre":"","paterno":"","materno":"","idCedula":"'.$cedula.'"}';
-
+        
         $curl = curl_init();
-
+        
         curl_setopt_array($curl, array(
-          CURLOPT_URL => 'https://cedulaprofesional.sep.gob.mx/cedula/buscaCedulaJson.action',
+          CURLOPT_URL => 'https://www.cedulaprofesional.sep.gob.mx/cedula/buscaCedulaJson.action',
           CURLOPT_RETURNTRANSFER => true,
           CURLOPT_ENCODING => '',
           CURLOPT_MAXREDIRS => 10,
@@ -37,6 +36,7 @@ class CedulaCheck extends Controller
         if ($encoding != "UTF-8") {
             $response = mb_convert_encoding($response, "UTF-8", $encoding);
         }
+        
         curl_close($curl);
         
         $response = json_decode($response);

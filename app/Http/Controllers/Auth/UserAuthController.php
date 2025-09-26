@@ -19,7 +19,11 @@ class UserAuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Credenciales inválidas'], 401);
+            return response()->json([
+                'rasson' => "Crea una cuenta para poder iniciar sesión",
+                'message' => "¡Oh, No! aun no estas registrado.",
+                'type' => "error",  
+            ], 404);
         }
 
         $token = $user->createToken('user_token')->plainTextToken;
@@ -32,5 +36,22 @@ class UserAuthController extends Controller
         $request->user()->tokens()->delete();
 
         return response()->json(['message' => 'Logged out'], 200);
+    }
+
+    public function resendVerifyEmail(Request $request)
+    {
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'El correo ya está verificado'], 200);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Correo de verificación reenviado'], 200);
     }
 }

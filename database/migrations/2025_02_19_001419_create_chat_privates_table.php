@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('education_users', function (Blueprint $table) {
+        Schema::create('chat_privates', function (Blueprint $table) {
             $table->id();
-            $table->json('schools')->nullable();
-            $table->json('certificates')->nullable();
-            $table->json('diplomas')->nullable();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('psicologo_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('paciente_id')->constrained('patients')->onDelete('cascade');
+            $table->json('messages');            
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('education_users');
+        Schema::dropIfExists('chat_privates');
     }
 };

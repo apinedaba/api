@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\AppointmentCart;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\PatientUser;
@@ -31,7 +32,7 @@ class AppointmentController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $Appointments = Appointment::where("user", $user->id)->get();
+        $Appointments = Appointment::with('payments')->where("user", $user->id)->get();
         return response()->json($Appointments, 200);
     }
     /**
@@ -52,7 +53,6 @@ class AppointmentController extends Controller
                 'patient' => $patientId,
                 'user' => $user->id
             ];
-            \Log::alert($filter);
             $enlace = PatientUser::where($filter)->first();
 
             if (!isset($enlace['id'])) {
@@ -63,11 +63,14 @@ class AppointmentController extends Controller
                     'middleware' => $middlewares
                 ], 400);
             }
-            $appoinments = Appointment::where('user', $user->id)->where('patient', $patientId)->get();
+            $appoinments = Appointment::where('user', $user->id)
+                ->where('patient', $patientId)
+                ->orderBy('id', 'desc')
+                ->get();
         }
 
         if (in_array("patient", $middlewares)) {
-            $appoinments = Appointment::where("patient", $user->id)->with("user")->get();
+            $appoinments = Appointment::where("patient", $user->id)->with(['user', 'payments'])->get();
         }
 
 
@@ -171,13 +174,15 @@ class AppointmentController extends Controller
             'title' => 'required|string|max:255',
             'user' => 'required_if:middleware,patient',
             'patient' => 'required_if:middleware,user',
+            'costo' => 'nullable|numeric',
+            'tipo' => 'nullable|string',
         ]);
 
         // Forzar asignación correcta
         if (in_array('user', $middlewares)) {
-            $validated['user'] = $authUser->id;
+            $request['user'] = $authUser->id;
         } elseif (in_array('patient', $middlewares)) {
-            $validated['patient'] = $authUser->id;
+            $request['patient'] = $authUser->id;
         } else {
             return response()->json([
                 'rasson' => 'Middleware inválido',
@@ -185,15 +190,9 @@ class AppointmentController extends Controller
                 'type' => "error"
             ], 403);
         }
-
-        // 🔥 1️⃣ Usar el servicio para validar o crear relación con video_call_room
-        $relation = $this->service->ensureRelationshipAndRoom($validated['user'], $validated['patient']);
-
-
-        $validated['video_call_room'] = $relation->video_call_room;
-
-        // 🔥 2️⃣ Crear la cita con el room correcto
-        $appointment = Appointment::create($validated);
+        $relation = $this->service->ensureRelationshipAndRoom($request['user'], $request['patient']);
+        $request->video_call_room = $relation->video_call_room;
+        $appointment = Appointment::create($request->except(['costo', 'formato', 'tipoSesion']));
 
         if (!$appointment) {
             return response()->json([
@@ -210,6 +209,7 @@ class AppointmentController extends Controller
             psychologistId: $appointment->user,
             patientId: $appointment->patient
         ));
+
         if (!$send) {
             return response()->json([
                 'rasson' => 'No se logró enviar la notificación vía email',
@@ -217,6 +217,24 @@ class AppointmentController extends Controller
                 'type' => "warning",
                 'appointment' => $appointment
             ], 200);
+        }
+
+
+        $cart = AppointmentCart::create([
+            'appointment_id' => $appointment->id,
+            'tipoSesion' => $request->tipoSesion,
+            'formato' => $request->formato ?? 'online',
+            'precio' => $request->costo ?? 0,
+            'status' => 'pending',
+            'patient_id' => $appointment->patient,
+            'user_id' => $appointment->user,
+            'duracion' => "0"
+
+        ]);
+
+        if ($cart) {
+            $appointment->cart_id = $cart->id;
+            $appointment->save();
         }
 
         return response()->json([
@@ -232,9 +250,8 @@ class AppointmentController extends Controller
      */
     public function show(Appointment $appointment)
     {
-        $appointment = Appointment::where('id', $appointment->id)->first();
-        $patient = Patient::where('id', $appointment->patient)->first();
-        return response()->json(['appointment' => $appointment, 'patient' => $patient], 200);
+        $appointment = Appointment::where('id', $appointment->id)->with(['patient', 'payments', 'cart'])->first();
+        return response()->json(['appointment' => $appointment], 200);
     }
     public function showABP($id)
     {
@@ -259,7 +276,7 @@ class AppointmentController extends Controller
     {
 
         $originalData = $appointment->toArray();
-        $updatedData = $request->all();
+        $updatedData = $request->except(['patient', 'cart', 'payments']);
         $fieldsToUpdate = [];
 
         foreach ($updatedData as $key => $value) {
@@ -292,7 +309,7 @@ class AppointmentController extends Controller
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',
-                'message' => "Cita modificada",
+                'message' => "Cita no modificada",
                 'type' => "error"
             ], 400);
             //throw $th;

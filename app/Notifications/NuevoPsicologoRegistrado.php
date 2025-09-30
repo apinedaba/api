@@ -68,7 +68,7 @@ class NuevoPsicologoRegistrado extends Notification
 
         // ✅ Forzar host minder.mindmeet.mx
         $parsed = parse_url(config('app.url'), PHP_URL_HOST);
-        $verificationUrl = str_replace($parsed, 'minder.mindmeet.mx', $verificationUrl);
+        $verificationUrl = str_replace($parsed, 'minder.mindmeet.com.mx', $verificationUrl);
 
         // 📩 Enviar copia interna
         // 3. ✅ Llama al método del Trait

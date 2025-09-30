@@ -180,7 +180,7 @@
                                                                 <div class="alignment" align="center"
                                                                     style="line-height:10px">
                                                                     <div style="max-width: 500px;"><a
-                                                                            href="https://mindmeet.mx" target="_blank"
+                                                                            href="https://mindmeet.com.mx" target="_blank"
                                                                             style="outline:none" tabindex="-1"><img
                                                                                 src="https://ad7fe8c786.imgdist.com/pub/bfra/6evt2bq1/ql3/tig/374/Blue%20Dark%20Blue%20and%20Yellow%20Illustrative%20Psychology%20in%20Life%20Presentation%20.png"
                                                                                 style="display: block; height: auto; border: 0; width: 100%;"
@@ -213,7 +213,7 @@
                                                                     <p style="margin: 0; margin-bottom: 16px;">Gracias
                                                                         por registrarte en <span
                                                                             style="word-break: break-word; color: #000000;"><strong><a
-                                                                                    href="https://mindmeet.mx"
+                                                                                    href="https://mindmeet.com.mx"
                                                                                     target="_blank"
                                                                                     style="text-decoration: none; color: #7747FF;"
                                                                                     rel="noopener"><strong><strong>MindMeet</strong></strong></a></strong></span>.
@@ -269,7 +269,7 @@
                                                                     <p style="margin: 0;"><strong>Con
                                                                             emoción.<br></strong>El equipo de <span
                                                                             style="word-break: break-word; color: #000000;"><strong><a
-                                                                                    href="https://mindmeet.mx"
+                                                                                    href="https://mindmeet.com.mx"
                                                                                     target="_blank"
                                                                                     style="text-decoration: none; color: #7747FF;"
                                                                                     rel="noopener">MindMeet</a></strong></span>

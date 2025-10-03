@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <title>{{ $name }} | MindMeet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="canonical" href="{{ $spaUrl }}"/>
 
   <!-- Open Graph -->
   <meta property="og:type" content="profile">

@@ -28,7 +28,7 @@ class ShareController extends Controller
             $safeSlug = Str::slug($pro->name, '-', 'es'); // quita acentos y espacios
             // 3) URL real del SPA (frontend)
             $spaUrl = "https://mindmeet.com.mx/psicologos/{$pro->id}/{$safeSlug}?v=2";
-    
+            
             // 4) Foto de perfil (absoluta). Si no tiene, usa un placeholder de tu dominio
             $ogImage = $pro->photo_url ?: "https://mindmeet.com.mx/assets/og/profile-placeholder.jpg";
     

@@ -13,10 +13,13 @@ use App\Notifications\StateAppoinmentMail;
 use App\Notifications\CreateAppoinmentMail;
 use Response;
 use Carbon\Carbon;
-use \Log;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Services\AppointmentService;
+use App\Services\GoogleCalendarService;
+use App\Services\InvalidGoogleTokenException;
+
 
 class AppointmentController extends Controller
 {
@@ -24,10 +27,11 @@ class AppointmentController extends Controller
      * Display a listing of the resource.
      */
     protected $service;
-
-    public function __construct(AppointmentService $service)
+    protected $googleCalendarService;
+    public function __construct(AppointmentService $service, GoogleCalendarService $googleCalendarService)
     {
         $this->service = $service;
+        $this->googleCalendarService = $googleCalendarService;
     }
     public function index(Request $request)
     {
@@ -193,7 +197,6 @@ class AppointmentController extends Controller
         $relation = $this->service->ensureRelationshipAndRoom($request['user'], $request['patient']);
         $request->video_call_room = $relation->video_call_room;
         $appointment = Appointment::create($request->except(['costo', 'formato', 'tipoSesion']));
-
         if (!$appointment) {
             return response()->json([
                 'rasson' => 'No se logró crear la cita',
@@ -236,6 +239,37 @@ class AppointmentController extends Controller
             $appointment->cart_id = $cart->id;
             $appointment->save();
         }
+        $user = Auth::user();
+        if ($request->boolean('syncWithGoogle')) {
+            if ($user->googleAccount && $user->googleAccount->refresh_token) {
+                try {
+                    $this->googleCalendarService->createEvent($appointment, $user);
+                } catch (InvalidGoogleTokenException $e) {
+                    Log::warning('Token de Google inválido para usuario: ' . $user->id . '. Error: ' . $e->getMessage());
+                    $user->googleAccount->delete();
+                    return response()->json([
+                        'message' => 'Cita creada, pero la conexión con Google Calendar se ha perdido. Por favor, vuelve a conectar tu cuenta.',
+                        'type' => 'warning',
+                        'appointment' => $appointment
+                    ], 201);
+                } catch (\Exception $e) {
+                    Log::error('Error genérico al sincronizar con Google Calendar: ' . $e->getMessage());
+                    return response()->json([
+                        'message' => 'Cita creada, pero falló la sincronización con Google Calendar.',
+                        'type' => 'warning',
+                        'appointment' => $appointment
+                    ], 201);
+                }
+            } else {
+                session(['pending_google_sync_appointment_id' => $appointment->id]);
+                $authUrl = $this->googleCalendarService->getAuthUrl();
+                return response()->json([
+                    'action' => 'redirect_to_google_auth',
+                    'url' => $authUrl
+                ], 202);
+            }
+        }
+
 
         return response()->json([
             'rasson' => 'Se creó la cita correctamente',
@@ -305,7 +339,6 @@ class AppointmentController extends Controller
                 'message' => "Cita modificada",
                 'type' => "success"
             ], 200);
-
         } catch (\Throwable $th) {
             return response()->json([
                 'rasson' => 'No se logro cambiar la cita con exito',

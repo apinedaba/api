@@ -11,7 +11,7 @@
   <meta property="og:type" content="profile">
   <meta property="og:title" content="{{ $name }} | MindMeet">
   <meta property="og:description" content="{{ $bio }}">
-  <meta property="og:url" content="{{ $spaUrl }}">
+  <meta property="og:url" content="{{ $shareUrl }}">
   <meta property="og:image" content="{{ $ogImage }}">
   <meta property="og:image:secure_url" content="{{ $ogImage }}">
   <meta property="og:image:alt" content="{{ $name }}">

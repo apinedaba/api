@@ -32,13 +32,8 @@ class ShareController extends Controller
             // URL del PROXY EXACTA que está visitando el bot (para og:url)
             $shareUrl = $request->fullUrl();
 
-            return response()->view('share.professional', [
-                'name' => $pro->name,
-                'bio' => $pro->bio,
-                'spaUrl' => $spaUrl,
-                'shareUrl' => $shareUrl,
-                'ogImage' => $pro->photo_url ?: "https://mindmeet.com.mx/assets/og/profile-placeholder.jpg",
-            ], 200)->header('Content-Type', 'text/html; charset=UTF-8');
+            return response()->view('share.professional', compact('name', 'bio', 'spaUrl', 'shareUrl', 'img'))
+                ->header('Content-Type', 'text/html; charset=UTF-8');
         } catch (\Throwable $th) {
             header("Location: " . "https://mindmeet.com.mx");
             exit();

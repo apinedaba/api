@@ -27,7 +27,7 @@ class ShareController extends Controller
             $safeSlug = Str::slug($pro->name, '-', 'es');
 
             // URL del SPA (para humanos)
-            $spaUrl = "https://mindmeet.com.mx/profesional/{$pro->id}/{$safeSlug}";
+            $spaUrl = "https://mindmeet.com.mx/psicologos/{$pro->id}/{$safeSlug}";
 
             // URL del PROXY EXACTA que está visitando el bot (para og:url)
             $shareUrl = $request->fullUrl();

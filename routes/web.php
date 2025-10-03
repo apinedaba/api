@@ -20,4 +20,5 @@ Route::get('/', function () {
 });
 
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
-    ->whereNumber('id');
+    ->whereNumber('id')
+    ->name('share.professional');

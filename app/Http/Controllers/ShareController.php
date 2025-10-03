@@ -24,16 +24,26 @@ class ShareController extends Controller
                 'photo_url' => $user['image'],
             ];
 
-            $safeSlug = Str::slug($pro->name, '-', 'es');
+            // 2) Slug limpio
+            $safeSlug = $slug ?: Str::slug($pro->name, '-', 'es');
 
-            // URL del SPA (para humanos)
-            $spaUrl = "https://mindmeet.com.mx/psicologos/{$pro->id}/{$safeSlug}";
+            // 3) URL del FRONTEND (perfil del usuario)  <-- AQUÍ ES A DONDE REGRESAMOS
+            $spaBase = rtrim(config('app.frontend_url', 'https://mindmeet.com.mx'), '/');
+            $spaUrl = "{$spaBase}/psicologos/{$pro->id}/{$safeSlug}";
 
-            // URL del PROXY EXACTA que está visitando el bot (para og:url)
+            // 4) URL del PROXY (la que ve FB/WA en og:url)
             $shareUrl = $request->fullUrl();
 
-            return response()->view('share.professional', compact('name', 'bio', 'spaUrl', 'shareUrl', 'img'))
-                ->header('Content-Type', 'text/html; charset=UTF-8');
+            // 5) Imagen OG (debe ser pública, https y content-type image/*)
+            $ogImage = $pro->photo_url ?: "{$spaBase}/assets/og/profile-placeholder.jpg";
+
+            return response()->view('share.professional', [
+                'name' => $pro->name,
+                'bio' => $pro->bio,
+                'spaUrl' => $spaUrl,   // <- redirección para humanos
+                'shareUrl' => $shareUrl, // <- og:url
+                'ogImage' => $ogImage,
+            ])->header('Content-Type', 'text/html; charset=UTF-8');
         } catch (\Throwable $th) {
             header("Location: " . "https://mindmeet.com.mx");
             exit();

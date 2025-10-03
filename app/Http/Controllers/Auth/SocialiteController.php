@@ -11,6 +11,7 @@ use Exception;
 use Illuminate\Support\Facades\Log;
 use App\Notifications\NuevoPsicologoRegistrado;
 use App\Notifications\NuevoPacienteBienvenida;
+use App\Models\Subscription;
 
 class SocialiteController extends Controller
 {
@@ -55,6 +56,11 @@ class SocialiteController extends Controller
                     'avatar' => $socialUser->avatar,
                     'password' => Hash::make(uniqid()),
                     'email_verified_at' => now(),
+                ]);
+                Subscription::create([
+                    'user_id' => $user->id,
+                    'stripe_status' => 'trial',
+                    'trial_ends_at' => now()->addDays(15),
                 ]);
                 $user->notify(new NuevoPsicologoRegistrado($user, true));
             }

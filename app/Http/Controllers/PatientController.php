@@ -54,7 +54,7 @@ class PatientController extends Controller
     {
         $data = $request->all();
         $email = $request->input('email');
-        $telefono = data_get($data, 'contacto.telefono' || $data['contacto']['telefono']);
+        $telefono = data_get($data, 'contacto.telefono');
         $patient = Patient::where('email', $email)->first();
         $isNewPatient = $patient === null;
         $validationRules = [

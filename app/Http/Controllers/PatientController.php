@@ -64,7 +64,6 @@ class PatientController extends Controller
 
         if ($isNewPatient) {
             $validationRules['name'] = 'required|string|max:255';
-            $validationRules['password'] = 'required';
             $validationRules['email'] = array_merge($validationRules['email'], ['unique:patients,email']);
         }
 

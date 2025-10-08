@@ -20,6 +20,7 @@ use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
 use App\Services\InvalidGoogleTokenException;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
+use Illuminate\Support\Facades\Crypt;
 
 
 class AppointmentController extends Controller
@@ -244,25 +245,32 @@ class AppointmentController extends Controller
 
         // Lógica para despachar el job
         if ($request->boolean('syncWithGoogle')) {
-            if ($user && $user->googleAccount && $user->googleAccount->refresh_token) {
-                // --- LÍNEA CLAVE ---
-                // En lugar de llamar al servicio, despachamos el job para crear el evento.
+            if ($user->googleAccount && $user->googleAccount->refresh_token) {
                 SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
             } else {
-                // Tu lógica para pedir la autorización por primera vez sigue igual.
-                session(['pending_google_sync_appointment_id' => $appointment->id]);
-                // --- AÑADE ESTA LÍNEA PARA VALIDAR ---
-                $retrievedId = session('pending_google_sync_appointment_id');
-                Log::info('Valor de la sesión inmediatamente después de guardarlo: ' . $retrievedId);
-                // --- FIN DE LA LÍNEA DE VALIDACIÓN ---
-                Log::info('Redirigiendo a autorización de Google para usuario ' . $user->id);
-                Log::info('URL de redirección: ' . env('GOOGLE_CALENDAR_REDIRECT_URI'));
-                Log::info('ID de la cita pendiente: ' . $appointment->id);
-                $authUrl = $this->googleCalendarService->getAuthUrl();
+                // --- INICIO DE LA MODIFICACIÓN ---
+
+                // 1. Preparamos los datos que necesitamos recordar.
+                $statePayload = [
+                    'user_id' => $user->id,
+                    'appointment_id' => $appointment->id,
+                ];
+
+                // 2. Encriptamos los datos en una cadena segura.
+                $encryptedState = Crypt::encrypt(json_encode($statePayload));
+
+                // 3. Obtenemos la URL de autenticación y le adjuntamos nuestro estado encriptado.
+                $authUrl = $this->googleCalendarService->getAuthUrl($encryptedState);
+
+                // Ya no usamos la sesión.
+                // session(['pending_google_sync_appointment_id' => $appointment->id]);
+
                 return response()->json([
                     'action' => 'redirect_to_google_auth',
                     'url' => $authUrl
                 ], 202);
+
+                // --- FIN DE LA MODIFICACIÓN ---
             }
         }
 

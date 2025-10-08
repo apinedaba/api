@@ -140,6 +140,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
 });
+Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
 
 //Rutas para Pacientes

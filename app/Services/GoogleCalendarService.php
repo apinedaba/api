@@ -43,14 +43,19 @@ class GoogleCalendarService
     }
 
     /**
-     * Obtiene la URL de autenticación de Google a la que se debe redirigir al usuario.
+     * Obtiene la URL de autenticación de Google, opcionalmente con un parámetro 'state'.
      *
+     * @param string|null $state El estado encriptado a pasar.
      * @return string
      */
-    public function getAuthUrl(): string
+    public function getAuthUrl(string $state = null): string
     {
+        if ($state) {
+            $this->client->setState($state);
+        }
         return $this->client->createAuthUrl();
     }
+
 
     /**
      * Obtiene los tokens de acceso y de refresco usando el código de autorización de Google.

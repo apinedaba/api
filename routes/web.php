@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ShareController;
-use App\Http\Controllers\GoogleCalendarController;
 
 
 /*
@@ -23,5 +22,3 @@ Route::get('/', function () {
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
     ->whereNumber('id')
     ->name('share.professional');
-
-Route::get('/user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback'])->middleware('auth');

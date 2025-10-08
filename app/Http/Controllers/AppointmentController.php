@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
 use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
 use App\Services\InvalidGoogleTokenException;
+use App\Jobs\SyncAppointmentToGoogleCalendar;
 
 
 class AppointmentController extends Controller
@@ -239,29 +240,24 @@ class AppointmentController extends Controller
             $appointment->cart_id = $cart->id;
             $appointment->save();
         }
-        $user = Auth::user();
+        $user = User::find($appointment->user);
+
+        // Lógica para despachar el job
         if ($request->boolean('syncWithGoogle')) {
-            if ($user->googleAccount && $user->googleAccount->refresh_token) {
-                try {
-                    $this->googleCalendarService->createEvent($appointment, $user);
-                } catch (InvalidGoogleTokenException $e) {
-                    Log::warning('Token de Google inválido para usuario: ' . $user->id . '. Error: ' . $e->getMessage());
-                    $user->googleAccount->delete();
-                    return response()->json([
-                        'message' => 'Cita creada, pero la conexión con Google Calendar se ha perdido. Por favor, vuelve a conectar tu cuenta.',
-                        'type' => 'warning',
-                        'appointment' => $appointment
-                    ], 201);
-                } catch (\Exception $e) {
-                    Log::error('Error genérico al sincronizar con Google Calendar: ' . $e->getMessage());
-                    return response()->json([
-                        'message' => 'Cita creada, pero falló la sincronización con Google Calendar.',
-                        'type' => 'warning',
-                        'appointment' => $appointment
-                    ], 201);
-                }
+            if ($user && $user->googleAccount && $user->googleAccount->refresh_token) {
+                // --- LÍNEA CLAVE ---
+                // En lugar de llamar al servicio, despachamos el job para crear el evento.
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
             } else {
+                // Tu lógica para pedir la autorización por primera vez sigue igual.
                 session(['pending_google_sync_appointment_id' => $appointment->id]);
+                // --- AÑADE ESTA LÍNEA PARA VALIDAR ---
+                $retrievedId = session('pending_google_sync_appointment_id');
+                Log::info('Valor de la sesión inmediatamente después de guardarlo: ' . $retrievedId);
+                // --- FIN DE LA LÍNEA DE VALIDACIÓN ---
+                Log::info('Redirigiendo a autorización de Google para usuario ' . $user->id);
+                Log::info('URL de redirección: ' . env('GOOGLE_CALENDAR_REDIRECT_URI'));
+                Log::info('ID de la cita pendiente: ' . $appointment->id);
                 $authUrl = $this->googleCalendarService->getAuthUrl();
                 return response()->json([
                     'action' => 'redirect_to_google_auth',
@@ -269,7 +265,6 @@ class AppointmentController extends Controller
                 ], 202);
             }
         }
-
 
         return response()->json([
             'rasson' => 'Se creó la cita correctamente',
@@ -332,6 +327,14 @@ class AppointmentController extends Controller
         try {
 
             $appointment->update($fieldsToUpdate);
+            if ($appointment->google_event_id) {
+                $professional = $appointment->user;
+                if ($professional && $professional->googleAccount) {
+                    // --- LÍNEA CLAVE ---
+                    // Despachamos el job para actualizar el evento.
+                    SyncAppointmentToGoogleCalendar::dispatch($appointment, $professional, 'update');
+                }
+            }
             $send = $this->sendNotificacionStatusEmail($appointment);
 
             return response()->json([
@@ -354,7 +357,23 @@ class AppointmentController extends Controller
      */
     public function destroy(Appointment $appointment)
     {
-        //
+        //codigo para cancelar cita
+        $professional = $appointment->user;
+
+        /*
+        if ($appointment->google_event_id && $professional && $professional->googleAccount) {
+            // --- LÍNEA CLAVE ---
+            // Despachamos el job para eliminar el evento.
+            SyncAppointmentToGoogleCalendar::dispatch($appointment, $professional, 'delete');
+        }
+
+        $appointment->delete();
+
+        return response()->json([
+            'message' => "Cita cancelada correctamente",
+            'type' => "success"
+        ], 200);
+    }*/
     }
 
     public function sendNotificacionStatusEmail($appointment)

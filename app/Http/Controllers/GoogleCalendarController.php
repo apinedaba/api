@@ -8,6 +8,7 @@ use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\SyncAppointmentToGoogleCalendar;
 
 class GoogleCalendarController extends Controller
 {
@@ -15,9 +16,11 @@ class GoogleCalendarController extends Controller
     {
         $user = Auth::user();
         $appointmentId = session('pending_google_sync_appointment_id');
+        Log::info('En el callback de Google Calendar para el usuario ' . $user->id);
+        Log::info('ID de la cita pendiente: ' . ($appointmentId ?? 'Ninguna'));
 
         if (!$appointmentId) {
-            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/calendar?error=no_pending_sync');
+            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/agenda?error=no_pending_sync');
         }
 
         try {
@@ -36,14 +39,14 @@ class GoogleCalendarController extends Controller
             );
 
             $appointment = Appointment::findOrFail($appointmentId);
-            $googleCalendarService->createEvent($appointment, $user->fresh());
+            SyncAppointmentToGoogleCalendar::dispatch($appointment, $user->fresh(), 'create');
 
             session()->forget('pending_google_sync_appointment_id');
-            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/calendar?success=google_sync_complete');
+            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/agenda?success=google_sync_complete');
         } catch (\Exception $e) {
             Log::error('Error en el callback de Google Calendar: ' . $e->getMessage());
             session()->forget('pending_google_sync_appointment_id');
-            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/calendar?error=google_auth_failed');
+            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/agenda?error=google_auth_failed');
         }
     }
 

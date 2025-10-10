@@ -411,8 +411,8 @@ class StripeController extends Controller
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
             'line_items' => [['price' => $planId, 'quantity' => 1]],
-            'success_url' => env('FRONTEND_URL_USER') . '/suscripcion?status=success',
-            'cancel_url' => env('FRONTEND_URL_USER') . '/suscripcion?status=canceled',
+            'success_url' => env('FRONTEND_URL_USER') . '/perfil/suscripcion?status=success',
+            'cancel_url' => env('FRONTEND_URL_USER') . '/perfil/suscripcion?status=canceled',
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
@@ -438,7 +438,7 @@ class StripeController extends Controller
 
         $portalSession = BillingPortalSession::create([
             'customer' => $user->stripe_id,
-            'return_url' => env('FRONTEND_URL_USER') . '/suscripcion',
+            'return_url' => env('FRONTEND_URL_USER') . '/perfil/suscripcion',
         ]);
 
         return response()->json(['url' => $portalSession->url]);

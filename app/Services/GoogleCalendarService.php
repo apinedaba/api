@@ -133,12 +133,20 @@ class GoogleCalendarService
             'description' => 'Cita agendada a través de tu plataforma.',
             'start' => ['dateTime' => (new \DateTime($appointment->start))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
             'end' => ['dateTime' => (new \DateTime($appointment->end))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
+            'conferenceData' => [
+                'createRequest' => [
+                    'requestId' => "meet-" . $appointment->id . "-" . time(),
+                    'conferenceSolutionKey' => ['type' => 'hangoutsMeet'],
+                ],
+            ],
         ]);
 
-        $createdEvent = $calendarService->events->insert('primary', $event);
+        $options = ['conferenceDataVersion' => 1];
+        $createdEvent = $calendarService->events->insert('primary', $event, $options);
 
-        // Guardamos el ID del evento de Google en nuestra cita para futuras actualizaciones.
+        // --- ESTA ES LA ÚNICA LÍNEA QUE CAMBIA RESPECTO A MI RESPUESTA ANTERIOR ---
         $appointment->google_event_id = $createdEvent->getId();
+        $appointment->link = $createdEvent->getHangoutLink(); // Guardamos en tu campo 'link'
         $appointment->save();
     }
 

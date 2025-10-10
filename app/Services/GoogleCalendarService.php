@@ -144,7 +144,6 @@ class GoogleCalendarService
         $options = ['conferenceDataVersion' => 1];
         $createdEvent = $calendarService->events->insert('primary', $event, $options);
 
-        // --- ESTA ES LA ÚNICA LÍNEA QUE CAMBIA RESPECTO A MI RESPUESTA ANTERIOR ---
         $appointment->google_event_id = $createdEvent->getId();
         $appointment->link = $createdEvent->getHangoutLink(); // Guardamos en tu campo 'link'
         $appointment->save();

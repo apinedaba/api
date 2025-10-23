@@ -312,12 +312,14 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment)
     {
 
-        $originalData = $appointment->toArray();
+        $originalData = Appointment::with('user')->find($appointment->id);
         $updatedData = $request->except(['patient', 'cart', 'payments']);
         $fieldsToUpdate = [];
+        $user = User::find($originalData->user);
+        $arrayOriginal = $originalData->toArray();
 
         foreach ($updatedData as $key => $value) {
-            if (array_key_exists($key, $originalData) && $originalData[$key] != $value) {
+            if (array_key_exists($key,  $arrayOriginal) &&  $arrayOriginal[$key] != $value) {
                 if ($key === 'created_at' || $key === 'updated_at') {
                     continue;
                 }
@@ -330,20 +332,16 @@ class AppointmentController extends Controller
                 'message' => "Sin modificaciones",
                 'type' => "info"
             ], 200);
-        }
-
-        try {
-
-            $appointment->update($fieldsToUpdate);
-            if ($appointment->google_event_id) {
-                $professional = $appointment->user;
-                if ($professional && $professional->googleAccount) {
-                    // --- LÍNEA CLAVE ---
-                    // Despachamos el job para actualizar el evento.
-                    SyncAppointmentToGoogleCalendar::dispatch($appointment, $professional, 'update');
+        }     
+        try {     
+            if ($originalData->google_event_id) { // Esta línea parece ser para depuración
+                $originalData->load('user');       
+                if ($user && $user->googleAccount) {
+                    SyncAppointmentToGoogleCalendar::dispatch($originalData, $user, 'update');
                 }
             }
-            $send = $this->sendNotificacionStatusEmail($appointment);
+            $appointment->update($fieldsToUpdate);
+            $send = $this->sendNotificacionStatusEmail($originalData);
 
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
@@ -352,7 +350,7 @@ class AppointmentController extends Controller
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
-                'rasson' => 'No se logro cambiar la cita con exito',
+                'rasson' => 'No se logro cambiar la cita con exito'.$th->getMessage(),
                 'message' => "Cita no modificada",
                 'type' => "error"
             ], 400);

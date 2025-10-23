@@ -30,6 +30,10 @@ class UserController extends Controller
         $allUser = User::where('id', $id)->first();
         return response()->json($allUser, 200);
     }
+    public function getProfessionalTagsById($id){
+        $allUser = User::where('id', $id)->first();
+        return response()->json($allUser, 200);
+    }
     public function getAvailableSlots(Request $request)
     {
         $userId  = $request->id;

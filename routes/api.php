@@ -178,6 +178,10 @@ Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::cla
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
 
 
+Route::get('/professionals/{id}', [UserController::class, 'getProfessionalTagsById']);
+
+
+
 require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/contratos.php';
 require __DIR__ . '/api/professional.php';

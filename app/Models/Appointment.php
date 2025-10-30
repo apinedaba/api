@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Payment;
 use App\Models\Patient;
+
 class Appointment extends Model
 {
     use HasFactory;
@@ -25,7 +26,8 @@ class Appointment extends Model
         'link',
         'tipo',
         'costo',
-        'payments'
+        'payments',
+        'google_event_id',
     ];
     protected $casts = [
         'payments' => 'array',
@@ -51,7 +53,7 @@ class Appointment extends Model
         return $this->belongsTo(\App\Models\AppointmentCart::class, 'cart_id');
     }
 
-    public function payments() 
+    public function payments()
     {
         return $this->hasMany(Payment::class, 'appointment_id');
     }

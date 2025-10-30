@@ -38,6 +38,8 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\Auth\SocialiteController;
+
+use App\Http\Controllers\GoogleCalendarController;
 //Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
@@ -88,7 +90,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
-    
+
     // Onboarding y configuración de perfil
     Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
@@ -100,7 +102,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
     Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
     Route::post('user/identity/upload', [IdentityController::class, 'store']);
-    
+
     // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
     Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
@@ -117,7 +119,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
     Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
-    
+
     // Agenda y citas
     Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
@@ -136,7 +138,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/emotion-logs', [EmotionLogController::class, 'index']);
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
+    Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
 });
+Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
 
 //Rutas para Pacientes
@@ -176,9 +180,6 @@ Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::c
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
-
-
-Route::get('/professionals/{id}', [UserController::class, 'getProfessionalTagsById']);
 
 
 

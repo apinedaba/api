@@ -13,10 +13,15 @@ use App\Notifications\StateAppoinmentMail;
 use App\Notifications\CreateAppoinmentMail;
 use Response;
 use Carbon\Carbon;
-use \Log;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Services\AppointmentService;
+use App\Services\GoogleCalendarService;
+use App\Services\InvalidGoogleTokenException;
+use App\Jobs\SyncAppointmentToGoogleCalendar;
+use Illuminate\Support\Facades\Crypt;
+
 
 class AppointmentController extends Controller
 {
@@ -24,10 +29,11 @@ class AppointmentController extends Controller
      * Display a listing of the resource.
      */
     protected $service;
-
-    public function __construct(AppointmentService $service)
+    protected $googleCalendarService;
+    public function __construct(AppointmentService $service, GoogleCalendarService $googleCalendarService)
     {
         $this->service = $service;
+        $this->googleCalendarService = $googleCalendarService;
     }
     public function index(Request $request)
     {
@@ -193,7 +199,6 @@ class AppointmentController extends Controller
         $relation = $this->service->ensureRelationshipAndRoom($request['user'], $request['patient']);
         $request->video_call_room = $relation->video_call_room;
         $appointment = Appointment::create($request->except(['costo', 'formato', 'tipoSesion']));
-
         if (!$appointment) {
             return response()->json([
                 'rasson' => 'No se logró crear la cita',
@@ -236,6 +241,38 @@ class AppointmentController extends Controller
             $appointment->cart_id = $cart->id;
             $appointment->save();
         }
+        $user = User::find($appointment->user);
+
+        // Lógica para despachar el job
+        if ($request->boolean('syncWithGoogle')) {
+            if ($user->googleAccount && $user->googleAccount->refresh_token) {
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
+            } else {
+                // --- INICIO DE LA MODIFICACIÓN ---
+
+                // 1. Preparamos los datos que necesitamos recordar.
+                $statePayload = [
+                    'user_id' => $user->id,
+                    'appointment_id' => $appointment->id,
+                ];
+
+                // 2. Encriptamos los datos en una cadena segura.
+                $encryptedState = Crypt::encrypt(json_encode($statePayload));
+
+                // 3. Obtenemos la URL de autenticación y le adjuntamos nuestro estado encriptado.
+                $authUrl = $this->googleCalendarService->getAuthUrl($encryptedState);
+
+                // Ya no usamos la sesión.
+                // session(['pending_google_sync_appointment_id' => $appointment->id]);
+
+                return response()->json([
+                    'action' => 'redirect_to_google_auth',
+                    'url' => $authUrl
+                ], 202);
+
+                // --- FIN DE LA MODIFICACIÓN ---
+            }
+        }
 
         return response()->json([
             'rasson' => 'Se creó la cita correctamente',
@@ -275,12 +312,14 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment)
     {
 
-        $originalData = $appointment->toArray();
+        $originalData = Appointment::with('user')->find($appointment->id);
         $updatedData = $request->except(['patient', 'cart', 'payments']);
         $fieldsToUpdate = [];
+        $user = User::find($originalData->user);
+        $arrayOriginal = $originalData->toArray();
 
         foreach ($updatedData as $key => $value) {
-            if (array_key_exists($key, $originalData) && $originalData[$key] != $value) {
+            if (array_key_exists($key,  $arrayOriginal) &&  $arrayOriginal[$key] != $value) {
                 if ($key === 'created_at' || $key === 'updated_at') {
                     continue;
                 }
@@ -293,22 +332,25 @@ class AppointmentController extends Controller
                 'message' => "Sin modificaciones",
                 'type' => "info"
             ], 200);
-        }
-
-        try {
-
+        }     
+        try {     
+            if ($originalData->google_event_id) { // Esta línea parece ser para depuración
+                $originalData->load('user');       
+                if ($user && $user->googleAccount) {
+                    SyncAppointmentToGoogleCalendar::dispatch($originalData, $user, 'update');
+                }
+            }
             $appointment->update($fieldsToUpdate);
-            $send = $this->sendNotificacionStatusEmail($appointment);
+            $send = $this->sendNotificacionStatusEmail($originalData);
 
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
                 'message' => "Cita modificada",
                 'type' => "success"
             ], 200);
-
         } catch (\Throwable $th) {
             return response()->json([
-                'rasson' => 'No se logro cambiar la cita con exito',
+                'rasson' => 'No se logro cambiar la cita con exito'.$th->getMessage(),
                 'message' => "Cita no modificada",
                 'type' => "error"
             ], 400);
@@ -321,7 +363,23 @@ class AppointmentController extends Controller
      */
     public function destroy(Appointment $appointment)
     {
-        //
+        //codigo para cancelar cita
+        $professional = $appointment->user;
+
+        /*
+        if ($appointment->google_event_id && $professional && $professional->googleAccount) {
+            // --- LÍNEA CLAVE ---
+            // Despachamos el job para eliminar el evento.
+            SyncAppointmentToGoogleCalendar::dispatch($appointment, $professional, 'delete');
+        }
+
+        $appointment->delete();
+
+        return response()->json([
+            'message' => "Cita cancelada correctamente",
+            'type' => "success"
+        ], 200);
+    }*/
     }
 
     public function sendNotificacionStatusEmail($appointment)

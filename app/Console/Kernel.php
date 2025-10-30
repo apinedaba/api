@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('queue:work --stop-when-empty')
                  ->everyMinute()
                  ->withoutOverlapping();
+        $schedule->command('sessions:daily-summary')->dailyAt('07:00');
     }
 
     /**

@@ -14,6 +14,9 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         $schedule->command('app:expire-trials')->daily();
+        $schedule->command('queue:work --stop-when-empty')
+                 ->everyMinute()
+                 ->withoutOverlapping();
     }
 
     /**
@@ -25,4 +28,7 @@ class Kernel extends ConsoleKernel
 
         require base_path('routes/console.php');
     }
+
+    
+
 }

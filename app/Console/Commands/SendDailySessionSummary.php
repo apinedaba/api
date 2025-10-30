@@ -45,7 +45,7 @@ class SendDailySessionSummary extends Command
                     Fcm::send($token, $title, $body, [
                         'type' => 'daily_summary',
                         'link' => 'https://admin.mindmeet.com.mx/dashboard',
-                        'icon' => 'https://mindmeet.com.mx/assets/icon.png',
+                        'icon' => 'https://mindmeet.com.mx/favicon/android-chrome-192x192.png',
                     ]);
                     $totalSent++;
                 } catch (\Throwable $e) {

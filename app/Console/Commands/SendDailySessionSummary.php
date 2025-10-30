@@ -21,15 +21,16 @@ class SendDailySessionSummary extends Command
 
         // 🔎 Obtiene los psicólogos activos
         $psychologists = User::where('activo', true)->where('isProfileComplete', true)->get();
-
+        $psychologistsCount = $psychologists->count();
         $totalSent = 0;
 
         foreach ($psychologists as $psy) {
+            \Log::alert("Si hay psicologos");
             // Cuenta sus sesiones del día
             $sessionCount = Appointment::where('user', $psy->id)
                 ->whereBetween('start', [$today, $tomorrow])
                 ->count();
-
+            \Log::alert("Hay sesiones:".$sessionCount." de ".$psy->name);
             if ($sessionCount === 0) continue; // no tiene sesiones
 
             // Busca tokens activos
@@ -43,7 +44,8 @@ class SendDailySessionSummary extends Command
                 try {
                     Fcm::send($token, $title, $body, [
                         'type' => 'daily_summary',
-                        'link' => 'https://admin.mindmeet.com.mx/dashboard'
+                        'link' => 'https://admin.mindmeet.com.mx/dashboard',
+                        'icon' => 'https://mindmeet.com.mx/assets/icon.png',
                     ]);
                     $totalSent++;
                 } catch (\Throwable $e) {

@@ -27,7 +27,7 @@ class UserAuthController extends Controller
         }
 
         $token = $user->createToken('user_token')->plainTextToken;
-
+        \Log::alert($token);
         return response()->json(['token' => $token], 200);
     }
 

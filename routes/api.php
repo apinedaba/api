@@ -19,6 +19,7 @@ use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientUserController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\UserController;
@@ -182,6 +183,7 @@ Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::cla
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
 
 
+Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 
 require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/contratos.php';

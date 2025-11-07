@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,14 +29,16 @@ Route::get('/', function () {
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
-Route::get('/psicologos', function () {
-    return Inertia::render('Psicologos');
-})->middleware(['auth', 'verified'])->name('psicologos');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
+    Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
+
 });
+
 
 require __DIR__.'/auth.php';

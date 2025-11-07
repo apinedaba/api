@@ -7,6 +7,9 @@ use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Inertia\Response;
+
 class UserController extends Controller
 {
     /**
@@ -18,6 +21,15 @@ class UserController extends Controller
         //Log::alert($test->currentAccessToken()->type);
         $users = User::with('appointment')->get();
         return response()->json($users, 200);
+    }
+
+    function getAllUsers()
+     {     
+        $users = User::all();
+        return Inertia::render('Psicologos', [
+            'psicologos' =>  $users,
+            'status' => session('status'),
+        ]);   
     }
 
     public function getProfessional(){
@@ -97,7 +109,19 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        //
+        try {            
+            $user = User::findOrFail($id);
+            if ($user) {
+                return Inertia::render('Psicologos/Edit', [
+                    'psicologo' =>  $user
+                ]); 
+            }
+        } catch (\Throwable $th) {
+            return Inertia::render('Psicologos/Edit', [
+                'error' =>  "No se encontro el usuario"
+            ]);
+           
+        }
     }
 
     /**
@@ -119,8 +143,18 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ]);
+        $user = $request->where('id', $id);
+        $user->update(
+            [
+                'activo' => false
+                ]
+            );
+        return response()->json(['ok'=>true], 200);
+
     }
 }

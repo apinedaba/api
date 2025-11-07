@@ -2,129 +2,62 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Http\Requests\ProfileUpdateRequest;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Cloudinary\Api\Upload\UploadApi;
+use Illuminate\Support\Facades\Redirect;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProfileController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display the user's profile form.
      */
-    public function index()
+    public function edit(Request $request): Response
     {
-        $user = Auth::user();
-        $profile = User::where("id", $user->id)->first();
-        return response()->json($profile, 200);
+        return Inertia::render('Profile/Edit', [
+            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'status' => session('status'),
+        ]);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Update the user's profile information.
      */
-    public function create()
+    public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        //
+        $request->user()->fill($request->validated());
+
+        if ($request->user()->isDirty('email')) {
+            $request->user()->email_verified_at = null;
+        }
+
+        $request->user()->save();
+
+        return Redirect::route('profile.edit');
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Delete the user's account.
      */
-    public function store(Request $request)
-    {
-        $user = Auth::user();
-
-        $data = $request->except(['email_verified_at', 'created_at', 'updated_at', 'id', 'password']);
-
-        if ($request->has('password')) {
-            $data['password'] = Hash::make($request->password);
-        }
-        if ($user instanceof \Illuminate\Database\Eloquent\Model) {
-            $user->update($data);
-        } else {
-            return response()->json(['error' => 'Usuario no válido'], 400);
-        }
-
-        // 4. Prepara y devuelve la respuesta.
-        $response = [
-            'rasson' => 'Tu información se ha actualizado correctamente',
-            'message' => "Usuario actualizado",
-            'type' => "success"
-        ];
-        return response()->json($response, 200);
-    }
-    public function upload(Request $request)
+    public function destroy(Request $request): RedirectResponse
     {
         $request->validate([
-            'photo' => 'required|string', // La foto se envía como Base64
+            'password' => ['required', 'current_password'],
         ]);
 
-        // Obtener el Base64 de la solicitud
-        $base64Image = $request->input('photo');
+        $user = $request->user();
 
-        // Decodificar el Base64 a un archivo temporal
-        $imageData = base64_decode($base64Image);
-        if ($imageData === false) {
-            return response()->json(['error' => 'Formato Base64 inválido'], 400);
-        }
+        Auth::logout();
 
-        // Crear archivo temporal
-        $tempFilePath = tempnam(sys_get_temp_dir(), 'photo') . '.jpg'; // Agregar extensión para evitar problemas
-        if (file_put_contents($tempFilePath, $imageData) === false) {
-            return response()->json(['error' => 'No se pudo guardar el archivo'], 500);
-        }
+        $user->delete();
 
-        // Subir el archivo a Cloudinary
-        try {
-            $result = new UploadApi;
-            $result = $result->upload($tempFilePath, [
-                'folder' => 'ProfilePhotos',
-            ]);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
-            // Eliminar el archivo temporal después de subirlo
-            unlink($tempFilePath);
-
-            return response()->json([
-                'url' => $result['secure_url'],
-            ]);
-        } catch (\Exception $e) {
-            unlink($tempFilePath); // Asegurar que se borra el archivo
-            Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al subir la foto', 'trace' => $e->getMessage()], 500);
-        }
-    }
-    /**
-     * Display the specified resource.
-     */
-    public function show(User $profile)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(User $profile)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, User $profile)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(User $profile)
-    {
-        //
+        return Redirect::to('/');
     }
 }

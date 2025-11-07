@@ -118,6 +118,48 @@ class CatalogosController extends Controller
 
         return $response;
     }
+    public function estado()
+    {
+        $catalogo = [
+            "MX" => "México",
+            "AR" => "Argentina",
+            "CO" => "Colombia",
+            "CL" => "Chile",
+            "PE" => "Perú",
+            "UY" => "Uruguay",
+            "EC" => "Ecuador",
+            "BO" => "Bolivia"
+        ];
+        $pais = User::whereNotNull('address')
+            ->where('isProfileComplete', 1)
+            ->where('activo', 1)
+            ->pluck('address')
+            ->map(fn($p) => 
+                (
+                    [
+                        "pais" => $p['pais'] ?? null,
+                        "estado" => $p['state'] ?? null
+                    ]
+                )
+            )                        
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($key) => [
+                'value' => $key,
+                'pais' => $key['pais'],
+                'estado' => $key['estado']                
+            ]);
+
+        $response = [
+            "type" => "autocomplete",
+            "values" => $pais,
+            "label" => "Estado",
+            "key" => "estado"
+        ];
+
+        return $response;
+    }
 
     public function getCatalogs(): JsonResponse
     {
@@ -126,6 +168,7 @@ class CatalogosController extends Controller
             $this->enfoque(),
             $this->especialidades(),
             $this->pais(),
+            $this->estado()
 
         ];
         return response()->json($data, 200);

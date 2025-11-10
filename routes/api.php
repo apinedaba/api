@@ -53,7 +53,11 @@ Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::c
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
     ->name('questionnaire.public.show');
+Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
+    ->name('questionnaire.public.show');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
+    ->name('questionnaire.public.submit');
+Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit');
 // Rutas para el reseteo de contraseña
 Route::post('user/forgot-password', [PasswordResetController::class, 'sendResetCode']);
@@ -150,6 +154,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('info', function (Request $request) {
         return $request->user();
     });
+    // Cuestionarios asignados al paciente autenticado
+    Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);

@@ -54,15 +54,14 @@ class QuestionnaireController extends Controller
 
         $user = Auth::user()->id;
         $request['user'] = $user;
-        $questionnaire = Questionnaire::create($request->only('id','title', 'description', 'structure', 'user'));
+        $questionnaire = Questionnaire::create($request->only('id', 'title', 'description', 'structure', 'user'));
         return response()->json(
             [
                 'rasson' => "El cuestionario se creo con exito",
                 'message' => "Cuestionario agregado",
                 'type' => "success",
                 "data" => $questionnaire
-            ]
-            ,
+            ],
             200
         );
     }
@@ -77,50 +76,57 @@ class QuestionnaireController extends Controller
             $response = $qt->firstOrFail();
             $checkResponse = QuestionnairesLinkResponses::where('questionnaire_link_id', $response->id)->count();
             if ($checkResponse > 0) {
-                $update = $qt->update(["status"=>"completed"]);
+                $update = $qt->update(["status" => "completed"]);
                 return response()->json([
                     'message' => 'Respuestas guardadas exitosamente.',
-                    "response"=> $update,
-                    "status"=>"completed",                    
+                    "response" => $update,
+                    "status" => "completed",
                     'alert' => [
                         'rasson' => 'El cuestionario no puede ser respondido de nuevo, el estado del cuestionario se actualizo',
                         'message' => "No es posible llenar de nuevo ",
                         'type' => "error"
                     ]
                 ]);
-
             }
-            if ($response && $response->status == "pending") {                                
+            if ($response && $response->status == "pending") {
                 $response = QuestionnairesLinkResponses::create([
                     'questionnaire_link_id' => $response->id,
                     'response' => $request->response,
-                    "status"=>"completed",                    
+                    "status" => "completed",
                 ]);
                 if ($response) {
-                    $update = $qt->update(["status"=>"completed"]);
+                    $update = $qt->update(["status" => "completed"]);
                 }
                 return response()->json([
                     'message' => 'Respuestas guardadas exitosamente.',
-                    "response"=> $update,
+                    "response" => $update,
                     'alert' => [
                         'rasson' => 'El cuestionario se envio con exito, ya notificamos a tu profesional',
                         'message' => "Cuestionario enviado ",
                         'type' => "success"
                     ]
                 ]);
-
-            }    
-
+            }
         } catch (\Throwable $th) {
             //throw $th;
             return response()->json(['error' => $th->getMessage()]);
-
-
         }
-
     }
-    public function getQuestionnairesByPatient($patient)  {
+    public function getQuestionnairesByPatient($patient)
+    {
         return QuestionnaireLink::where('patient', $patient)->with('questionnaire')->get();
+    }
+
+    /**
+     * Obtener los cuestionarios asignados al paciente autenticado.
+     */
+    public function getQuestionnairesForPatient(Request $request)
+    {
+        $user = Auth::user();
+        // Devuelve los enlaces (links) de cuestionarios asignados al paciente autenticado
+        return QuestionnaireLink::where('patient', $user->id)
+            ->with('questionnaire', 'patient')
+            ->get();
     }
     /**
      * Display the specified resource.
@@ -143,15 +149,14 @@ class QuestionnaireController extends Controller
      */
     public function update(Request $request, Questionnaire $questionnaire)
     {
-        $response = $questionnaire->update($request->only('id','title', 'description', 'structure', 'user'));
+        $response = $questionnaire->update($request->only('id', 'title', 'description', 'structure', 'user'));
         return response()->json(
             [
                 'rasson' => "El cuestionario se creo con exito",
                 'message' => "Cuestionario agregado",
                 'type' => "success",
                 "data" => $questionnaire
-            ]
-            ,
+            ],
             200
         );
     }

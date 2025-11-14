@@ -1,47 +1,48 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 
 class CedulaCheck extends Controller
 {
     public function checkCedula ($cedula){
         
-        $data = '{"maxResult":"1000","nombre":"","paterno":"","materno":"","idCedula":"'.$cedula.'"}';
-        
-        $curl = curl_init();
-        
-        curl_setopt_array($curl, array(
-          CURLOPT_URL => 'https://www.cedulaprofesional.sep.gob.mx/cedula/buscaCedulaJson.action',
-          CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_ENCODING => '',
-          CURLOPT_MAXREDIRS => 10,
-          CURLOPT_TIMEOUT => 0,
-          CURLOPT_FOLLOWLOCATION => true,
-          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-          CURLOPT_CUSTOMREQUEST => 'POST',
-          CURLOPT_POSTFIELDS => 'json='.urlencode($data),
-          CURLOPT_HTTPHEADER => array(
-            'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-            'Content-Language: es-MX'
-          ),
-        ));
-        
-        $response = curl_exec($curl);
-        // Verifica la codificación de la respuesta
-        $encoding = mb_detect_encoding($response, "UTF-8, ISO-8859-1, GBK");
+        $numCedula = $cedula;
 
-        // Si no es UTF-8, conviértela
-        if ($encoding != "UTF-8") {
-            $response = mb_convert_encoding($response, "UTF-8", $encoding);
+        if (!$numCedula) {
+            return response()->json(['error' => 'Falta el número de cédula'], 400);
         }
-        
-        curl_close($curl);
-        
-        $response = json_decode($response);
-        return response()->json($response, 200);
-        
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('SEP_API_TOKEN'),
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+            ])
+            ->withoutVerifying()
+            ->post('https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle', [
+                'numCedula' => $numCedula,
+            ]);
+
+            // Si la respuesta de la SEP es válida
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+
+            // Si la SEP devuelve error
+            return response()->json([
+                'error' => 'Error en la API de SEP',
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ], $response->status());
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error al conectar con la API',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     function validateAndConvertEncoding($data) {

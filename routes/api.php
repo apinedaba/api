@@ -161,8 +161,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::post('availability', [AvailabilitiController::class, 'store']);
     Route::post('cart', [AppointmentCartController::class, 'store']);
     Route::get('cart', [AppointmentCartController::class, 'show']);
+    Route::get('cart/reserva/{id}', [AppointmentCartController::class, 'cartById']);
     Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
-    Route::get('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
+    Route::post('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
     // OXXO con Elements (nuevo / ajustado)
     Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
     // (opcional) Checkout OXXO por si lo usas en otro lado
@@ -184,6 +185,7 @@ Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::cla
 
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
+Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 
 require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/contratos.php';

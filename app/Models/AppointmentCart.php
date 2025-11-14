@@ -21,6 +21,10 @@ class AppointmentCart extends Model
         'formato', // Nueva columna agregada
         'payment_intent_id',
         'appointment_id',
+        'discount',
+        'discountType',
+        'originalPrice',
+        'categoria'
 
     ];
 

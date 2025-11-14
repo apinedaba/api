@@ -72,13 +72,18 @@ class StripeController extends Controller
 
     public function confirmarPago(Request $request)
     {
+
         Stripe::setApiKey($this->stripe_secretkey);
 
-        $intentId = $request->query('intent');
+        $intentId = $request->intentId;
+        $method = $request->paymentMethod;
         if (!$intentId) {
             return response()->json(['message' => 'Falta el payment_intent_id'], 400);
         }
 
+        if ($method == "avg") {
+            return response()->json("Pagaras solo el anticipo");
+        }
         $cart = AppointmentCart::with('user')
             ->where('payment_intent_id', $intentId)
             ->first();

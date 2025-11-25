@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use App\Models\PasswordResetTokensPatient; // Asegúrate de importar el modelo correcto
+use Illuminate\Support\Facades\Log;
 
 class PasswordResetController extends Controller
 {
@@ -37,6 +38,7 @@ class PasswordResetController extends Controller
         try {
             Mail::to($request->email)->send(new SendPasswordResetCode($code, $user->name));
         } catch (\Exception $e) {
+            Log::error('Error al enviar el correo de recuperación: ' . $e->getMessage());
             return response()->json(['message' => 'No se pudo enviar el correo de recuperación.'], 500);
         }
 
@@ -117,6 +119,7 @@ class PasswordResetController extends Controller
         try {
             Mail::to($request->email)->send(new SendPasswordResetCode($code, $patient->name));
         } catch (\Exception $e) {
+            Log::error('Error al enviar el correo de recuperación: ' . $e->getMessage());
             return response()->json(['message' => 'No se pudo enviar el correo de recuperación.'], 500);
         }
 

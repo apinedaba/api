@@ -62,7 +62,14 @@ class ProfessionalController extends Controller
             : [];
         $q = User::query()
             ->where('isProfileComplete', true)
-            ->where('activo', true);
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q
+                    ->whereHas('subscription', function ($s) {
+                        $s->whereIn('stripe_status', ['active', 'trialing', 'trial']);
+                    })
+                    ->orWhere('has_lifetime_access', true);
+            });
 
         if ($search !== '') {
             $q->where('name', 'like', "%{$search}%");

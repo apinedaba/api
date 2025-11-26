@@ -19,90 +19,110 @@ class ProfessionalController extends Controller
      */
     public function index(Request $request)
     {
-        // 1) Normaliza origen de parámetros
-        $params = $request->query();  // ?page=1&...
-        if (empty($params) && $request->has('params')) {
-            $params = $request->input('params', []);  // { params: { ... } }
-        }
+        /*
+         * ---------------------------------------------------------
+         * 1. Normalización de parámetros (query o cuerpo)
+         * ---------------------------------------------------------
+         */
+        $params = $request->query('params', $request->input('params', []));
 
-        if (!$request->has('params')) {
-            $q = User::inRandomOrder()
-                ->where('isProfileComplete', true)
-                ->where('activo', true)
-                ->where(function ($q) {
-                    $q
-                        ->whereHas('subscription', function ($s) {
-                            $s->whereIn('stripe_status', ['active', 'trialing', 'trial']);
-                        })
-                        ->orWhere('has_lifetime_access', true);
-                });
-            $result = $q->orderByDesc('id')->paginate(12);
-            return response()->json([
-                'data' => $result->items(),
-                'total' => $result->total(),
-                'page' => $result->currentPage(),
-                'pages' => $result->lastPage(),
-            ]);
-        }
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = (int) ($params['perPage'] ?? 12);
+        $search = trim($params['search'] ?? '');
+        $precioMax = $params['precioMax'] ?? null;
+        $pais = $params['pais'] ?? null;
+        $idioma = $params['idioma'] ?? null;
+        $especial = $params['especialidad'] ?? null;
 
-        // 2) Lee valores desde el arreglo normalizado
-        $page = (int) ($params['params']['page'] ?? 1);
-        $perPage = (int) ($params['params']['perPage'] ?? 12);
-        $search = (string) ($params['params']['search'] ?? '');
-        $precioMax = $params['params']['precioMax'] ?? null;
-        $pais = $params['params']['pais'] ?? null;
-        $idioma = $params['params']['idioma'] ?? null;
-        $especialidad = $params['params']['especialidad'] ?? null;
-
-        $generos = !empty($params['params']['generos'])
-            ? array_values(array_filter(array_map('trim', explode(',', $params['params']['generos']))))
+        $generos = !empty($params['generos'])
+            ? array_filter(array_map('trim', explode(',', $params['generos'])))
             : [];
-        $enfoques = !empty($params['params']['enfoques'])
-            ? array_values(array_filter(array_map('trim', explode(',', $params['params']['enfoques']))))
+
+        $enfoques = !empty($params['enfoques'])
+            ? array_filter(array_map('trim', explode(',', $params['enfoques'])))
             : [];
+
+        /*
+         * ---------------------------------------------------------
+         * 2. Estados válidos de una suscripción
+         * ---------------------------------------------------------
+         */
+        $suscripcionesValidas = ['active', 'trial', 'trialing'];
+
+        /*
+         * ---------------------------------------------------------
+         * 3. Query base: filtros esenciales
+         * ---------------------------------------------------------
+         */
         $q = User::query()
             ->where('isProfileComplete', true)
             ->where('activo', true)
-            ->where(function ($q) {
-                $q
-                    ->whereHas('subscription', function ($s) {
-                        $s->whereIn('stripe_status', ['active', 'trialing', 'trial']);
+            ->where(function ($q2) use ($suscripcionesValidas) {
+                $q2
+                    ->whereHas('subscription', function ($s) use ($suscripcionesValidas) {
+                        $s->whereIn('stripe_status', $suscripcionesValidas);
                     })
                     ->orWhere('has_lifetime_access', true);
             });
 
+        /*
+         * ---------------------------------------------------------
+         * 4. Filtros opcionales
+         * ---------------------------------------------------------
+         */
         if ($search !== '') {
             $q->where('name', 'like', "%{$search}%");
         }
-        if (!empty($pais))
+
+        if ($pais) {
             $q->where('address->pais', $pais);
-        if (!empty($idioma))
+        }
+
+        if ($idioma) {
             $q->whereJsonContains('personales->idiomas', $idioma);
-        if (!empty($especialidad))
-            $q->whereJsonContains('educacion->especialidades', $especialidad);
+        }
+
+        if ($especial) {
+            $q->whereJsonContains('educacion->especialidades', $especial);
+        }
 
         if ($generos) {
+            // OR entre géneros, pero AND contra los demás filtros
             $q->where(function ($qq) use ($generos) {
-                foreach ($generos as $g)
+                foreach ($generos as $g) {
                     $qq->orWhere('personales->genero', $g);
-            });
-        }
-        if ($enfoques) {
-            $q->where(function ($qq) use ($enfoques) {
-                foreach ($enfoques as $e)
-                    $qq->orWhere('educacion->enfoque', $e);
+                }
             });
         }
 
-        // precioMax (si no usas JSON_TABLE, omite este bloque por ahora)
-        if (!empty($precioMax)) {
+        if ($enfoques) {
+            $q->where(function ($qq) use ($enfoques) {
+                foreach ($enfoques as $e) {
+                    $qq->orWhere('educacion->enfoque', $e);
+                }
+            });
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * 5. Filtro: precio máximo usando JSON_TABLE
+         * ---------------------------------------------------------
+         */
+        if ($precioMax) {
             $precioMax = (int) $precioMax;
+
             $q->whereIn('users.id', function ($sq) use ($precioMax) {
                 $sq
                     ->select('u.id')
                     ->from('users as u')
                     ->join(
-                        DB::raw("JSON_TABLE(u.configurations, '\$.sesiones[*]' COLUMNS (precio VARCHAR(20) PATH '\$.precio')) jt"),
+                        DB::raw("
+                        JSON_TABLE(
+                            u.configurations,
+                            '\$.sesiones[*]'
+                            COLUMNS (precio VARCHAR(20) PATH '\$.precio')
+                        ) jt
+                    "),
                         DB::raw('1'),
                         DB::raw('1=1')
                     )
@@ -110,16 +130,28 @@ class ProfessionalController extends Controller
                     ->havingRaw('MIN(CAST(jt.precio AS UNSIGNED)) <= ?', [$precioMax]);
             });
         }
-        $seed = $params['seed'] ?? 'default-seed';
-        $result = $q
-            ->orderByRaw('RAND(?)', [$seed])  // mismo orden para esa semilla
-            ->paginate($perPage, ['*'], 'page', $page);
+
+        /*
+         * ---------------------------------------------------------
+         * 6. Orden aleatorio estable (por seed)
+         * ---------------------------------------------------------
+         */
+        $seed = $params['seed'] ?? random_int(1, 999999);
+        $q->orderByRaw('RAND(?)', [$seed]);
+
+        /*
+         * ---------------------------------------------------------
+         * 7. Paginación final
+         * ---------------------------------------------------------
+         */
+        $result = $q->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'data' => $result->items(),
             'total' => $result->total(),
             'page' => $result->currentPage(),
             'pages' => $result->lastPage(),
+            'seed' => $seed
         ]);
     }
 

@@ -1,10 +1,11 @@
 <?php
 
 namespace App\Http\Controllers;
-use Carbon\Carbon;
-use Illuminate\Http\Request;
+
 use App\Models\Appointment;
 use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -18,37 +19,43 @@ class UserController extends Controller
     public function index()
     {
         $test = Auth::user();
-        //Log::alert($test->currentAccessToken()->type);
+        // Log::alert($test->currentAccessToken()->type);
         $users = User::with('appointment')->get();
         return response()->json($users, 200);
     }
 
     function getAllUsers()
-     {     
-        $users = User::all();
+    {
+        $users = User::orderBy('activo', 'desc')->get();
         return Inertia::render('Psicologos', [
-            'psicologos' =>  $users,
+            'psicologos' => $users,
             'status' => session('status'),
-        ]);   
+        ]);
     }
 
-    public function getProfessional(){
-        $allUser = User::where("isProfileComplete", true)      
-        ->where("activo", true)      
+    public function getProfessional()
+    {
+        $allUser = User::where('isProfileComplete', true)
+            ->where('activo', true)
             ->get();
         return response()->json($allUser, 200);
     }
-    public function getProfessionalById($id){
+
+    public function getProfessionalById($id)
+    {
         $allUser = User::where('id', $id)->first();
         return response()->json($allUser, 200);
     }
-    public function getProfessionalTagsById($id){
+
+    public function getProfessionalTagsById($id)
+    {
         $allUser = User::where('id', $id)->first();
         return response()->json($allUser, 200);
     }
+
     public function getAvailableSlots(Request $request)
     {
-        $userId  = $request->id;
+        $userId = $request->id;
 
         // Obtener la fecha de hoy
         $today = Carbon::today();
@@ -60,7 +67,6 @@ class UserController extends Controller
         $appointments = Appointment::whereHas('patient_user', function ($query) use ($userId) {
             $query->where('user', $userId);
         })->whereBetween('fecha', [$today, $endDate])->get();
-        
 
         // Aquí defines los horarios en los que el médico trabaja, por ejemplo, de 9am a 5pm
         $workingHours = [
@@ -88,6 +94,7 @@ class UserController extends Controller
 
         return response()->json($availableSlots);
     }
+
     /**
      * Show the form for creating a new resource.
      */
@@ -109,18 +116,17 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        try {            
+        try {
             $user = User::findOrFail($id);
             if ($user) {
                 return Inertia::render('Psicologos/Edit', [
-                    'psicologo' =>  $user
-                ]); 
+                    'psicologo' => $user
+                ]);
             }
         } catch (\Throwable $th) {
             return Inertia::render('Psicologos/Edit', [
-                'error' =>  "No se encontro el usuario"
+                'error' => 'No se encontro el usuario'
             ]);
-           
         }
     }
 
@@ -152,9 +158,8 @@ class UserController extends Controller
         $user->update(
             [
                 'activo' => false
-                ]
-            );
-        return response()->json(['ok'=>true], 200);
-
+            ]
+        );
+        return response()->json(['ok' => true], 200);
     }
 }

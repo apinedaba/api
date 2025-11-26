@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\AppointmentCart;
 use App\Models\Patient;
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class AppointmentCartController extends Controller
 {
@@ -25,6 +26,43 @@ class AppointmentCartController extends Controller
         //
     }
 
+    public function getAllCarts()
+    {
+        $carts = AppointmentCart::with('user')->with('patient')->get();
+        return Inertia::render('Carts', [
+            'carts' => $carts,
+            'status' => session('status'),
+        ]);
+    }
+
+    public function getCartById($id)
+    {
+        $cart = AppointmentCart::with('user')
+            ->where('id', $id)
+            ->latest()
+            ->first();
+
+        return Inertia::render('Cart', [
+            'cart' => $cart,
+            'status' => session('status'),
+        ]);
+    }
+
+    public function getCartByPatient($patient)
+    {
+        $cart = AppointmentCart::with('user')
+            ->where('patient_id', $patient)
+            ->where('estado', 'pendiente')
+            ->where('patient_id', $patient)
+            ->latest()
+            ->first();
+
+        return Inertia::render('Cart', [
+            'cart' => $cart,
+            'status' => session('status'),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -36,13 +74,13 @@ class AppointmentCartController extends Controller
         // return response()->json($request->except(['categoria', 'user']) + [
         //         'estado' => 'pendiente',
         //     ]);
-        $patient = auth()->user(); // auth:patient
-        $cart = AppointmentCart::updateOrCreate(            
+        $patient = auth()->user();  // auth:patient
+        $cart = AppointmentCart::updateOrCreate(
             $request->except(['categoria', 'user']) + [
                 'patient_id' => $patient->id,
                 'estado' => $request->estado === 'pendientePago' ? 'pendientePago' : 'pendiente',
                 'user_id' => $request->user_id,
-            ]     
+            ]
         );
         return response()->json($cart);
     }
@@ -53,23 +91,28 @@ class AppointmentCartController extends Controller
     public function show(AppointmentCart $appointmentCart)
     {
         $patient = auth()->user();
-        $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
+        $cart = AppointmentCart::with('user')
+            ->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
             ->where('patient_id', $patient->id)
-            ->latest()->first();
+            ->latest()
+            ->first();
 
         return response()->json($cart);
     }
+
     /**
      * Display the specified resource.
      */
     public function cartById(AppointmentCart $appointmentCart)
     {
         $patient = auth()->user();
-        $cart = AppointmentCart::with('user')->where('patient_id', $patient->id)
+        $cart = AppointmentCart::with('user')
+            ->where('patient_id', $patient->id)
             ->where('estado', 'pendientePago')
             ->where('patient_id', $patient->id)
-            ->latest()->first();
+            ->latest()
+            ->first();
 
         return response()->json($cart);
     }
@@ -83,10 +126,9 @@ class AppointmentCartController extends Controller
             ->latest()
             ->get();
 
-
         return response()->json($cart);
     }
-    
+
     /**
      * Show the form for editing the specified resource.
      */

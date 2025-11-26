@@ -1,21 +1,23 @@
 <?php
 
+use App\Http\Controllers\AppointmentCartController;
+use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\UserController;
 
 /*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
+ * |--------------------------------------------------------------------------
+ * | Web Routes
+ * |--------------------------------------------------------------------------
+ * |
+ * | Here is where you can register web routes for your application. These
+ * | routes are loaded by the RouteServiceProvider within a group which
+ * | contains the "web" middleware group. Now create something great!
+ * |
+ */
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -38,7 +40,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
 
+    Route::get('/carts', [AppointmentCartController::class, 'getAllCarts'])->name('carts');
+    Route::get('/cart/{patient}', [AppointmentCartController::class, 'getCartByPatient'])->name('cartByPatient');
+
+    Route::get('/pacientes', [PatientController::class, 'getAllPatients'])->name('pacientes');
+    Route::get('/paciente/{id}', [PatientController::class, 'getPatientById'])->name('paciente');
 });
 
-
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

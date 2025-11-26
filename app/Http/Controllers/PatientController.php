@@ -2,20 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\PatientUserController;
 use App\Models\Patient;
 use App\Models\PatientUser;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use App\Http\Controllers\PatientUserController;
-use Illuminate\Support\Facades\Auth;
 use App\Notifications\PatientAssignedEmailNotification;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\JsonResponse;
 
 class PatientController extends Controller
 {
-
     protected $_patient;
 
     public function __construct()
@@ -39,14 +39,31 @@ class PatientController extends Controller
         //
     }
 
+    public function getAllPatients()
+    {
+        $patients = Patient::with('connections')->with('connections.user')->get();
+        return Inertia::render('Pacientes', [
+            'pacientes' => $patients,
+            'status' => session('status'),
+        ]);
+    }
+
+    public function getPatientById($id)
+    {
+        $patients = Patient::with('connections')->with('connections.user')->find($id);
+        return Inertia::render('Pacientes/Paciente', [
+            'paciente' => $patients,
+            'status' => session('status'),
+        ]);
+    }
+
     /**
      * Store a newly created resource in storage.
      */
-
     private $registerValidationRules = [
         'name' => 'required',
         'email' => 'required|email|unique:patients,email',
-        'contacto.telefono' => 'required|regex:/^[0-9]{10}$/', // Assuming a 10-digit phone number
+        'contacto.telefono' => 'required|regex:/^[0-9]{10}$/',  // Assuming a 10-digit phone number
         'password' => 'required'
     ];
 
@@ -72,21 +89,21 @@ class PatientController extends Controller
         if ($validateUser->fails()) {
             return response()->json([
                 'rasson' => $validateUser->errors()->first(),
-                'message' => "Error al agregar paciente",
-                'type' => "error"
+                'message' => 'Error al agregar paciente',
+                'type' => 'error'
             ], 400);
         }
 
         if ($isNewPatient) {
             if (!$telefono) {
                 return response()->json([
-                    'rasson' => "El telefono es requerido",
-                    'message' => "Error al agregar paciente",
-                    'type' => "error"
+                    'rasson' => 'El telefono es requerido',
+                    'message' => 'Error al agregar paciente',
+                    'type' => 'error'
                 ], 400);
             }
 
-            $data["password"] = Hash::make($request->input('password', $telefono));
+            $data['password'] = Hash::make($request->input('password', $telefono));
 
             $patient = new Patient();
             $patient->fill($data);
@@ -102,10 +119,10 @@ class PatientController extends Controller
         if ($existingLink) {
             return response()->json(
                 [
-                    'rasson' => "El paciente ya se encuentra enlazado a su cuenta.",
-                    'message' => "Paciente ya agregado",
-                    'type' => "info",
-                    "data" => ['patient_id' => $patient->id] // Puedes devolver el ID del paciente si lo necesitas
+                    'rasson' => 'El paciente ya se encuentra enlazado a su cuenta.',
+                    'message' => 'Paciente ya agregado',
+                    'type' => 'info',
+                    'data' => ['patient_id' => $patient->id]  // Puedes devolver el ID del paciente si lo necesitas
                 ],
                 200
             );
@@ -121,26 +138,27 @@ class PatientController extends Controller
             $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace);
 
             $successMessage = $isNewPatient
-                ? "El paciente se creó y se le envió una invitación con éxito. Espera a que acepte la invitación para poder agendarle citas."
-                : "El paciente existente fue enlazado con éxito a tu cuenta. Se le envió una notificación. Espera a que la acepte para poder agendarle citas.";
+                ? 'El paciente se creó y se le envió una invitación con éxito. Espera a que acepte la invitación para poder agendarle citas.'
+                : 'El paciente existente fue enlazado con éxito a tu cuenta. Se le envió una notificación. Espera a que la acepte para poder agendarle citas.';
 
             return response()->json(
                 [
                     'rasson' => $successMessage,
-                    'message' => "Paciente agregado",
-                    'type' => "success",
-                    "data" => $enlace
+                    'message' => 'Paciente agregado',
+                    'type' => 'success',
+                    'data' => $enlace
                 ],
                 200
             );
         }
 
         return response()->json([
-            'rasson' => "Error desconocido al intentar finalizar el proceso de enlace del paciente.",
-            'message' => "Error al agregar paciente",
-            'type' => "error"
+            'rasson' => 'Error desconocido al intentar finalizar el proceso de enlace del paciente.',
+            'message' => 'Error al agregar paciente',
+            'type' => 'error'
         ], 500);
     }
+
     public function updateRelationships(Request $request, $id)
     {
         $patient = Patient::findOrFail($id);
@@ -159,23 +177,24 @@ class PatientController extends Controller
 
         return response()->json(
             [
-                'rasson' => "Actualizacion de relaciones exitosa",
-                'message' => "Modificacion exitosa",
-                'type' => "success",
+                'rasson' => 'Actualizacion de relaciones exitosa',
+                'message' => 'Modificacion exitosa',
+                'type' => 'success',
             ],
             200
         );
     }
+
     public function sendNotificacionEmailByUser($user, $patient, $enlace)
     {
         if ($enlace) {
             try {
-                //code...
+                // code...
                 $patient->notify(new PatientAssignedEmailNotification($user, $patient, $enlace));
                 return true;
             } catch (\Throwable $th) {
                 Log::error($th->getMessage());
-                //throw $th;
+                // throw $th;
             }
         }
     }
@@ -185,7 +204,6 @@ class PatientController extends Controller
      */
     public function show(Patient $patient)
     {
-
         return response()->json($patient, 200);
     }
 
@@ -206,14 +224,14 @@ class PatientController extends Controller
             $patient->update($request->all());
             $response = [
                 'rasson' => 'El usuario se a actualizado correctamente',
-                'message' => "Usuario actulizado ",
-                'type' => "success"
+                'message' => 'Usuario actulizado ',
+                'type' => 'success'
             ];
         } catch (\Throwable $th) {
             $response = [
                 'rasson' => 'El usuario no se a actualizado correctamente',
-                'message' => "Usuario no actulizado",
-                'type' => "error"
+                'message' => 'Usuario no actulizado',
+                'type' => 'error'
             ];
         }
 

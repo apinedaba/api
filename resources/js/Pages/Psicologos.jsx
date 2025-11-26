@@ -3,14 +3,22 @@ import { Head } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import DataTable from 'react-data-table-component';
 import styled from 'styled-components';
-
+import FotoPerfil from '@/Components/FotoPerfil';
 export default function Dashboard({ auth, psicologos, status }) {
 
   const columns = [
     {
+      name: 'Foto',
+      cell: row => (<FotoPerfil image={row?.image || null} alt={row?.name} />)
+    },
+    {
       name: 'Profesional',
-      cell: row => (<a href={`/psicologo/${row?.id}`}>{row?.name}</a>)    
-      
+      cell: row => (<a href={`/psicologo/${row?.id}`}>{row?.name}</a>)
+
+    },
+    {
+      name: 'Estatus',
+      cell: row => (<span className={`${row?.activo ? "bg-green-700" : "bg-red-600"} text-white px-2 py-1 rounded-full`}>{row?.activo ? "Activo" : "Inactivo"}</span>)
     },
     {
       name: 'Correo',
@@ -21,28 +29,25 @@ export default function Dashboard({ auth, psicologos, status }) {
       selector: row => row?.contacto?.telefono || "",
     },
     {
-      name: 'Pais',
+      name: 'Email',
       selector: row => row?.email,
     },
     {
-      name: 'Estado',
+      name: 'Pais',
       selector: row => row?.address?.pais || "",
     },
     {
-      name: 'Correo',
+      name: 'Estado',
       selector: row => row?.address?.estado || "",
     },
-    {
-      name: 'Estatus',
-      cell: row => (<span className={`${row?.activo ? "bg-green-700" : "bg-red-600"} text-white px-2 py-1 rounded-full`}>{row?.activo ? "Activo" : "Inactivo"}</span>)        },
   ];
   const [filter, setFilter] = useState(false);
   const [resetPaginationToggle, setResetPaginationToggle] = useState(false);
-  const filteredItems = filter?.name  ? psicologos?.filter(
+  const filteredItems = filter?.name ? psicologos?.filter(
     item => item.name && item.name.toLowerCase().includes(filter?.name?.toLowerCase()),
   ) : psicologos;
 
-  const subHeaderComponentMemo = useMemo(() => {    
+  const subHeaderComponentMemo = useMemo(() => {
     const handleClear = () => {
       if (filter) {
         setResetPaginationToggle(!resetPaginationToggle);
@@ -53,7 +58,7 @@ export default function Dashboard({ auth, psicologos, status }) {
     return (
       <FilterComponent onFilter={setFilter} onClear={handleClear} filters={filter} />
     );
-  }, [filter, resetPaginationToggle]);  
+  }, [filter, resetPaginationToggle]);
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -88,7 +93,7 @@ const FilterComponent = ({ filter, onFilter, onClear }) => (
     <div>
       <label htmlFor="onLyActives">
         Ver Solo Activos
-        <input type="checkbox" name='OnlyActives' id='onLyActives' onChange={() => onFilter((filter) =>({...filter, onlyActives: !filter?.onlyActives}))} checked={filter?.onlyActives}/>
+        <input type="checkbox" name='OnlyActives' id='onLyActives' onChange={() => onFilter((filter) => ({ ...filter, onlyActives: !filter?.onlyActives }))} checked={filter?.onlyActives} />
       </label>
     </div>
     <div>
@@ -99,7 +104,7 @@ const FilterComponent = ({ filter, onFilter, onClear }) => (
         placeholder="Buscar por nombre"
         aria-label="Search Input"
         value={filter?.name}
-        onChange={(event) => onFilter((prev) => ({...prev, name: event.target.value}))}
+        onChange={(event) => onFilter((prev) => ({ ...prev, name: event.target.value }))}
       />
       <button type="button" onClick={onClear}>
         X

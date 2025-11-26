@@ -2,8 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 
 export default function List({ psicologos, auth, status }) {
-  console.log(psicologos);
-  
+
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -12,7 +11,7 @@ export default function List({ psicologos, auth, status }) {
             <Head title="Profile" />
 
             <div className="py-12">
-                
+
             </div>
         </AuthenticatedLayout>
     );

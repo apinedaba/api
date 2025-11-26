@@ -31,7 +31,7 @@ class ProfessionalController extends Controller
                 ->where('activo', true)
                 ->where(function ($q) {
                     $q
-                        ->whereHas('suscripcion', function ($s) {
+                        ->whereHas('subscription', function ($s) {
                             $s->whereIn('status', ['active', 'trialing', 'trial']);
                         })
                         ->orWhere('has_lifetime_access', true);

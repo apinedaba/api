@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
 use App\Models\User;
@@ -21,15 +20,22 @@ class ProfessionalController extends Controller
     public function index(Request $request)
     {
         // 1) Normaliza origen de parámetros
-        $params = $request->query(); // ?page=1&...
+        $params = $request->query();  // ?page=1&...
         if (empty($params) && $request->has('params')) {
-            $params = $request->input('params', []); // { params: { ... } }
+            $params = $request->input('params', []);  // { params: { ... } }
         }
 
         if (!$request->has('params')) {
             $q = User::inRandomOrder()
                 ->where('isProfileComplete', true)
-                ->where('activo', true);
+                ->where('activo', true)
+                ->where(function ($q) {
+                    $q
+                        ->whereHas('suscripcion', function ($s) {
+                            $s->whereIn('status', ['active', 'trialing', 'trial']);
+                        })
+                        ->orWhere('has_lifetime_access', true);
+                });
             $result = $q->orderByDesc('id')->paginate(12);
             return response()->json([
                 'data' => $result->items(),
@@ -85,10 +91,11 @@ class ProfessionalController extends Controller
         if (!empty($precioMax)) {
             $precioMax = (int) $precioMax;
             $q->whereIn('users.id', function ($sq) use ($precioMax) {
-                $sq->select('u.id')
+                $sq
+                    ->select('u.id')
                     ->from('users as u')
                     ->join(
-                        DB::raw("JSON_TABLE(u.configurations, '$.sesiones[*]' COLUMNS (precio VARCHAR(20) PATH '$.precio')) jt"),
+                        DB::raw("JSON_TABLE(u.configurations, '\$.sesiones[*]' COLUMNS (precio VARCHAR(20) PATH '\$.precio')) jt"),
                         DB::raw('1'),
                         DB::raw('1=1')
                     )
@@ -98,9 +105,8 @@ class ProfessionalController extends Controller
         }
         $seed = $params['seed'] ?? 'default-seed';
         $result = $q
-            ->orderByRaw('RAND(?)', [$seed]) // mismo orden para esa semilla
+            ->orderByRaw('RAND(?)', [$seed])  // mismo orden para esa semilla
             ->paginate($perPage, ['*'], 'page', $page);
-        
 
         return response()->json([
             'data' => $result->items(),
@@ -109,7 +115,6 @@ class ProfessionalController extends Controller
             'pages' => $result->lastPage(),
         ]);
     }
-
 
     /**
      * GET /profesional/filters
@@ -123,19 +128,19 @@ class ProfessionalController extends Controller
 
         // Distintos de campos string en JSON
         $generos = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(personales, '$.genero')) AS genero")
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(personales, '\$.genero')) AS genero")
             ->pluck('genero')
             ->filter()
             ->values();
 
         $enfoques = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(educacion, '$.enfoque')) AS enfoque")
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(educacion, '\$.enfoque')) AS enfoque")
             ->pluck('enfoque')
             ->filter()
             ->values();
 
         $paises = (clone $base)
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(address, '$.pais')) AS pais")
+            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(address, '\$.pais')) AS pais")
             ->pluck('pais')
             ->filter()
             ->values();
@@ -166,7 +171,7 @@ class ProfessionalController extends Controller
             ->filter()
             ->unique()
             ->values()
-            ->map(fn($v) => ['label' => $v, 'value' => $v]) // opcional formateado para tu Autocomplete
+            ->map(fn($v) => ['label' => $v, 'value' => $v])  // opcional formateado para tu Autocomplete
             ->all();
 
         // Armar definición

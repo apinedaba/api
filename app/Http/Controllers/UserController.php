@@ -37,6 +37,8 @@ class UserController extends Controller
     {
         $allUser = User::where('isProfileComplete', true)
             ->where('activo', true)
+            ->where('stripe_id', '!=', null)
+            ->orWhere('has_lifetime_access', true)
             ->get();
         return response()->json($allUser, 200);
     }

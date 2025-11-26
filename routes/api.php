@@ -1,47 +1,47 @@
 <?php
 
-use App\Http\Controllers\AiDiagnoseController;
-use App\Http\Controllers\ChatPublicController;
-use App\Http\Controllers\PaymentsController;
-use App\Http\Controllers\SintomasController;
-use App\Models\Sintomas;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\CedulaCheck;
-use App\Http\Controllers\EducationUserController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\AddressController;
-use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PatientAuthController;
-use App\Http\Middleware\HandleInvalidToken;
-use App\Http\Controllers\PatientController;
-use App\Http\Controllers\PatientUserController;
-use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\SocialiteController;
+use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\AddressController;
+use App\Http\Controllers\AiDiagnoseController;
+use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AvailabilitiController;
+use App\Http\Controllers\CedulaCheck;
+use App\Http\Controllers\ChatPublicController;
+use App\Http\Controllers\EducationUserController;
+use App\Http\Controllers\EmotionLogController;
+use App\Http\Controllers\GoogleCalendarController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\IdentityController;
+use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientMedicationController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\PatientUserController;
+use App\Http\Controllers\PaymentsController;
+use App\Http\Controllers\PhotoUploadController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireLinkController;
+use App\Http\Controllers\SintomasController;
+use App\Http\Controllers\StripeController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
+use App\Http\Middleware\HandleInvalidToken;
+use App\Models\Sintomas;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use App\Http\Controllers\EmotionLogController;
-use App\Http\Controllers\PsychologistReviewController;
-use App\Http\Controllers\AvailabilitiController;
-use App\Http\Controllers\AppointmentCartController;
-use App\Http\Controllers\StripeController;
-use App\Http\Controllers\Auth\PasswordResetController;
-use App\Http\Controllers\IdentityController;
-use App\Http\Controllers\PhotoUploadController;
-use App\Http\Controllers\Auth\SocialiteController;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 
-use App\Http\Controllers\GoogleCalendarController;
-//Rutas publicas
+// Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
@@ -79,8 +79,6 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 
     return response()->json(['message' => 'Email verificado correctamente'], 200);
 })->middleware(['signed'])->name('verification.verify');
-
-
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.
 // Aquí van todas las funcionalidades principales de la plataforma.
@@ -126,7 +124,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
 
-
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
     Route::apiResource('user/questionnaires', QuestionnaireController::class);
     Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
@@ -143,9 +140,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
+// Rutas para Pacientes
 
-//Rutas para Pacientes
-Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
     Route::get('info', function (Request $request) {
         return $request->user();
@@ -169,7 +165,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     // (opcional) Checkout OXXO por si lo usas en otro lado
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
 });
-
+Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::post('/stripe/subscription/webhook', [StripeController::class, 'handleWebhook']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
@@ -182,7 +178,6 @@ Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::c
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
-
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);

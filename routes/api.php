@@ -95,7 +95,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
     Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
 
-    Route::post('user/sep/token', [CedulaCheck::class, 'getToken']);
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
 
     Route::resource('user/education', EducationUserController::class);

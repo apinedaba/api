@@ -3,84 +3,63 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class CedulaCheck extends Controller
 {
-    /**
-     * Genera o recupera token de SEP con cache.
-     */
-    public function getToken()
-    {
-        // Verifica si ya lo tenemos en cache
-        if (Cache::has('sep_token')) {
-            return response()->json([
-                'token' => Cache::get('sep_token'),
-                'cached' => true
-            ]);
-        }
-
-        $url = env('SEP_BASE_URL') . '/auth/token';
-
-        $response = Http::asForm()->post($url, [
-            'clientId' => env('SEP_CLIENT_ID'),
-            'apiKey' => env('SEP_API_KEY'),
-            'grant_type' => 'client_credentials'
-        ]);
-
-        if ($response->failed()) {
-            return response()->json([
-                'error' => 'Error al obtener token',
-                'response' => $response->json()
-            ], 500);
-        }
-
-        $token = $response->json()['access_token'];
-
-        // Guardar token por 1 hora
-        Cache::put('sep_token', $token, now()->addMinutes(55));
-
-        return response()->json([
-            'token' => $token,
-            'cached' => false
-        ]);
-    }
-
-    /**
-     * Busca una cédula usando el token de SEP.
-     */
     public function buscarCedula(Request $request)
     {
-        $request->validate([
-            'cedula' => 'required'
-        ]);
+        $numCedula = $request->cedula;
 
-        // Obtener token (auto cacheado)
-        $token = Cache::remember('sep_token', 55 * 60, function () {
-            $url = env('SEP_BASE_URL') . '/auth/token';
-            $response = Http::asForm()->post($url, [
-                'clientId' => env('SEP_CLIENT_ID'),
-                'apiKey' => env('SEP_API_KEY'),
-                'grant_type' => 'client_credentials'
-            ]);
-
-            return $response->json()['access_token'];
-        });
-
-        $cedula = $request->cedula;
-
-        $url = env('SEP_BASE_URL') . '/cedula/' . $cedula;
-
-        $response = Http::withToken($token)->get($url);
-
-        if ($response->failed()) {
-            return response()->json([
-                'error' => 'Error al consultar cédula',
-                'response' => $response->json()
-            ], 500);
+        if (!$numCedula) {
+            return response()->json(['error' => 'Falta el número de cédula'], 400);
         }
 
-        return $response->json();
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('SEP_API_TOKEN'),
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ])
+                ->withoutVerifying()
+                ->post('https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle', [
+                    'numCedula' => $numCedula,
+                ]);
+
+            // Si la respuesta de la SEP es válida
+            if ($response->successful()) {
+                return response()->json($this->validateAndConvertEncoding($response->json()));
+            }
+
+            // Si la SEP devuelve error
+            return response()->json([
+                'error' => 'Error en la API de SEP',
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ], $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error al conectar con la API',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    function validateAndConvertEncoding($data)
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                $data[$key] = $this->validateAndConvertEncoding($value);
+            }
+        } elseif (is_object($data)) {
+            foreach ($data as $key => $value) {
+                $data->$key = $this->validateAndConvertEncoding($value);
+            }
+        } elseif (is_string($data)) {
+            if (!mb_check_encoding($data, 'UTF-8')) {
+                $data = mb_convert_encoding($data, 'UTF-8', 'auto');
+            }
+        }
+        return $data;
     }
 }

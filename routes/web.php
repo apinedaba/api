@@ -3,6 +3,7 @@
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -46,5 +47,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/pacientes', [PatientController::class, 'getAllPatients'])->name('pacientes');
     Route::get('/paciente/{id}', [PatientController::class, 'getPatientById'])->name('paciente');
 });
-
+Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
+    ->whereNumber('id')
+    ->name('share.professional');
 require __DIR__ . '/auth.php';

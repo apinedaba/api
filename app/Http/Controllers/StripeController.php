@@ -421,13 +421,16 @@ class StripeController extends Controller
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
+
+        // ✅ Trial de 10 días en Stripe al agregar tarjeta (solo primera vez)
         $hasHadRealStripeSubscription = $user->subscription && $user->subscription->stripe_id;
 
         if (!$hasHadRealStripeSubscription) {
             $sessionData['subscription_data'] = [
-                'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
+                'trial_period_days' => 10,
             ];
         }
+
         $session = CheckoutSession::create($sessionData);
 
         return response()->json(['url' => $session->url]);
@@ -500,7 +503,10 @@ class StripeController extends Controller
                     'ends_at' => null,
                 ]
             );
-            Log::info("Nueva suscripción creada para el usuario: {$user->id}");
+
+            Log::info("Suscripción guardada exitosamente para usuario {$user->id} con estado: {$stripeSubscription->status}");
+        } else {
+            Log::error("Usuario no encontrado en handleNewSubscription", ['user_id' => $session->metadata->user_id ?? 'null']);
         }
     }
 

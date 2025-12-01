@@ -44,10 +44,22 @@ class RegisterController extends Controller
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
         ]);
+
+        // ✅ TRIAL DESACTIVADO: Usuario debe agregar tarjeta para acceder
+        // 📝 Para reactivar trial automático, descomenta las líneas siguientes:
+        /*
         Subscription::create([
             'user_id' => $user->id,
             'stripe_status' => 'trial',
             'trial_ends_at' => Carbon::now()->addDays(15),
+        ]);
+        */
+
+        // Crear suscripción sin trial (requiere pago desde el inicio)
+        Subscription::create([
+            'user_id' => $user->id,
+            'stripe_status' => 'inactive',
+            'trial_ends_at' => null,
         ]);
 
         if ($user) {

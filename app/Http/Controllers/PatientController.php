@@ -48,6 +48,12 @@ class PatientController extends Controller
         ]);
     }
 
+    public function getNumberPatient()
+    {
+        $patientsCount = Patient::count();
+        return new JsonResponse(['count' => $patientsCount], 200);
+    }
+
     public function getPatientById($id)
     {
         $patients = Patient::with('connections')->with('connections.user')->find($id);

@@ -186,6 +186,8 @@ Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::c
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
+Route::get('patient/numberPatients', [PatientController::class, 'getNumberPatient']);
+
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);

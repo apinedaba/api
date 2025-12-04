@@ -28,6 +28,9 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+Route::get('/phpinfo-test', function () {
+    phpinfo();
+});
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

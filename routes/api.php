@@ -188,3 +188,5 @@ require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/contratos.php';
 require __DIR__ . '/api/professional.php';
 require __DIR__ . '/api/deviceToken.php';
+require __DIR__ . '/api/timeline.php';
+require __DIR__ . '/api/attachments.php';

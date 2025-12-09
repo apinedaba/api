@@ -55,6 +55,28 @@ class UserController extends Controller
         return response()->json($allUser, 200);
     }
 
+    public function desactive($id)
+    {
+        $user = User::where('id', $id)->first();
+        $user->update([
+            'activo' => false
+        ]);
+        return Inertia::render('Psicologos/Edit', [
+            'psicologo' => $user
+        ]);
+    }
+
+    public function active($id)
+    {
+        $user = User::where('id', $id)->first();
+        $user->update([
+            'activo' => true
+        ]);
+        return Inertia::render('Psicologos/Edit', [
+            'psicologo' => $user
+        ]);
+    }
+
     public function getAvailableSlots(Request $request)
     {
         $userId = $request->id;

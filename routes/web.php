@@ -43,6 +43,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
+    Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
+    Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
 
     Route::get('/carts', [AppointmentCartController::class, 'getAllCarts'])->name('carts');
     Route::get('/cart/{patient}', [AppointmentCartController::class, 'getCartByPatient'])->name('cartByPatient');

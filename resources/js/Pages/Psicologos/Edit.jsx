@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import ResumePsicologo from './Partials/ResumePsicologo';
+import ActiveUserForm from './Partials/ActiveUserForm';
 import { Head } from '@inertiajs/react';
 
 export default function Edit({ auth, psicologo }) {
@@ -16,14 +17,20 @@ export default function Edit({ auth, psicologo }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
                         <ResumePsicologo
-                            psicologo={psicologo}                            
+                            psicologo={psicologo}
                         />
                     </div>
                     {
-                    psicologo?.activo && 
+                        psicologo?.activo &&
                         <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                            <DeleteUserForm className="max-w-xl" />
-                        </div>                    
+                            <DeleteUserForm className="max-w-xl" psicologo={psicologo} />
+                        </div>
+                    }
+                    {
+                        !psicologo?.activo &&
+                        <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+                            <ActiveUserForm className="max-w-xl" psicologo={psicologo} />
+                        </div>
                     }
                 </div>
             </div>

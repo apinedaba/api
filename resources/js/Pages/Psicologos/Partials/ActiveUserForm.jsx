@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import DangerButton from '@/Components/DangerButton';
+import PrimaryButton from '@/Components/PrimaryButton';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import Modal from '@/Components/Modal';
@@ -7,14 +7,14 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import { useForm } from '@inertiajs/react';
 
-export default function DeleteUserForm({ className = '', psicologo }) {
+export default function ActiveUserForm({ className = '', psicologo }) {
     const [confirmingUserDeletion, setConfirmingUserDeletion] = useState(false);
     const passwordInput = useRef();
 
     const {
         data,
         setData,
-        delete: destroy,
+        post: post,
         processing,
         reset,
         errors,
@@ -26,10 +26,10 @@ export default function DeleteUserForm({ className = '', psicologo }) {
         setConfirmingUserDeletion(true);
     };
 
-    const deleteUser = (e) => {
+    const activeUser = (e) => {
         e.preventDefault();
 
-        destroy(route('psicologo.desactive', psicologo.id), {
+        post(route('psicologo.active', psicologo.id), {
             preserveScroll: true,
             onSuccess: () => closeModal(),
             onError: () => passwordInput.current.focus(),
@@ -51,9 +51,9 @@ export default function DeleteUserForm({ className = '', psicologo }) {
                     Al desactivar al usuario dejara de aparecer en el catalogo publico de psicologos
                 </p>
             </header>
-            <DangerButton onClick={confirmUserDeletion}>DEsactivar cuenta</DangerButton>
+            <PrimaryButton onClick={confirmUserDeletion}>Activar cuenta</PrimaryButton>
             <Modal show={confirmingUserDeletion} onClose={closeModal}>
-                <form onSubmit={deleteUser} className="p-6">
+                <form onSubmit={activeUser} className="p-6">
                     <h2 className="text-lg font-medium text-gray-900">
                         Estas seguro que quieres desactivar esta cuenta
                     </h2>
@@ -82,9 +82,9 @@ export default function DeleteUserForm({ className = '', psicologo }) {
                     <div className="mt-6 flex justify-end">
                         <SecondaryButton onClick={closeModal}>Cancelar</SecondaryButton>
 
-                        <DangerButton className="ms-3" disabled={processing}>
-                            Desactivar cuenta
-                        </DangerButton>
+                        <PrimaryButton className="ms-3" disabled={processing}>
+                            Activar cuenta
+                        </PrimaryButton>
                     </div>
                 </form>
             </Modal>

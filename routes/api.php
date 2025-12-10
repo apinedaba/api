@@ -99,7 +99,16 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
     Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
 
+    // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
+
+    // Validación manual de cédula
+    Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
+    Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
+
+    // Admin: Gestión de validaciones manuales
+    Route::get('admin/cedula/validaciones-pendientes', [CedulaCheck::class, 'listarValidacionesPendientes']);
+    Route::patch('admin/cedula/revisar-validacion/{id}', [CedulaCheck::class, 'revisarValidacion']);
 
     Route::resource('user/education', EducationUserController::class);
     Route::resource('user/address', AddressController::class);

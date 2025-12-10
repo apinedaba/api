@@ -4,45 +4,171 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use App\Models\ValidacionCedulaManual;
+use Illuminate\Support\Facades\Storage;
 
 class CedulaCheck extends Controller
 {
+    /**
+     * Método original deshabilitado - Ahora se usa validación manual
+     */
     public function buscarCedula(Request $request)
     {
-        $numCedula = $request->cedula;
+        // Validación de SEP deshabilitada temporalmente
+        return response()->json([
+            'status' => 'manual_validation_required',
+            'message' => 'La validación automática está deshabilitada. Por favor, usa el formulario de validación manual.',
+            'requires_manual_data' => true
+        ], 200);
+    }
 
-        if (!$numCedula) {
-            return response()->json(['error' => 'Falta el número de cédula'], 400);
+    /**
+     * Registrar cédula para validación manual
+     */
+    public function registrarCedulaManual(Request $request)
+    {
+        $validated = $request->validate([
+            'numero_cedula' => 'required|string|max:20',
+            'nombre_completo' => 'required|string|max:255',
+            'institucion' => 'required|string|max:255',
+            'carrera' => 'required|string|max:255',
+            'fecha_expedicion' => 'required|date',
+            'archivo_cedula' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'archivo_titulo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ]);
+
+        $validacion = ValidacionCedulaManual::create([
+            'user_id' => auth()->id(),
+            'numero_cedula' => $validated['numero_cedula'],
+            'nombre_completo' => $validated['nombre_completo'],
+            'institucion' => $validated['institucion'],
+            'carrera' => $validated['carrera'],
+            'fecha_expedicion' => $validated['fecha_expedicion'],
+            'estado' => 'pendiente',
+        ]);
+
+        // Guardar archivos si existen
+        if ($request->hasFile('archivo_cedula')) {
+            $path = $request->file('archivo_cedula')->store('cedulas', 'public');
+            $validacion->archivo_cedula = $path;
         }
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('SEP_API_TOKEN'),
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ])
-                ->withoutVerifying()
-                ->post('https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle', [
-                    'numCedula' => $numCedula,
-                ]);
+        if ($request->hasFile('archivo_titulo')) {
+            $path = $request->file('archivo_titulo')->store('titulos', 'public');
+            $validacion->archivo_titulo = $path;
+        }
 
-            // Si la respuesta de la SEP es válida
-            if ($response->successful()) {
-                return response()->json($this->validateAndConvertEncoding($response->json()));
+        $validacion->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tu información ha sido enviada correctamente. Validaremos tus datos manualmente en las próximas 24-48 horas.',
+            'validacion_id' => $validacion->id,
+            'data' => $validacion
+        ], 201);
+    }
+
+    /**
+     * Obtener estado de validación del usuario
+     */
+    public function obtenerEstadoValidacion(Request $request)
+    {
+        $validaciones = ValidacionCedulaManual::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($validaciones->isEmpty()) {
+            return response()->json([
+                'status' => 'not_found',
+                'message' => 'No tienes solicitudes de validación.',
+                'data' => []
+            ], 200);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $validaciones
+        ], 200);
+    }
+
+    /**
+     * Listar todas las validaciones pendientes (Admin)
+     */
+    public function listarValidacionesPendientes()
+    {
+        $validaciones = ValidacionCedulaManual::with(['user', 'revisor'])
+            ->where('estado', 'pendiente')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $validaciones
+        ], 200);
+    }
+
+    /**
+     * Aprobar o rechazar validación (Admin)
+     */
+    public function revisarValidacion(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'estado' => 'required|in:aprobado,rechazado',
+            'notas_admin' => 'nullable|string|max:1000',
+        ]);
+
+        $validacion = ValidacionCedulaManual::findOrFail($id);
+
+        $validacion->update([
+            'estado' => $validated['estado'],
+            'notas_admin' => $validated['notas_admin'] ?? null,
+            'fecha_revision' => now(),
+            'revisado_por' => auth()->id(),
+        ]);
+
+        // Si fue aprobado, agregar/actualizar la cédula en el perfil del usuario
+        if ($validated['estado'] === 'aprobado') {
+            $user = $validacion->user;
+            $educacion = $user->educacion ?? [];
+
+            // Estructura de la nueva cédula
+            $nuevaCedula = [
+                'cedula' => $validacion->numero_cedula,
+                'profesion' => $validacion->carrera,
+                'institucion' => $validacion->institucion,
+                'fecha_expedicion' => $validacion->fecha_expedicion->format('Y-m-d'),
+                'status' => 'aprobado',
+                'validacion_id' => $validacion->id
+            ];
+
+            // Buscar si ya existe una cédula con validacion_manual_pendiente y actualizarla
+            $escuelas = $educacion['escuelas'] ?? [];
+            $actualizado = false;
+
+            foreach ($escuelas as $key => $escuela) {
+                if (isset($escuela['validacion_id']) && $escuela['validacion_id'] == $validacion->id) {
+                    $escuelas[$key] = $nuevaCedula;
+                    $actualizado = true;
+                    break;
+                }
             }
 
-            // Si la SEP devuelve error
-            return response()->json([
-                'error' => 'Error en la API de SEP',
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ], $response->status());
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Error al conectar con la API',
-                'message' => $e->getMessage(),
-            ], 500);
+            // Si no se encontró, agregar como nueva
+            if (!$actualizado) {
+                $escuelas[] = $nuevaCedula;
+            }
+
+            $educacion['escuelas'] = $escuelas;
+
+            $user->educacion = $educacion;
+            $user->save();
         }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Validación actualizada correctamente.',
+            'data' => $validacion
+        ], 200);
     }
 
     function validateAndConvertEncoding($data)

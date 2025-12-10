@@ -105,6 +105,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     // Validación manual de cédula
     Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
     Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
+    Route::delete('user/cedula/eliminar-validacion/{id}', [CedulaCheck::class, 'eliminarValidacionRechazada']);
+    Route::post('user/cedula/actualizar-validacion/{id}', [CedulaCheck::class, 'actualizarValidacionRechazada']);
 
     // Admin: Gestión de validaciones manuales
     Route::get('admin/cedula/validaciones-pendientes', [CedulaCheck::class, 'listarValidacionesPendientes']);

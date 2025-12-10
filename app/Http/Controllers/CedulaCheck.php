@@ -171,6 +171,155 @@ class CedulaCheck extends Controller
         ], 200);
     }
 
+    /**
+     * Eliminar validación rechazada para permitir reintentar
+     */
+    public function eliminarValidacionRechazada($id)
+    {
+        $validacion = ValidacionCedulaManual::findOrFail($id);
+
+        // Verificar que la validación pertenezca al usuario actual
+        if ($validacion->user_id !== auth()->id()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No tienes permiso para eliminar esta validación.'
+            ], 403);
+        }
+
+        // Solo permitir eliminar validaciones rechazadas
+        if ($validacion->estado !== 'rechazado') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Solo se pueden eliminar validaciones rechazadas.'
+            ], 400);
+        }
+
+        // Eliminar archivos si existen
+        if ($validacion->archivo_cedula) {
+            Storage::disk('public')->delete($validacion->archivo_cedula);
+        }
+        if ($validacion->archivo_titulo) {
+            Storage::disk('public')->delete($validacion->archivo_titulo);
+        }
+
+        // Eliminar del perfil del usuario
+        $user = $validacion->user;
+        $educacion = $user->educacion ?? [];
+        $escuelas = $educacion['escuelas'] ?? [];
+
+        $escuelas = array_filter($escuelas, function ($escuela) use ($id) {
+            return !isset($escuela['validacion_id']) || $escuela['validacion_id'] != $id;
+        });
+
+        $educacion['escuelas'] = array_values($escuelas);
+        $user->educacion = $educacion;
+        $user->save();
+
+        // Eliminar el registro de validación
+        $validacion->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Validación eliminada correctamente. Puedes enviar una nueva solicitud.'
+        ], 200);
+    }
+
+    /**
+     * Actualizar una validación rechazada
+     */
+    public function actualizarValidacionRechazada(Request $request, $id)
+    {
+        $validacion = ValidacionCedulaManual::findOrFail($id);
+
+        // Verificar que la validación pertenezca al usuario actual
+        if ($validacion->user_id !== auth()->id()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No tienes permiso para actualizar esta validación.'
+            ], 403);
+        }
+
+        // Solo permitir actualizar validaciones rechazadas
+        if ($validacion->estado !== 'rechazado') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Solo se pueden actualizar validaciones rechazadas.'
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'numero_cedula' => 'required|string|max:20',
+            'nombre_completo' => 'required|string|max:255',
+            'institucion' => 'required|string|max:255',
+            'carrera' => 'required|string|max:255',
+            'fecha_expedicion' => 'required|date',
+            'archivo_cedula' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'archivo_titulo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ]);
+
+        // Actualizar datos básicos
+        $validacion->numero_cedula = $validated['numero_cedula'];
+        $validacion->nombre_completo = $validated['nombre_completo'];
+        $validacion->institucion = $validated['institucion'];
+        $validacion->carrera = $validated['carrera'];
+        $validacion->fecha_expedicion = $validated['fecha_expedicion'];
+        $validacion->estado = 'pendiente'; // Volver a estado pendiente
+        $validacion->fecha_revision = null;
+        $validacion->revisado_por = null;
+        $validacion->notas_admin = null;
+
+        // Actualizar archivos si se enviaron nuevos
+        if ($request->hasFile('archivo_cedula')) {
+            // Eliminar archivo anterior si existe
+            if ($validacion->archivo_cedula) {
+                Storage::disk('public')->delete($validacion->archivo_cedula);
+            }
+            $path = $request->file('archivo_cedula')->store('cedulas', 'public');
+            $validacion->archivo_cedula = $path;
+        }
+
+        if ($request->hasFile('archivo_titulo')) {
+            // Eliminar archivo anterior si existe
+            if ($validacion->archivo_titulo) {
+                Storage::disk('public')->delete($validacion->archivo_titulo);
+            }
+            $path = $request->file('archivo_titulo')->store('titulos', 'public');
+            $validacion->archivo_titulo = $path;
+        }
+
+        $validacion->save();
+
+        // Actualizar en el perfil del usuario
+        $user = $validacion->user;
+        $educacion = $user->educacion ?? [];
+        $escuelas = $educacion['escuelas'] ?? [];
+
+        foreach ($escuelas as $key => $escuela) {
+            if (isset($escuela['validacion_id']) && $escuela['validacion_id'] == $id) {
+                $escuelas[$key] = [
+                    'cedula' => $validacion->numero_cedula,
+                    'profesion' => $validacion->carrera,
+                    'institucion' => $validacion->institucion,
+                    'fecha_expedicion' => $validacion->fecha_expedicion,
+                    'status' => 'validacion_manual_pendiente',
+                    'validacion_id' => $validacion->id
+                ];
+                break;
+            }
+        }
+
+        $educacion['escuelas'] = $escuelas;
+        $user->educacion = $educacion;
+        $user->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Validación actualizada correctamente. Será revisada nuevamente.',
+            'validacion_id' => $validacion->id,
+            'data' => $validacion
+        ], 200);
+    }
+
     function validateAndConvertEncoding($data)
     {
         if (is_array($data)) {

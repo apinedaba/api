@@ -94,8 +94,15 @@ class UserController extends Controller
 
         // Aquí defines los horarios en los que el médico trabaja, por ejemplo, de 9am a 5pm
         $workingHours = [
-            '09:00:00', '10:00:00', '11:00:00', '12:00:00', '13:00:00',
-            '14:00:00', '15:00:00', '16:00:00', '17:00:00'
+            '09:00:00',
+            '10:00:00',
+            '11:00:00',
+            '12:00:00',
+            '13:00:00',
+            '14:00:00',
+            '15:00:00',
+            '16:00:00',
+            '17:00:00'
         ];
 
         // Crear un array con los días y horarios disponibles
@@ -167,7 +174,11 @@ class UserController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $user = User::findOrFail($id);
+        $user->update($request->all());
+        return Inertia::render('Psicologos/Edit', [
+            'psicologo' => $user
+        ]);
     }
 
     /**

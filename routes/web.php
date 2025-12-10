@@ -45,6 +45,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
+    Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
 
     Route::get('/carts', [AppointmentCartController::class, 'getAllCarts'])->name('carts');
     Route::get('/cart/{patient}', [AppointmentCartController::class, 'getCartByPatient'])->name('cartByPatient');

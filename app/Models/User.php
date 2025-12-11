@@ -84,4 +84,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasOne(GoogleAccount::class);
     }
+    public function escuelas()
+    {
+        return $this->hasMany(ValidacionCedulaManual::class);
+    }
 }

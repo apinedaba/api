@@ -45,7 +45,7 @@ class UserController extends Controller
 
     public function getProfessionalById($id)
     {
-        $allUser = User::where('id', $id)->first();
+        $allUser = User::where('id', $id)->with('cedula')->first();
         return response()->json($allUser, 200);
     }
 
@@ -148,7 +148,7 @@ class UserController extends Controller
     public function show(string $id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::findOrFail($id)->load('escuelas', 'subscription');
             if ($user) {
                 return Inertia::render('Psicologos/Edit', [
                     'psicologo' => $user

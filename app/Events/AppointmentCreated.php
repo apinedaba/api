@@ -13,12 +13,18 @@ class AppointmentCreated implements ShouldBroadcast
         public int $appointmentId,
         public int $psychologistId, // user_id del Minder
         public int $patientId
-    ) {}
-    public function broadcastOn() {
+    ) {
+    }
+    public function broadcastOn()
+    {
         return new PrivateChannel("psychologist.{$this->psychologistId}");
     }
-    public function broadcastAs() { return 'appointment.created'; }
-    public function broadcastWith() {
+    public function broadcastAs()
+    {
+        return 'appointment.created';
+    }
+    public function broadcastWith()
+    {
         return [
             'appointment_id' => $this->appointmentId,
             'patient_id' => $this->patientId,

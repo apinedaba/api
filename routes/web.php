@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AppointmentCartController;
+use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
@@ -46,6 +47,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
+
+    Route::put('/validacion/{id}', [CedulaCheck::class, 'revisarValidacion'])->name('validacion.update');
 
     Route::get('/carts', [AppointmentCartController::class, 'getAllCarts'])->name('carts');
     Route::get('/cart/{patient}', [AppointmentCartController::class, 'getCartByPatient'])->name('cartByPatient');

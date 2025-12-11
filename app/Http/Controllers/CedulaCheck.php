@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Models\ValidacionCedulaManual;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class CedulaCheck extends Controller
 {
@@ -19,6 +20,17 @@ class CedulaCheck extends Controller
             'status' => 'manual_validation_required',
             'message' => 'La validación automática está deshabilitada. Por favor, usa el formulario de validación manual.',
             'requires_manual_data' => true
+        ], 200);
+    }
+
+
+
+    public function getCedulasByUser($userId)
+    {
+        $cedulas = ValidacionCedulaManual::where('user_id', $userId)->get();
+        return response()->json([
+            'status' => 'success',
+            'data' => $cedulas
         ], 200);
     }
 
@@ -164,11 +176,7 @@ class CedulaCheck extends Controller
             $user->save();
         }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Validación actualizada correctamente.',
-            'data' => $validacion
-        ], 200);
+        return Inertia::location(route('psicologoShow', $user->id));
     }
 
     /**

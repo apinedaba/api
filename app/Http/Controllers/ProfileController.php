@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
-        public function index()
+    public function index()
     {
         $user = Auth::user();
         $profile = User::where("id", $user->id)->first();
@@ -29,7 +29,7 @@ class ProfileController extends Controller
     public function edit(Request $request): Response
     {
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $request->user()->with('cedula')->first() instanceof MustVerifyEmail,
             'status' => session('status'),
         ]);
     }
@@ -71,7 +71,7 @@ class ProfileController extends Controller
         return Redirect::to('/');
     }
 
-        public function store(Request $request)
+    public function store(Request $request)
     {
         $user = Auth::user();
 

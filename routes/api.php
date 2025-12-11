@@ -89,7 +89,7 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
-        return $request->user()->load('subscription');
+        return $request->user()->load('subscription', 'escuelas');
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');

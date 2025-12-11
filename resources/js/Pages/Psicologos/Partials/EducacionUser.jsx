@@ -12,58 +12,53 @@ export default function EducacionUser({ psicologo }) {
     const user = usePage().props.auth.user;
 
     const { data, setData, put, errors, processing, recentlySuccessful } = useForm({
-        name: user.name,
-        email: user.email,
+        estado: '',
+        id: '',
+        notas_admin: '',
+        user_id: psicologo.id
     });
     const [modal, setModal] = useState(false);
-    const [psico, setPsico] = useState(psicologo);
+    const [escuelas, setEscuelas] = useState(psicologo?.escuelas);
     const [desicion, setDesicion] = useState('');
-    const approveEducacion = (cedula) => {
-        setDesicion('approved');
-        let educacion = psicologo?.educacion?.escuelas?.find((escuela) => escuela?.cedula === cedula);
-        educacion.status = 'approved';
+    const approveEducacion = (id) => {
+        setDesicion('aprobado');
         setData({
-            ...psicologo,
-            educacion: {
-                ...psicologo?.educacion,
-                escuelas: psicologo?.educacion?.escuelas?.map((escuela) => escuela?.cedula === cedula ? educacion : escuela)
-            }
-        });
+            estado: 'aprobado',
+            id: id,
+            notas_admin: 'Aprobado',
+            user_id: psicologo.id
+        })
         setModal(true);
     };
 
-    const rejectEducacion = (cedula) => {
-        setDesicion('rejected');
-        let educacion = psicologo?.educacion?.escuelas?.find((escuela) => escuela?.cedula === cedula);
-        educacion.status = 'rejected';
+    const rejectEducacion = (id) => {
+        setDesicion('rechazado');
         setData({
-            ...psicologo,
-            educacion: {
-                ...psicologo?.educacion,
-                escuelas: psicologo?.educacion?.escuelas?.map((escuela) => escuela?.cedula === cedula ? educacion : escuela)
-            }
-        });
+            estado: 'rechazado',
+            id: id,
+            notas_admin: 'Rechazado',
+            user_id: psicologo.id
+        })
         setModal(true);
     };
 
     const submit = (e) => {
         e.preventDefault();
-        setPsico(data);
-        put(route('psicologo.update', psicologo.id));
+        put(route('validacion.update', data.id));
         setModal(false);
     };
 
     return (
-        <section className={"p-4 sm:p-8 bg-white shadow sm:rounded-lg"}>
+        <section className={""}>
             <h2 className="font-semibold text-xl text-gray-800 leading-tight mb-4">Educacion</h2>
             <Modal show={modal} onClose={() => setModal(false)}>
                 <form onSubmit={submit} className="p-6">
                     <h2 className="text-lg font-medium text-gray-900">
-                        Estas seguro que quieres {desicion === 'approved' ? 'aprobar' : 'rechazar'} esta educacion
+                        Estas seguro que quieres {desicion === 'aprobado' ? 'aprobar' : 'rechazar'} esta educacion
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-600">
-                        Una vez {desicion === 'approved' ? 'aprobada' : 'rechazada'} la educacion solo un superadministrador podra {desicion === 'approved' ? 'aprobar' : 'rechazar'}la, y el usuario sera notificado de esta decision
+                        Una vez {desicion === 'aprobado' ? 'aprobada' : 'rechazada'} la educacion solo un superadministrador podra {desicion === 'aprobado' ? 'aprobar' : 'rechazar'}la, y el usuario sera notificado de esta decision
                     </p>
 
 
@@ -71,30 +66,41 @@ export default function EducacionUser({ psicologo }) {
                         <SecondaryButton onClick={() => setModal(false)}>Cancelar</SecondaryButton>
 
                         <PrimaryButton className="ms-3" disabled={processing}>
-                            {desicion === 'approved' ? 'Aprobar educacion' : 'Rechazar educacion'}
+                            {desicion === 'aprobado' ? 'Aprobar educacion' : 'Rechazar educacion'}
                         </PrimaryButton>
                     </div>
                 </form>
             </Modal>
             {
-                (psico.educacion?.escuelas?.length > 0) ?
+                (escuelas?.length > 0) ?
                     <>
                         <div className='space-y-3 grid grid-cols-3 gap-4'>
                             {
-                                psico.educacion?.escuelas?.map((escuela, index) => (
-                                    <div key={index} className='border border-gray-200 p-4 rounded-lg relative'>
-                                        <p>{escuela?.cedula}</p>
+                                escuelas?.map((escuela, index) => (
+                                    <div key={index} className='border border-gray-200 p-4 rounded-lg relative text-xs pt-4'>
+                                        <p className='absolute top-2 right-2 z-10'><span className={`font-bold bg-green-200 px-2 py-1 rounded-full ${escuela?.estado === 'aprobado' && 'bg-green-200'} ${escuela?.estado === 'rechazado' && 'bg-red-200'} ${escuela?.estado === 'pendiente' && 'bg-yellow-200'}`}>
+                                            {escuela?.estado === 'aprobado' && 'Aprobado'}
+                                            {escuela?.estado === 'rechazado' && 'Rechazado'}
+                                            {escuela?.estado === 'pendiente' && 'Pendiente'}
+                                        </span></p>
+                                        <p>{escuela?.numero_cedula}</p>
                                         <p className='font-bold'>{escuela?.institucion}</p>
-                                        <p>{escuela?.titulo}</p>
-                                        <p className='absolute top-2 right-2 z-10'><span className={`font-bold bg-green-200 px-2 py-1 rounded-full ${escuela?.status === 'approved' && 'bg-green-200'} ${escuela?.status === 'rejected' && 'bg-red-200'} ${escuela?.status === 'pending' && 'bg-yellow-200'}`}>{escuela?.status === 'approved' ? 'Aprobado' : 'Pendiente'}</span></p>
-                                        {
-                                            escuela?.status === 'pending' && (
-                                                <div className='grid grid-cols-2 gap-2'>
-                                                    <button onClick={() => approveEducacion(escuela.cedula)} className="mt-2 bg-blue-500 text-white px-2 py-1 rounded-md">Aprobar</button>
-                                                    <button onClick={() => rejectEducacion(escuela.cedula)} className="mt-2 bg-red-500 text-white px-2 py-1 rounded-md">Rechazar</button>
-                                                </div>
-                                            )
-                                        }
+                                        <p>{escuela?.carrera}</p>
+
+                                        <div className='grid grid-cols-2 gap-2'>
+                                            <p>Notas: {escuela?.notas_admin}</p>
+                                            {
+                                                (escuela?.estado === 'pendiente' || escuela?.estado === 'rechazado') && (
+                                                    <button onClick={() => approveEducacion(escuela.id)} className="mt-2 bg-blue-500 text-white px-2 py-1 rounded-md">Aprobar</button>
+                                                )
+                                            }
+                                            {
+                                                (escuela?.estado === 'pendiente' || escuela?.estado === 'aprobado') && (
+                                                    <button onClick={() => rejectEducacion(escuela.id)} className="mt-2 bg-red-500 text-white px-2 py-1 rounded-md">Rechazar</button>
+                                                )
+                                            }
+                                        </div>
+
                                     </div>
                                 ))
                             }

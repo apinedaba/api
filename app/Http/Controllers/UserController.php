@@ -45,7 +45,7 @@ class UserController extends Controller
 
     public function getProfessionalById($id)
     {
-        $allUser = User::where('id', $id)->with('cedula')->first();
+        $allUser = User::where('id', $id)->with('escuelas')->first();
         return response()->json($allUser, 200);
     }
 

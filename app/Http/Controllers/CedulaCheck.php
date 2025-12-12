@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Models\ValidacionCedulaManual;
 use Illuminate\Support\Facades\Storage;
+use Cloudinary\Api\Upload\UploadApi;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class CedulaCheck extends Controller
@@ -59,15 +61,15 @@ class CedulaCheck extends Controller
             'estado' => 'pendiente',
         ]);
 
-        // Guardar archivos si existen
+        // Guardar archivos en Cloudinary si existen
         if ($request->hasFile('archivo_cedula')) {
-            $path = $request->file('archivo_cedula')->store('cedulas', 'public');
-            $validacion->archivo_cedula = $path;
+            $url = $this->uploadToCloudinary($request->file('archivo_cedula'), 'cedulas');
+            $validacion->archivo_cedula = $url;
         }
 
         if ($request->hasFile('archivo_titulo')) {
-            $path = $request->file('archivo_titulo')->store('titulos', 'public');
-            $validacion->archivo_titulo = $path;
+            $url = $this->uploadToCloudinary($request->file('archivo_titulo'), 'titulos');
+            $validacion->archivo_titulo = $url;
         }
 
         $validacion->save();
@@ -202,13 +204,8 @@ class CedulaCheck extends Controller
             ], 400);
         }
 
-        // Eliminar archivos si existen
-        if ($validacion->archivo_cedula) {
-            Storage::disk('public')->delete($validacion->archivo_cedula);
-        }
-        if ($validacion->archivo_titulo) {
-            Storage::disk('public')->delete($validacion->archivo_titulo);
-        }
+        // Nota: Los archivos en Cloudinary se mantienen por historial
+        // Si se desea eliminar, agregar lógica con public_id
 
         // Eliminar del perfil del usuario
         $user = $validacion->user;
@@ -278,21 +275,15 @@ class CedulaCheck extends Controller
 
         // Actualizar archivos si se enviaron nuevos
         if ($request->hasFile('archivo_cedula')) {
-            // Eliminar archivo anterior si existe
-            if ($validacion->archivo_cedula) {
-                Storage::disk('public')->delete($validacion->archivo_cedula);
-            }
-            $path = $request->file('archivo_cedula')->store('cedulas', 'public');
-            $validacion->archivo_cedula = $path;
+            // Subir nuevo archivo a Cloudinary
+            $url = $this->uploadToCloudinary($request->file('archivo_cedula'), 'cedulas');
+            $validacion->archivo_cedula = $url;
         }
 
         if ($request->hasFile('archivo_titulo')) {
-            // Eliminar archivo anterior si existe
-            if ($validacion->archivo_titulo) {
-                Storage::disk('public')->delete($validacion->archivo_titulo);
-            }
-            $path = $request->file('archivo_titulo')->store('titulos', 'public');
-            $validacion->archivo_titulo = $path;
+            // Subir nuevo archivo a Cloudinary
+            $url = $this->uploadToCloudinary($request->file('archivo_titulo'), 'titulos');
+            $validacion->archivo_titulo = $url;
         }
 
         $validacion->save();
@@ -326,6 +317,25 @@ class CedulaCheck extends Controller
             'validacion_id' => $validacion->id,
             'data' => $validacion
         ], 200);
+    }
+
+    /**
+     * Subir archivo a Cloudinary
+     */
+    private function uploadToCloudinary($file, $folder)
+    {
+        try {
+            $uploader = new UploadApi();
+            $result = $uploader->upload($file->getRealPath(), [
+                'folder' => 'cedulas_profesionales/' . $folder,
+                'resource_type' => 'auto', // Detecta automáticamente si es imagen o PDF
+            ]);
+
+            return $result['secure_url'];
+        } catch (\Exception $e) {
+            Log::error('Error al subir archivo a Cloudinary: ' . $e->getMessage());
+            throw new \Exception('Error al subir archivo: ' . $e->getMessage());
+        }
     }
 
     function validateAndConvertEncoding($data)

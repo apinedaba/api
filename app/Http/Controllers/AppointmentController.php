@@ -88,14 +88,14 @@ class AppointmentController extends Controller
     public function getAvailableSlots(Request $request, $id)
     {
         $now = Carbon::now();
-        $start = $now->copy()->startOfDay();
-        $end = $start->copy()->addDays(30); // rango máximo
+        $start = Carbon::parse($request->start)->startOfDay();
+        $end = Carbon::parse($request->end)->endOfDay();
 
         $user = User::findOrFail($id);
         $workingHours = $user->horarios;
 
         $appointments = Appointment::where('user', $id)
-            ->whereBetween('start', [$now, $end])
+            ->whereBetween('start', [$start, $end])
             ->get();
 
         $slots = [];
@@ -115,30 +115,21 @@ class AppointmentController extends Controller
             $slotsFoundToday = false;
 
             foreach ($workingHours[$weekday] as $block) {
-                $blockStart = Carbon::parse($fecha . ' ' . $block['start']);
-                $blockEnd = Carbon::parse($fecha . ' ' . $block['end']);
+                $blockStart = Carbon::parse("$fecha {$block['start']}");
+                $blockEnd = Carbon::parse("$fecha {$block['end']}");
 
-                if ($blockStart->gte($blockEnd)) {
-                    continue; // Bloque inválido
-                }
-
-                $slotStart = $blockStart->greaterThan($now) ? $blockStart->copy() : max($blockStart, $now->copy());
+                $slotStart = $blockStart->gt($now)
+                    ? $blockStart->copy()
+                    : $now->copy();
 
                 while ($slotStart->lt($blockEnd)) {
-                    $slotEnd = $slotStart->copy()->addHour();
+                    $slotEnd = $slotStart->copy()->addMinutes(50);
 
                     if ($slotEnd->gt($blockEnd))
                         break;
 
-                    if ($slotStart->isPast()) {
-                        $slotStart->addHour();
-                        continue;
-                    }
-
                     $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
-                        $aStart = Carbon::parse($a->start);
-                        $aEnd = Carbon::parse($a->end);
-                        return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
+                        return $slotStart->lt($a->end) && $slotEnd->gt($a->start);
                     });
 
                     if (!$empalme) {
@@ -149,12 +140,12 @@ class AppointmentController extends Controller
                         $slotsFoundToday = true;
                     }
 
-                    $slotStart->addHour();
+                    $slotStart->addMinutes(60); // siguiente slot real
                 }
             }
 
             if ($slotsFoundToday) {
-                $uniqueDays[] = $fecha; // Agrega este día a los días únicos con slots
+                $uniqueDays[] = $fecha;
             }
 
             $current->addDay();
@@ -162,6 +153,7 @@ class AppointmentController extends Controller
 
         return response()->json($slots);
     }
+
 
 
 
@@ -319,7 +311,7 @@ class AppointmentController extends Controller
         $arrayOriginal = $originalData->toArray();
 
         foreach ($updatedData as $key => $value) {
-            if (array_key_exists($key,  $arrayOriginal) &&  $arrayOriginal[$key] != $value) {
+            if (array_key_exists($key, $arrayOriginal) && $arrayOriginal[$key] != $value) {
                 if ($key === 'created_at' || $key === 'updated_at') {
                     continue;
                 }
@@ -332,10 +324,10 @@ class AppointmentController extends Controller
                 'message' => "Sin modificaciones",
                 'type' => "info"
             ], 200);
-        }     
-        try {     
+        }
+        try {
             if ($originalData->google_event_id) { // Esta línea parece ser para depuración
-                $originalData->load('user');       
+                $originalData->load('user');
                 if ($user && $user->googleAccount) {
                     SyncAppointmentToGoogleCalendar::dispatch($originalData, $user, 'update');
                 }
@@ -350,7 +342,7 @@ class AppointmentController extends Controller
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
-                'rasson' => 'No se logro cambiar la cita con exito'.$th->getMessage(),
+                'rasson' => 'No se logro cambiar la cita con exito' . $th->getMessage(),
                 'message' => "Cita no modificada",
                 'type' => "error"
             ], 400);

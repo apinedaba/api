@@ -16,6 +16,9 @@ class Subscription extends Model
         'stripe_status',
         'trial_ends_at',
         'ends_at',
+        'trial_reminder_day_1_at',
+        'trial_reminder_day_3_at',
+        'trial_reminder_day_7_at',
     ];
 
     public function user()

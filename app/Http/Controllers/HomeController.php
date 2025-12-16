@@ -44,7 +44,8 @@ class HomeController extends Controller
     {
         $query = User::query()
             ->where('isProfileComplete', true)
-            ->where('activo', true);
+            ->where('activo', true)
+            ->where('identity_verification_status', 'approved');
 
         if ($filterType === 'especialidades' && !empty($filterValues)) {
             $query->where(function ($q) use ($filterValues) {

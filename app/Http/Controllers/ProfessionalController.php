@@ -57,6 +57,7 @@ class ProfessionalController extends Controller
         $q = User::query()
             ->where('isProfileComplete', true)
             ->where('activo', true)
+            ->where('identity_verification_status', 'approved')
             ->where(function ($q2) use ($suscripcionesValidas) {
                 $q2
                     ->whereHas('subscription', function ($s) use ($suscripcionesValidas) {

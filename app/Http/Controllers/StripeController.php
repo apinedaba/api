@@ -427,7 +427,7 @@ class StripeController extends Controller
 
         if (!$hasHadRealStripeSubscription) {
             $sessionData['subscription_data'] = [
-                'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
+                'trial_period_days' => 10, // ¡Aquí defines la duración de la prueba!
             ];
         }
         $session = CheckoutSession::create($sessionData);
@@ -479,83 +479,10 @@ class StripeController extends Controller
             case 'invoice.payment_failed':
                 $this->handleFailedPayment($event->data->object);
                 break;
-            // Aquí puedes añadir tus cases para pagos de citas si es necesario
-            // por ejemplo, `payment_intent.succeeded` para OXXO.
         }
 
         return response()->json(['status' => 'success']);
     }
-    protected function handleNewSubscription($session)
-    {
-        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
-
-        $user = User::find($session->metadata->user_id);
-        if ($user) {
-            $stripeSubscription = \Stripe\Subscription::retrieve($session->subscription);
-            Subscription::updateOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'stripe_id' => $stripeSubscription->id,
-                    'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
-                    'stripe_status' => $stripeSubscription->status,
-                    'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                    'ends_at' => null,
-                ]
-            );
-            Log::info("Nueva suscripción creada para el usuario: {$user->id}");
-        }
-    }
-
-    protected function handleSubscriptionChange($stripeSubscription)
-    {
-        $subscription = Subscription::where('stripe_id', $stripeSubscription->id)->first();
-        if ($subscription) {
-            $subscription->update([
-                'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
-                'stripe_status' => $stripeSubscription->status,
-                'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                'ends_at' => $stripeSubscription->cancel_at ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
-            ]);
-            Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
-        }
-    }
-
-    protected function handleFailedPayment($invoice)
-    {
-        // 🔒 Validación defensiva
-        $userId = $invoice->metadata->user_id ?? null;
-
-        if (!$userId) {
-            Log::error("Invoice {$invoice->id} sin user_id");
-            return;
-        }
-
-        $user = User::find($userId);
-
-        if (!$user) {
-            Log::error("Usuario no encontrado: {$userId}");
-            return;
-        }
-
-        // 📧 Enviar correo (a cola)
-        EmailService::send(
-            $user->email,
-            'Tu intento de pago no pudo completarse – MindMeet',
-            'emails.payment-failed',
-            [
-                'name' => $user->name
-            ]
-        );
-
-        // 🔄 Actualizar suscripción
-        if (!empty($invoice->subscription)) {
-            Subscription::where('stripe_id', $invoice->subscription)
-                ->update(['stripe_status' => 'past_due']);
-
-            Log::warning("Fallo en pago de suscripción: {$invoice->subscription}");
-        }
-    }
-
     public function handle(Request $request)
     {
         try {
@@ -569,7 +496,7 @@ class StripeController extends Controller
             );
 
             // 🚀 SOLO despachar el job
-            HandleStripeEventJob::dispatch($event, $this->service);
+            HandleStripeEventJob::dispatch($event);
 
             // ⚡ RESPUESTA INMEDIATA A STRIPE
             return response()->json(['received' => true], 200);

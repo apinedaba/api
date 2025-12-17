@@ -16,7 +16,7 @@ class HandleTrialReminders extends Command
         $now = now();
 
         $subscriptions = Subscription::where('stripe_status', 'trial_expired')
-            ->where('user_id', 73)
+            ->orWhere('stripe_status', 'trial')
             ->whereNotNull('trial_ends_at')
             ->with('user')
             ->get();

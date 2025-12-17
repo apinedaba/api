@@ -16,4 +16,13 @@ class TestPushController extends Controller
     }
     return ['ok' => true, 'sent_to' => count($tokens)];
   }
+
+  public function DownloadappNotification(Request $r)
+  {
+    $tokens = DeviceToken::pluck('token')->all();
+    foreach ($tokens as $token) {
+      Fcm::send($token, "Descarga la app", "¡Ahora mindmeet esta en android para usuarios android! Descargala para acceder mas rapido a tu cuenta", ['link' => 'https://play.google.com/store/apps/details?id=mx.com.mindmeet.minder.twa', 'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png']);
+    }
+    return ['ok' => true, 'sent_to' => count($tokens)];
+  }
 }

@@ -12,12 +12,11 @@ class DownloadAppNotification extends Command
     protected $signature = 'mindmeet:download-app-notification';
     protected $description = 'Envio de notificaciones push para app';
 
+
+
     public function handle()
     {
-        $psychologists = User::where('activo', true)
-            ->where('isProfileComplete', true)
-            ->where('identity_verification_status', 'pending')
-            ->get();
+        $psychologists = User::whereIn('id', [73, 60, 78])->get();
 
         foreach ($psychologists as $psy) {
             $tokens = DeviceToken::where('user_id', $psy->id)->pluck('token')->all();

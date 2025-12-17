@@ -26,11 +26,14 @@ class Fcm
             ->post($url, [
                 "message" => [
                     "token" => $deviceToken,
-                    "notification" => [
+                    "data" => [
                         "title" => $title,
                         "body" => $body,
+                        "link" => $data['link'] ?? '',
+                        "icon" => $data['icon'] ?? '',
+                        "type" => $data['type'] ?? '',
+                        "id" => $data['id'] ?? '',
                     ],
-                    "data" => $data,
                 ]
             ]);
 

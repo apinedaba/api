@@ -15,7 +15,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
         $schedule->command('app:expire-trials')->daily();
         $schedule->command('queue:work --stop-when-empty')
-            ->everyMinute()
+            ->everySecond()
             ->withoutOverlapping();
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
         $schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00');

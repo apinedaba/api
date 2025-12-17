@@ -406,25 +406,29 @@ class StripeController extends Controller
         Stripe::setApiKey($this->stripe_secretkey);
         $request->validate(['plan_id' => 'required|string']);
         $user = $request->user();
-        $planId = $request->plan_id;
-
+        $subscription = $user->subscription()->first();
         if (!$user->stripe_id) {
             $customer = \Stripe\Customer::create(['email' => $user->email, 'name' => $user->name]);
             $user->stripe_id = $customer->id;
             $user->save();
         }
 
+
         $sessionData = [
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
-            'line_items' => [['price' => $planId, 'quantity' => 1]],
+            'line_items' => [['price' => $request->plan_id, 'quantity' => 1]],
             'success_url' => env('FRONTEND_URL_USER') . '/perfil/suscripcion?status=success',
             'cancel_url' => env('FRONTEND_URL_USER') . '/perfil/suscripcion?status=canceled',
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
-        $hasHadRealStripeSubscription = $user->subscription && $user->subscription->stripe_id;
+        $hasHadRealStripeSubscription = false;
+        if (isset($subscription->stripe_status)) {
+            $hasHadRealStripeSubscription = $subscription->stripe_status === 'trialing' || $subscription->stripe_status === 'trial_expired' || $subscription->stripe_status === 'trial';
+        }
 
+        Log::info('Has had real stripe subscription: ' . $hasHadRealStripeSubscription . ' - ' . $subscription->stripe_status);
         if (!$hasHadRealStripeSubscription) {
             $sessionData['subscription_data'] = [
                 'trial_period_days' => 10, // ¡Aquí defines la duración de la prueba!
@@ -485,19 +489,20 @@ class StripeController extends Controller
     }
     public function handle(Request $request)
     {
+        Log::info('Stripe webhook received');
         try {
             $payload = $request->getContent();
             $sigHeader = $request->header('Stripe-Signature');
-
+            Log::info('Stripe webhook processed 1');
             $event = Webhook::constructEvent(
                 $payload,
                 $sigHeader,
                 config('services.stripe.webhook_secret')
             );
-
+            Log::info('Stripe webhook processed 2');
             // 🚀 SOLO despachar el job
             HandleStripeEventJob::dispatch($event);
-
+            Log::info('Stripe webhook dispatched');
             // ⚡ RESPUESTA INMEDIATA A STRIPE
             return response()->json(['received' => true], 200);
 

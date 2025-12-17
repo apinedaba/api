@@ -25,11 +25,12 @@ class HandleStripeEventJob implements ShouldQueue
 
     public function handle()
     {
+        Log::info("Stripe event received: {$this->event->type}");
         switch ($this->event->type) {
 
             case 'checkout.session.completed':
                 $session = $this->event->data->object;
-                Log::info("Checkout session completed: {$session->id}");
+                Log::info("Checkout session completed: {$session}");
                 if ($session->mode == 'subscription') {
                     $this->handleNewSubscription($session);
                 }

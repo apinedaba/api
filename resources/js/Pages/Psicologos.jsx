@@ -9,7 +9,7 @@ export default function Dashboard({ auth, psicologos, status }) {
   const columns = [
     {
       name: 'Foto',
-      cell: row => (<FotoPerfil image={row?.image || null} alt={row?.name} />)
+      cell: row => (<FotoPerfil image={row?.image || null} name={row?.name} className="w-12 h-12 rounded-full my-2" alt={row?.name} />)
     },
     {
       name: 'Profesional',
@@ -18,7 +18,44 @@ export default function Dashboard({ auth, psicologos, status }) {
     },
     {
       name: 'Estatus',
-      cell: row => (<span className={`${row?.activo ? "bg-green-700" : "bg-red-600"} text-white px-2 py-1 rounded-full`}>{row?.activo ? "Activo" : "Inactivo"}</span>)
+      cell: row => (
+        <span className={`${row?.identity_verification_status === "approved" ? "bg-green-700" : "bg-red-600"} text-white px-2 py-1 rounded-full`}>{row?.identity_verification_status === "approved" ? "Aprobado" : "Pendiente"}</span>)
+    },
+    {
+      name: 'Suscripcion',
+      cell: row => (
+        <span className={`
+          ${row?.subscription?.stripe_status === "active" && "bg-green-700"} 
+          ${(row?.subscription?.stripe_status === "trialing" || row?.subscription?.stripe_status === "trial") && "bg-yellow-600"}
+          ${row?.subscription?.stripe_status === "canceled" && "bg-red-600"}
+          ${row?.subscription?.stripe_status === "past_due" && "bg-red-400"}
+          ${row?.subscription?.stripe_status === "trial_expired" && "bg-orange-600"}
+          ${row?.has_lifetime_access && "bg-blue-600"}
+          text-white px-2 py-1 rounded-full`}
+        >
+          {
+            row?.subscription?.stripe_status === "active" && "Activo"
+          }
+          {
+            (!row?.has_lifetime_access && !row?.subscription?.id) && "Sin suscripcion"
+          }
+          {
+            (row?.subscription?.stripe_status === "trialing" || row?.subscription?.stripe_status === "trial") && "Prueba"
+          }
+          {
+            (row?.subscription?.stripe_status === "trial_expired") && "Prueba Expirada"
+          }
+          {
+            row?.subscription?.stripe_status === "canceled" && "Cancelado"
+          }
+          {
+            row?.has_lifetime_access && "Permanente"
+          }
+          {
+            row?.subscription?.stripe_status === "past_due" && "Vencido"
+          }
+
+        </span>)
     },
     {
       name: 'Correo',
@@ -27,14 +64,6 @@ export default function Dashboard({ auth, psicologos, status }) {
     {
       name: 'Telefono',
       selector: row => row?.contacto?.telefono || "",
-    },
-    {
-      name: 'Email',
-      selector: row => row?.email,
-    },
-    {
-      name: 'Pais',
-      selector: row => row?.address?.pais || "",
     },
     {
       name: 'Estado',
@@ -59,6 +88,7 @@ export default function Dashboard({ auth, psicologos, status }) {
       <FilterComponent onFilter={setFilter} onClear={handleClear} filters={filter} />
     );
   }, [filter, resetPaginationToggle]);
+
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -72,13 +102,14 @@ export default function Dashboard({ auth, psicologos, status }) {
             <div className="p-6 text-gray-900">Lista de psicologos</div>
             <DataTable
               columns={columns}
-              data={filter?.onlyActives ? filteredItems?.filter(item => item?.activo) : filteredItems}
+              data={filter?.onlyActives ? filteredItems?.filter(item => item?.identity_verification_status === "approved") : filteredItems}
               pagination
               paginationPerPage={10}
               paginationComponentOptions
               subHeader
               subHeaderComponent={subHeaderComponentMemo}
               persistTableHead
+              responsive
             />
           </div>
         </div>
@@ -88,26 +119,28 @@ export default function Dashboard({ auth, psicologos, status }) {
 }
 
 
-const FilterComponent = ({ filter, onFilter, onClear }) => (
-  <div className='grid grid-cols-2 bg-red-600 w-full gap-4'>
-    <div>
-      <label htmlFor="onLyActives">
+const FilterComponent = ({ filters, onFilter, onClear }) => (
+  <div className='grid grid-cols-2 w-full gap-4'>
+    {console.log(filters)}
+    <div className='flex items-center gap-2'>
+      <label htmlFor="onLyActives" className={`flex items-center gap-2 cursor-pointer border border-gray-300 px-2 py-1 rounded ${filters?.onlyActives ? 'text-green-600 border-green-600' : 'text-gray-600'}`}>
         Ver Solo Activos
-        <input type="checkbox" name='OnlyActives' id='onLyActives' onChange={() => onFilter((filter) => ({ ...filter, onlyActives: !filter?.onlyActives }))} checked={filter?.onlyActives} />
+        <input type="checkbox" className='ml-2 hidden' name='OnlyActives' id='onLyActives' onChange={() => onFilter((filter) => ({ ...filter, onlyActives: !filters?.onlyActives }))} checked={filters?.onlyActives} />
       </label>
     </div>
-    <div>
-      <span>Buscar</span>
+    <div className='flex items-end gap-2 flex-col'>
+      <span className='text-sm text-gray-600 mb-0'>Buscar por nombre</span>
       <input
         id="search"
         type="text"
         placeholder="Buscar por nombre"
         aria-label="Search Input"
-        value={filter?.name}
+        value={filters?.name}
+        className='border border-gray-300 px-2 py-1 rounded'
         onChange={(event) => onFilter((prev) => ({ ...prev, name: event.target.value }))}
       />
       <button type="button" onClick={onClear}>
-        X
+
       </button>
     </div>
   </div>

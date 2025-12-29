@@ -8,7 +8,7 @@ import Modal from '@/Components/Modal';
 export default function ValidatePsicologo({ psicologo }) {
     const user = usePage().props.auth.user;
 
-    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+    const { data, setData, patch, errors, processing, recentlySuccessful, post } = useForm({
         name: user.name,
         email: user.email,
     });
@@ -75,7 +75,9 @@ export default function ValidatePsicologo({ psicologo }) {
                 <div className="flex items-center gap-4 justify-center">
                     {
                         !psicologo?.cedula_selfie_url || !psicologo?.ine_selfie_url ? (
-                            <PrimaryButton className="ml-4" disabled={processing} onClick={() => patch(route('psicologos.validate', psicologo.id))}>
+                            <PrimaryButton className="ml-4" disabled={processing} onClick={() => (
+                                post(route('user.psicologo.solicitud', psicologo.id))
+                            )}>
                                 {processing ? 'Solicitando Imagenes de verificacion...' : 'Solicitar Imagenes de verificacion'}
                             </PrimaryButton>
                         ) : psicologo?.identity_verification_status === 'pending' ? (

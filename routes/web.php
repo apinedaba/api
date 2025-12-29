@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
+    Route::post('user/psicologo/{id}/solicitud', [UserController::class, 'solicitudDeVerificacion'])->name('user.psicologo.solicitud');
 
     Route::put('/validacion/{id}', [CedulaCheck::class, 'revisarValidacion'])->name('validacion.update');
 

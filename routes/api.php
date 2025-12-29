@@ -203,6 +203,8 @@ Route::get('patient/numberPatients', [PatientController::class, 'getNumberPatien
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 
+
+
 require __DIR__ . '/api/catalogos.php';
 require __DIR__ . '/api/contratos.php';
 require __DIR__ . '/api/professional.php';

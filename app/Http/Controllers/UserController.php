@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\User;
+use App\Services\EmailService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\Mailer\Messenger\SendEmailMessage;
 
 class UserController extends Controller
 {
@@ -24,9 +26,26 @@ class UserController extends Controller
         return response()->json($users, 200);
     }
 
+    function solicitudDeVerificacion($id)
+    {
+        $user = User::where('id', $id)->first();
+        \Log::info('Solicitud de verificacion para: ' . $user->name);
+        $email = EmailService::send(
+            $user->email,
+            'Notificación del equipo MindMeet',
+            'email.notify-update-profile',
+            [
+                'name' => $user->name,
+                'missingFields' => ['Foto cédula profesional', 'Foto INE'],
+                'url' => config('app.frontend_url') . '/perfil'
+            ]
+        );
+        return response()->json($email, 200);
+    }
+
     function getAllUsers()
     {
-        $users = User::orderBy('activo', 'desc')->get();
+        $users = User::with('subscription')->orderBy('identity_verification_status', 'desc')->get();
         return Inertia::render('Psicologos', [
             'psicologos' => $users,
             'status' => session('status'),

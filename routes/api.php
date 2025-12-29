@@ -20,6 +20,7 @@ use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\ConsultaContactoController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
@@ -198,6 +199,7 @@ Route::get('user/auth/{provider}/callback/professional', [SocialiteController::c
 Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);
 Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::class, 'callbackPatient']);
 Route::get('patient/numberPatients', [PatientController::class, 'getNumberPatient']);
+Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'store']);
 
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);

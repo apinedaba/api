@@ -8,4 +8,5 @@ Route::prefix('patient/catalogos')->group(function () {
 });
 Route::prefix('user/catalogos')->group(function () {
     Route::get('/prices', [CatalogosController::class, 'getPrices']);
+    Route::get('/price/{priceId}', [CatalogosController::class, 'getPriceById']);
 });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\User;
+use Stripe\Stripe;
 class CatalogosController extends Controller
 {
     public function generos()
@@ -177,10 +178,32 @@ class CatalogosController extends Controller
 
     public function getPrices(): JsonResponse
     {
-        $json = file_get_contents(resource_path('json/precios.json'));
-        $catalogo = collect(json_decode($json, true));
+        Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        $allPrices = \Stripe\Price::all();
+        $prices = collect($allPrices->data)
+            ->filter(fn($price) => $price->active)
+            ->values();
+        return response()->json($prices, 200);
+    }
 
-        return response()->json($catalogo, 200);
+    public function getPriceById($priceId)
+    {
+        Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+
+        $price = \Stripe\Price::retrieve($priceId);
+        $allPrices = \Stripe\Price::all();
+        $prices = collect($allPrices->data)
+            ->filter(fn($price) => $price->active)
+            ->values();
+        return response()->json([
+            'id' => $price->id,
+            'amount' => $price->unit_amount / 100,
+            'currency' => $price->currency,
+            'interval' => $price->recurring?->interval,
+            'product' => $price->product,
+            'active' => $price->active,
+            'allPrices' => $prices,
+        ]);
     }
 
 }

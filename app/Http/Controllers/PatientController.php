@@ -39,6 +39,39 @@ class PatientController extends Controller
         //
     }
 
+    function verifyPatient(Request $request)
+    {
+        $user = Auth::user();
+        $patient = Patient::where('email', $request->email)->first();
+        if ($patient) {
+            $existingLink = PatientUser::where('user', $user->id)
+                ->where('patient', $patient->id)
+                ->exists();
+            if ($existingLink) {
+                return response()->json([
+                    'enlace' => true,
+                    'message' => 'El paciente ya se encuentra enlazado a su cuenta.',
+                    'type' => 'info',
+                    'data' => ['patient' => $patient]  // Puedes devolver el ID del paciente si lo necesitas
+                ], 200);
+            }
+            return response()->json([
+                'enlace' => false,
+                'type' => 'info',
+                'status' => 'ok',
+                'data' => ['patient' => $patient]  // Puedes devolver el ID del paciente si lo necesitas
+            ], 200);
+        } else {
+            return response()->json([
+                'enlace' => false,
+                'type' => 'info',
+                'status' => 'not found',
+                'data' => ['patient' => $patient]
+            ], 200);
+        }
+
+    }
+
     public function getAllPatients()
     {
         $patients = Patient::with('connections')->with('connections.user')->get();
@@ -247,5 +280,7 @@ class PatientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Patient $patient) {}
+    public function destroy(Patient $patient)
+    {
+    }
 }

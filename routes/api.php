@@ -135,6 +135,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
     Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
+    Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
 
     // Agenda y citas
     Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);

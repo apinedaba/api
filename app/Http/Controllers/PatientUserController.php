@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientUser;
 use App\Models\Patient;
+use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -16,7 +17,7 @@ class PatientUserController extends Controller
     public function index()
     {
         $user = Auth::user();
-        return response()->json( data: PatientUser::with('patient')->where('user', $user->id)->get(), status: 200);
+        return response()->json(data: PatientUser::with('patient')->where('user', $user->id)->get(), status: 200);
     }
 
     /**
@@ -35,7 +36,8 @@ class PatientUserController extends Controller
         //
     }
 
-    public function enlacePacienteProfesional($patient){
+    public function enlacePacienteProfesional($patient)
+    {
         $user = Auth::user();
         $checkExist = PatientUser::where('user', $user->id)->where('patient', $patient)->first();
         if (isset($checkExist->id)) {
@@ -45,7 +47,7 @@ class PatientUserController extends Controller
                 'type' => "error"
             ];
         }
-        
+
         $enlace = PatientUser::create([
             'user' => $user->id,
             'patient' => $patient
@@ -64,7 +66,8 @@ class PatientUserController extends Controller
         return $patientUser->first();
     }
 
-    public function getCurrentProfesional(){
+    public function getCurrentProfesional()
+    {
         $user = Auth::user();
         if (!$user->id) {
             return response()->json([
@@ -74,7 +77,7 @@ class PatientUserController extends Controller
             ]);
         }
         $currentRelation = PatientUser::where('patient', $user->id)->where('activo', 1)->with('user')->get();
-        return response()->json( data: $currentRelation, status:200);
+        return response()->json(data: $currentRelation, status: 200);
     }
 
     /**
@@ -90,22 +93,34 @@ class PatientUserController extends Controller
      */
     public function update(Request $request)
     {
-        $user = Auth::user();        
+        $user = Auth::user();
         $enlace = PatientUser::where('user', $user->id)->where('patient', $request->id);
         $currentActive = $enlace->first()['activo'];
         if (isset($request->isPatient) && !$currentActive) {
             $enlace->update(["activo" => !$currentActive, 'status' => "Enlace Aceptado"]);
+            $patient = Patient::where('id', $request->id)->first();
+            EmailService::send(
+                $patient->email,
+                'Ahora tu cuenta de minsmeet esta completa.',
+                'email.cuenta-activada-paciente',
+                [
+                    'name' => $patient->name,
+                    'url' => config('app.frontend_url') . '/iniciar-sesion'
+                ]
+            );
             $response = [
                 'message' => 'Paciente activado con exito',
-                'rasson' => "Haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
+                'status' => 'ok',
+                'rasson' => "Haz aceptado con exito la peticion de tu psicologo, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
                 'type' => "success"
             ];
             return response()->json($response, 200);
         }
         if (isset($request->isPatient) && $currentActive) {
             $response = [
+                'status' => 'ok',
                 'message' => 'Paciente activado con exito',
-                'rasson' => "Ya haz aceptado con exito la peticion de tu meeter, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
+                'rasson' => "Haz aceptado con exito la peticion de tu psicologo, espera a que te de indicaciones de tu proxima cita, no es necesario que permanezcas en esta pagina",
                 'type' => "success"
             ];
             return response()->json($response, 200);
@@ -115,7 +130,7 @@ class PatientUserController extends Controller
         $enlace->update(["activo" => $currentActive]);
         $currentActive = $currentActive === 1 ? "desactivado" : "activado";
         $response = [
-            'rasson' => 'El usuario se a '.$currentActive.' correctamente',
+            'rasson' => 'El usuario se a ' . $currentActive . ' correctamente',
             'message' => "Usuario $currentActive",
             'type' => "success"
         ];

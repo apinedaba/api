@@ -134,21 +134,22 @@ class CatalogosController extends Controller
             ->where('isProfileComplete', 1)
             ->where('activo', 1)
             ->pluck('address')
-            ->map(fn($p) => 
+            ->map(
+                fn($p) =>
                 (
                     [
                         "pais" => $p['pais'] ?? null,
                         "estado" => $p['state'] ?? null
                     ]
                 )
-            )                        
+            )
             ->filter()
             ->unique()
             ->values()
             ->map(fn($key) => [
                 'value' => $key,
                 'pais' => $key['pais'],
-                'estado' => $key['estado']                
+                'estado' => $key['estado']
             ]);
 
         $response = [
@@ -172,6 +173,14 @@ class CatalogosController extends Controller
 
         ];
         return response()->json($data, 200);
+    }
+
+    public function getPrices(): JsonResponse
+    {
+        $json = file_get_contents(resource_path('json/precios.json'));
+        $catalogo = collect(json_decode($json, true));
+
+        return response()->json($catalogo, 200);
     }
 
 }

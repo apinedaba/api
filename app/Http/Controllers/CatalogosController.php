@@ -191,19 +191,8 @@ class CatalogosController extends Controller
         Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
 
         $price = \Stripe\Price::retrieve($priceId);
-        $allPrices = \Stripe\Price::all();
-        $prices = collect($allPrices->data)
-            ->filter(fn($price) => $price->active)
-            ->values();
-        return response()->json([
-            'id' => $price->id,
-            'amount' => $price->unit_amount / 100,
-            'currency' => $price->currency,
-            'interval' => $price->recurring?->interval,
-            'product' => $price->product,
-            'active' => $price->active,
-            'allPrices' => $prices,
-        ]);
+
+        return response()->json($price);
     }
 
 }

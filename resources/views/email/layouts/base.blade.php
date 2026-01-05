@@ -52,7 +52,7 @@
                             </a>
 
                             <p style="color:#ffffff; font-size:12px; margin-top:15px;">
-                                contacto@mindmeet.mx<br>
+                                hola@mindmeet.com.mx<br>
                                 © {{ date('Y') }} MindMeet
                             </p>
                         </td>

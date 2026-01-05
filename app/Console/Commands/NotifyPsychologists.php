@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\EmailService;
 use App\Services\Fcm;
 use App\Models\DeviceToken;
+
 class NotifyPsychologists extends Command
 {
     protected $signature = 'mindmeet:notify-psychologists';
@@ -16,7 +17,7 @@ class NotifyPsychologists extends Command
     {
         $psychologists = User::where('activo', true)
             ->where('isProfileComplete', true)
-            ->where('identity_verification_status', '!=', 'completed')
+            ->where('identity_verification_status', '!=', 'approved')
             ->where(function ($query) {
                 $query->where('has_lifetime_access', true)
                     ->orWhereHas('subscription', function ($q) {

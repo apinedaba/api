@@ -5,7 +5,7 @@ import TextInput from '@/Components/TextInput';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
 
-export default function ResumePsicologo({ psicologo}) {
+export default function ResumePsicologo({ psicologo }) {
     const user = usePage().props.auth.user;
 
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
@@ -18,7 +18,7 @@ export default function ResumePsicologo({ psicologo}) {
         patch(route('profile.update'));
     };
     console.log(psicologo);
-    
+
     return (
         <section className={""}>
             <header className='relative'>
@@ -44,24 +44,22 @@ export default function ResumePsicologo({ psicologo}) {
                             <strong>
                                 Correo: &nbsp;
                             </strong>
-                                {
-                                    psicologo?.email
-                                }                            
+                            {
+                                psicologo?.email
+                            }
                         </p>
                         <p>
                             <strong>
                                 Telefono: &nbsp;
                             </strong>
                             <a href={`tel:${psicologo?.contacto?.telefono}`}>{psicologo?.contacto?.telefono}</a>
-                            
+
                         </p>
                         <p>
                             <strong>
                                 Whatsapp: &nbsp;
                             </strong>
-                            {
-                                psicologo?.contacto?.whatsapp
-                            }
+                            <a href={`https://wa.me/${psicologo?.contacto?.whatsapp}`} target="_blank" rel="noopener noreferrer">{psicologo?.contacto?.whatsapp}</a>
                         </p>
                         <p>
                             <strong>
@@ -71,8 +69,8 @@ export default function ResumePsicologo({ psicologo}) {
                                 psicologo?.contacto?.movil
                             }
                         </p>
-                        
-                    </div>                    
+
+                    </div>
                 </div>
             </form>
         </section>

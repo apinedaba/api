@@ -156,6 +156,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
+
+    Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);
+
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
@@ -185,6 +188,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
     // (opcional) Checkout OXXO por si lo usas en otro lado
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
+
 });
 Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);

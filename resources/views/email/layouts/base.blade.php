@@ -33,26 +33,28 @@
 
                     <!-- FOOTER REDES -->
                     <tr>
-                        <td style="background:#0077b6; padding:20px; text-align:center;">
-                            <a href="https://facebook.com/mindmeet" style="margin:0 8px;">
+                        <td style="background:#0077b6; padding:20px; text-align:center; color:#ffffff;">
+                            <a href="https://facebook.com/mindmeet" style="margin:0 8px; text-decoration: none;">
                                 <img src="https://res.cloudinary.com/dabwvv94x/image/upload/v1765847998/75f540192117fb9493ec6b2295efddd3_mned8q.png"
                                     width="28">
                             </a>
-                            <a href="https://instagram.com/mindmeet" style="margin:0 8px;">
+                            <a href="https://instagram.com/mindmeet" style="margin:0 8px; text-decoration: none;">
                                 <img src="https://res.cloudinary.com/dabwvv94x/image/upload/v1765847998/82eaed0cd10c13e9d3b74bcc132fb326_rd1jvl.png"
                                     width="28">
                             </a>
-                            <a href="https://linkedin.com/company/mindmeet" style="margin:0 8px;">
+                            <a href="https://linkedin.com/company/mindmeet"
+                                style="margin:0 8px; text-decoration: none;">
                                 <img src="https://res.cloudinary.com/dabwvv94x/image/upload/v1765847998/c9a8c16cd390ed2b5a2fb62eb149e2f0_wtvixd.png"
                                     width="28">
                             </a>
-                            <a href="https://tiktok.com/@mindmeet" style="margin:0 8px;">
+                            <a href="https://tiktok.com/@mindmeet" style="margin:0 8px; text-decoration: none;">
                                 <img src="https://res.cloudinary.com/dabwvv94x/image/upload/v1765847998/6ac1b2b01aebc0c7c0243dca11c1403b_n7omcz.png"
                                     width="28">
                             </a>
 
                             <p style="color:#ffffff; font-size:12px; margin-top:15px;">
-                                hola@mindmeet.com.mx<br>
+                                <a href="mailto:hola@mindmeet.com.mx"
+                                    style="color:#ffffff;">hola@mindmeet.com.mx</a><br>
                                 © {{ date('Y') }} MindMeet
                             </p>
                         </td>

@@ -6,6 +6,7 @@ use App\Http\Controllers\PatientUserController;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Notifications\PatientAssignedEmailNotification;
+use App\Notifications\SendEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -236,6 +237,63 @@ class PatientController extends Controller
                 // throw $th;
             }
         }
+    }
+
+    public function sendInvitacion($id)
+    {
+        $patient = Patient::findOrFail($id);
+        $content = "
+            <p>Espero que estés teniendo una muy buena semana.</p>
+
+            <p>
+                Quiero contarte que ya tienes disponible en tu perfil de
+                <strong>MindMeet</strong> la función de <strong>Diario</strong>,
+                una herramienta pensada para acompañarte entre sesiones y apoyar
+                tu proceso de una forma más consciente y cercana.
+            </p>
+
+            <p>
+                Durante nuestras consultas trabajamos temas muy importantes,
+                pero es normal que, en el día a día, surjan pensamientos,
+                emociones o situaciones que luego pueden ser difíciles de
+                recordar con claridad. El Diario te permite:
+            </p>
+
+            <ul>
+                <li><strong>Registrar lo que sientes en el momento</strong>, cuando la emoción está presente.</li>
+                <li><strong>Identificar patrones</strong>, reconociendo qué situaciones influyen en tu estado emocional.</li>
+                <li><strong>Preparar nuestras sesiones</strong>, anotando ideas o temas que te gustaría trabajar con mayor profundidad.</li>
+            </ul>
+
+            <p>
+                Si tú lo decides, también podemos usar este espacio para
+                <strong>dar continuidad al proceso entre sesiones</strong>.
+                Yo podré revisar tus entradas antes de vernos para llegar mejor
+                preparado, e incluso dejarte algunas reflexiones o preguntas que
+                nos ayuden a avanzar con mayor claridad y fluidez hacia tus objetivos.
+            </p>
+
+            <p>
+                No es necesario escribir textos largos. A veces, unas cuantas
+                palabras o frases son más que suficientes. La intención es que
+                sea un espacio <strong>seguro, libre y completamente tuyo</strong>.
+            </p>
+
+            <p>
+                Si tienes alguna duda sobre cómo acceder o utilizar el Diario
+                dentro de MindMeet, con gusto puedo ayudarte.
+            </p>
+
+            <p>
+                Nos vemos en nuestra próxima sesión ✨
+            </p>
+        ";
+        $patient->notify(new SendEmail('Tu diario en MindMeet', $content, $patient));
+        return response()->json([
+            'rasson' => 'Invitacion enviada exitosamente',
+            'message' => 'Invitacion enviada exitosamente',
+            'type' => 'success',
+        ], 200);
     }
 
     /**

@@ -12,7 +12,7 @@ use App\Notifications\Traits\NotificaInternamente;
 class PsychologistAssignedByAdmin extends Notification
 {
     use Queueable, NotificaInternamente;
-    
+
     protected $patient;
     protected $admin;
     protected $isActive;

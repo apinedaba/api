@@ -87,7 +87,8 @@
                                                                     <div style="max-width: 125px;"><img
                                                                             src="https://ad7fe8c786.imgdist.com/pub/bfra/6evt2bq1/12g/tot/6a9/MindMeet.png"
                                                                             style="display: block; height: auto; border: 0; width: 100%;"
-                                                                            width="125" alt="MindMeet" title="MindMeet" height="auto">
+                                                                            width="125" alt="MindMeet"
+                                                                            title="MindMeet" height="auto">
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -104,8 +105,7 @@
 
                     <!-- Contenido Principal -->
                     <table class="row row-2" align="center" width="100%" border="0" cellpadding="0"
-                        cellspacing="0" role="presentation"
-                        style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+                        cellspacing="0" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
                         <tbody>
                             <tr>
                                 <td>
@@ -117,11 +117,10 @@
                                             <tr>
                                                 <td class="column column-1" width="100%"
                                                     style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; font-weight: 400; text-align: left; padding: 20px; vertical-align: top;">
-                                                    
+
                                                     <!-- Saludo -->
-                                                    <table class="heading_block block-1" width="100%"
-                                                        border="0" cellpadding="10" cellspacing="0"
-                                                        role="presentation"
+                                                    <table class="heading_block block-1" width="100%" border="0"
+                                                        cellpadding="10" cellspacing="0" role="presentation"
                                                         style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
                                                         <tr>
                                                             <td class="pad">
@@ -134,42 +133,54 @@
                                                     </table>
 
                                                     <!-- Mensaje Principal -->
-                                                    <table class="paragraph_block block-2" width="100%"
-                                                        border="0" cellpadding="10" cellspacing="0"
-                                                        role="presentation"
+                                                    <table class="paragraph_block block-2" width="100%" border="0"
+                                                        cellpadding="10" cellspacing="0" role="presentation"
                                                         style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; word-break: break-word;">
                                                         <tr>
                                                             <td class="pad">
                                                                 <div
                                                                     style="color:#555555;direction:ltr;font-family:'Poppins', Arial, sans-serif;font-size:16px;font-weight:400;letter-spacing:0px;line-height:150%;text-align:left;mso-line-height-alt:24px;">
-                                                                    <p style="margin: 0; margin-bottom: 16px;">Nos complace informarte que se te ha asignado un <strong>nuevo paciente</strong> desde la administración de MindMeet.</p>
+                                                                    <p style="margin: 0; margin-bottom: 16px;">Nos
+                                                                        complace informarte que se te ha asignado un
+                                                                        <strong>nuevo paciente</strong> desde la
+                                                                        administración de MindMeet.</p>
                                                                 </div>
                                                             </td>
                                                         </tr>
                                                     </table>
 
                                                     <!-- Tarjeta del Paciente -->
-                                                    <table class="paragraph_block block-3" width="100%"
-                                                        border="0" cellpadding="0" cellspacing="0"
-                                                        role="presentation"
+                                                    <table class="paragraph_block block-3" width="100%" border="0"
+                                                        cellpadding="0" cellspacing="0" role="presentation"
                                                         style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; word-break: break-word;">
                                                         <tr>
                                                             <td class="pad" style="padding:10px;">
-                                                                <div style="background-color: #f7f9fc; border-left: 4px solid #667eea; padding: 20px; border-radius: 5px;">
-                                                                    <h3 style="color: #667eea; margin: 0 0 15px 0; font-family: 'Poppins', Arial, sans-serif; font-size: 18px;">📋 Información del Paciente</h3>
-                                                                    <div style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
+                                                                <div
+                                                                    style="background-color: #f7f9fc; border-left: 4px solid #667eea; padding: 20px; border-radius: 5px;">
+                                                                    <h3
+                                                                        style="color: #667eea; margin: 0 0 15px 0; font-family: 'Poppins', Arial, sans-serif; font-size: 18px;">
+                                                                        📋 Información del Paciente</h3>
+                                                                    <div
+                                                                        style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
                                                                         <strong>Nombre:</strong> {{ $patient->name }}
                                                                     </div>
-                                                                    <div style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
+                                                                    <div
+                                                                        style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
                                                                         <strong>Correo:</strong> {{ $patient->email }}
                                                                     </div>
-                                                                    <div style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
-                                                                        <strong>Teléfono:</strong> {{ $patient->contacto['telefono'] ?? 'No proporcionado' }}
+                                                                    <div
+                                                                        style="margin: 10px 0; font-size: 15px; font-family: 'Poppins', Arial, sans-serif;">
+                                                                        <strong>Teléfono:</strong>
+                                                                        {{ $patient->contacto['telefono'] ?? 'No proporcionado' }}
                                                                     </div>
-                                                                    @if($isActive)
-                                                                    <span style="display: inline-block; padding: 5px 15px; background-color: #10b981; color: white; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 10px;">✓ Paciente Activo</span>
+                                                                    @if ($isActive)
+                                                                        <span
+                                                                            style="display: inline-block; padding: 5px 15px; background-color: #10b981; color: white; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 10px;">✓
+                                                                            Paciente Activo</span>
                                                                     @else
-                                                                    <span style="display: inline-block; padding: 5px 15px; background-color: #6b7280; color: white; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 10px;">ℹ️ En tu lista</span>
+                                                                        <span
+                                                                            style="display: inline-block; padding: 5px 15px; background-color: #6b7280; color: white; border-radius: 20px; font-size: 14px; font-weight: 500; margin-top: 10px;">ℹ️
+                                                                            En tu lista</span>
                                                                     @endif
                                                                 </div>
                                                             </td>
@@ -185,7 +196,9 @@
                                                                 <div class="alignment" align="center">
                                                                     <a href="{{ $url }}" target="_blank"
                                                                         style="background-color:#667eea;border-bottom:0px solid transparent;border-left:0px solid transparent;border-radius:25px;border-right:0px solid transparent;border-top:0px solid transparent;color:#ffffff;display:inline-block;font-family:'Poppins', Arial, sans-serif;font-size:16px;font-weight:600;mso-border-alt:none;padding-bottom:12px;padding-top:12px;text-align:center;text-decoration:none;width:auto;word-break:keep-all;padding-left:40px;padding-right:40px;">
-                                                                        <span style="word-break: break-word; line-height: 32px;">Ver Perfil del Paciente</span>
+                                                                        <span
+                                                                            style="word-break: break-word; line-height: 32px;">Ver
+                                                                            Perfil del Paciente</span>
                                                                     </a>
                                                                 </div>
                                                             </td>
@@ -201,7 +214,10 @@
                                                             <td class="pad">
                                                                 <div
                                                                     style="color:#555555;direction:ltr;font-family:'Poppins', Arial, sans-serif;font-size:16px;font-weight:400;letter-spacing:0px;line-height:150%;text-align:left;mso-line-height-alt:24px;">
-                                                                    <p style="margin: 0;">Puedes programar citas, llevar un seguimiento de las sesiones y acceder a toda la información relevante desde la plataforma.</p>
+                                                                    <p style="margin: 0;">Puedes programar citas,
+                                                                        llevar un seguimiento de las sesiones y acceder
+                                                                        a toda la información relevante desde la
+                                                                        plataforma.</p>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -216,7 +232,9 @@
                                                             <td class="pad">
                                                                 <div
                                                                     style="color:#667eea;direction:ltr;font-family:'Poppins', Arial, sans-serif;font-size:16px;font-weight:400;letter-spacing:0px;line-height:150%;text-align:left;mso-line-height-alt:24px;border-top:1px solid #e5e7eb;padding-top:20px;margin-top:30px;">
-                                                                    <p style="margin: 0;font-style:italic;">Con emoción,<br><strong>El equipo de MindMeet</strong></p>
+                                                                    <p style="margin: 0;font-style:italic;">Con
+                                                                        emoción,<br><strong>El equipo de
+                                                                            MindMeet</strong></p>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -232,8 +250,7 @@
 
                     <!-- Footer -->
                     <table class="row row-3" align="center" width="100%" border="0" cellpadding="0"
-                        cellspacing="0" role="presentation"
-                        style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+                        cellspacing="0" role="presentation" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
                         <tbody>
                             <tr>
                                 <td>
@@ -253,8 +270,11 @@
                                                             <td class="pad">
                                                                 <div
                                                                     style="color:#888888;direction:ltr;font-family:'Poppins', Arial, sans-serif;font-size:14px;font-weight:400;letter-spacing:0px;line-height:150%;text-align:center;mso-line-height-alt:21px;">
-                                                                    <p style="margin: 0;">Si no reconoces esta asignación, por favor contacta a soporte de inmediato.</p>
-                                                                    <p style="margin: 0; margin-top: 15px;">© 2026 MindMeet. Todos los derechos reservados.</p>
+                                                                    <p style="margin: 0;">Si no reconoces esta
+                                                                        asignación, por favor contacta a soporte de
+                                                                        inmediato.</p>
+                                                                    <p style="margin: 0; margin-top: 15px;">© 2026
+                                                                        MindMeet. Todos los derechos reservados.</p>
                                                                 </div>
                                                             </td>
                                                         </tr>

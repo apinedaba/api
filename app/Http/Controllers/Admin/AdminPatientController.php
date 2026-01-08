@@ -94,10 +94,10 @@ class AdminPatientController extends Controller
 
                     // Notificar al psicólogo
                     $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, true));
-                    
+
                     // Notificar al paciente
                     $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, true));
-                    
+
                     Log::info("Notificaciones enviadas al crear paciente: Psicólogo ID {$request->psychologist_id} asignado a Paciente ID {$patient->id}");
                 } catch (\Exception $e) {
                     Log::error('Error al enviar notificaciones al crear paciente: ' . $e->getMessage());
@@ -286,10 +286,10 @@ class AdminPatientController extends Controller
             try {
                 // Notificar al psicólogo
                 $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, $setAsActive));
-                
+
                 // Notificar al paciente
                 $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, $setAsActive));
-                
+
                 Log::info("Notificaciones enviadas: Psicólogo ID {$psychologistId} asignado a Paciente ID {$patient->id}");
             } catch (\Exception $e) {
                 Log::error('Error al enviar notificaciones de asignación: ' . $e->getMessage());
@@ -370,10 +370,10 @@ class AdminPatientController extends Controller
             try {
                 // Notificar al psicólogo que ahora es el principal
                 $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, true));
-                
+
                 // Notificar al paciente del cambio
                 $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, true));
-                
+
                 Log::info("Notificaciones enviadas: Psicólogo ID {$psychologistId} activado como principal para Paciente ID {$patientId}");
             } catch (\Exception $e) {
                 Log::error('Error al enviar notificaciones de activación: ' . $e->getMessage());

@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Notifications\PsychologistAssignedByAdmin;
+use App\Notifications\PatientAssignedPsychologistByAdmin;
 
 class AdminPatientController extends Controller
 {
@@ -84,6 +86,23 @@ class AdminPatientController extends Controller
                     'activo' => true,
                     'status' => 'Asignado por Administrador'
                 ]);
+
+                // Enviar notificaciones
+                try {
+                    $psychologist = User::findOrFail($request->psychologist_id);
+                    $admin = auth()->guard('web')->user();
+
+                    // Notificar al psicólogo
+                    $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, true));
+                    
+                    // Notificar al paciente
+                    $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, true));
+                    
+                    Log::info("Notificaciones enviadas al crear paciente: Psicólogo ID {$request->psychologist_id} asignado a Paciente ID {$patient->id}");
+                } catch (\Exception $e) {
+                    Log::error('Error al enviar notificaciones al crear paciente: ' . $e->getMessage());
+                    // No fallar la creación si las notificaciones fallan
+                }
             }
 
             DB::commit();
@@ -259,6 +278,24 @@ class AdminPatientController extends Controller
                 'status' => 'Asignado por Administrador'
             ]);
 
+            // Obtener el psicólogo y el administrador actual
+            $psychologist = User::findOrFail($psychologistId);
+            $admin = auth()->guard('web')->user();
+
+            // Enviar notificaciones
+            try {
+                // Notificar al psicólogo
+                $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, $setAsActive));
+                
+                // Notificar al paciente
+                $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, $setAsActive));
+                
+                Log::info("Notificaciones enviadas: Psicólogo ID {$psychologistId} asignado a Paciente ID {$patient->id}");
+            } catch (\Exception $e) {
+                Log::error('Error al enviar notificaciones de asignación: ' . $e->getMessage());
+                // No fallar la asignación si las notificaciones fallan
+            }
+
             DB::commit();
 
             $relation->load('user');
@@ -323,6 +360,25 @@ class AdminPatientController extends Controller
                 ->firstOrFail();
 
             $relation->update(['activo' => true]);
+
+            // Obtener modelos para notificaciones
+            $patient = Patient::findOrFail($patientId);
+            $psychologist = User::findOrFail($psychologistId);
+            $admin = auth()->guard('web')->user();
+
+            // Enviar notificaciones
+            try {
+                // Notificar al psicólogo que ahora es el principal
+                $psychologist->notify(new PsychologistAssignedByAdmin($patient, $admin, true));
+                
+                // Notificar al paciente del cambio
+                $patient->notify(new PatientAssignedPsychologistByAdmin($psychologist, $admin, true));
+                
+                Log::info("Notificaciones enviadas: Psicólogo ID {$psychologistId} activado como principal para Paciente ID {$patientId}");
+            } catch (\Exception $e) {
+                Log::error('Error al enviar notificaciones de activación: ' . $e->getMessage());
+                // No fallar la operación si las notificaciones fallan
+            }
 
             DB::commit();
 

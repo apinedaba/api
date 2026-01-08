@@ -76,7 +76,7 @@ class PatientUserController extends Controller
                 'type' => "error"
             ]);
         }
-        $currentRelation = PatientUser::where('patient', $user->id)->where('activo', 1)->with('user')->get();
+        $currentRelation = PatientUser::where('patient', $user->id)->with('user')->get();
         return response()->json(data: $currentRelation, status: 200);
     }
 

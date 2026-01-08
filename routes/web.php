@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminAppointmentController;
+use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\PatientController;
@@ -56,6 +58,33 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/pacientes', [PatientController::class, 'getAllPatients'])->name('pacientes');
     Route::get('/paciente/{id}', [PatientController::class, 'getPatientById'])->name('paciente');
+
+    // Rutas administrativas para pacientes
+    Route::prefix('admin')->group(function () {
+        // CRUD de pacientes
+        Route::get('/api/pacientes', [AdminPatientController::class, 'index'])->name('admin.pacientes.index');
+        Route::post('/api/pacientes', [AdminPatientController::class, 'store'])->name('admin.pacientes.store');
+        Route::get('/api/pacientes/{id}', [AdminPatientController::class, 'show'])->name('admin.pacientes.show');
+        Route::put('/api/pacientes/{id}', [AdminPatientController::class, 'update'])->name('admin.pacientes.update');
+        Route::delete('/api/pacientes/{id}', [AdminPatientController::class, 'destroy'])->name('admin.pacientes.destroy');
+
+        // Gestión de psicólogos
+        Route::get('/api/psicologos/disponibles', [AdminPatientController::class, 'getAvailablePsychologists'])->name('admin.psicologos.disponibles');
+        Route::post('/api/pacientes/{id}/asignar-psicologo', [AdminPatientController::class, 'assignPsychologist'])->name('admin.pacientes.asignar');
+        Route::delete('/api/pacientes/{patientId}/psicologos/{psychologistId}', [AdminPatientController::class, 'removePsychologist'])->name('admin.pacientes.remover.psicologo');
+        Route::put('/api/pacientes/{patientId}/psicologos/{psychologistId}/activar', [AdminPatientController::class, 'setActivePsychologist'])->name('admin.pacientes.activar.psicologo');
+
+        // CRUD de citas
+        Route::get('/api/pacientes/{patientId}/citas', [AdminAppointmentController::class, 'index'])->name('admin.citas.index');
+        Route::post('/api/citas', [AdminAppointmentController::class, 'store'])->name('admin.citas.store');
+        Route::get('/api/citas/{id}', [AdminAppointmentController::class, 'show'])->name('admin.citas.show');
+        Route::put('/api/citas/{id}', [AdminAppointmentController::class, 'update'])->name('admin.citas.update');
+        Route::delete('/api/citas/{id}', [AdminAppointmentController::class, 'destroy'])->name('admin.citas.destroy');
+
+        // Disponibilidad y estadísticas
+        Route::get('/api/psicologos/{psychologistId}/disponibilidad', [AdminAppointmentController::class, 'getAvailability'])->name('admin.psicologos.disponibilidad');
+        Route::get('/api/pacientes/{patientId}/citas/stats', [AdminAppointmentController::class, 'getStats'])->name('admin.citas.stats');
+    });
 });
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
     ->whereNumber('id')

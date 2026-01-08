@@ -27,14 +27,12 @@ class Appointment extends Model
         'video_call_room',
         'cart_id',
         'link',
-        'tipo',
-        'costo',
-        'payments',
         'google_event_id',
+        'extendedProps',
     ];
 
     protected $casts = [
-        'payments' => 'array',
+        'extendedProps' => 'array',
     ];
 
     public function patient_user()

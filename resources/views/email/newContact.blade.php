@@ -80,7 +80,7 @@
                                                             <p style="margin: 5px 0;"><strong>Nombre:</strong> {{ $consulta->nombre }}</p>
                                                             <p style="margin: 5px 0;"><strong>Correo:</strong> {{ $consulta->email }}</p>
                                                             <p style="margin: 5px 0;"><strong>Teléfono:</strong> {{ $consulta->telefono }}</p>
-                                                            <p style="margin: 5px 0;"><strong>Especialidad:</strong> {{ $consulta->tipo_sesion }}</p>
+                                                            <p style="margin: 5px 0;"><strong>Especialidad:</strong> {{ $especialidad }}</p>
                                                             <p style="margin: 5px 0;"><strong>Motivo:</strong></p>
                                                             <p style="font-style: italic; color: #555;">"{{ $consulta->motivo }}"</p>
                                                         </div>

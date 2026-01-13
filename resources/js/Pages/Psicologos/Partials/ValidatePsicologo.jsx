@@ -2,21 +2,33 @@ import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
-import { Link, useForm, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
 import Modal from '@/Components/Modal';
+import { useState } from 'react';
+
 export default function ValidatePsicologo({ psicologo }) {
     const user = usePage().props.auth.user;
+    const [processing, setProcessing] = useState(false);
 
-    const { data, setData, patch, errors, processing, recentlySuccessful, post } = useForm({
-        name: user.name,
-        email: user.email,
-    });
-
-    const submit = (e) => {
-        e.preventDefault();
-        patch(route('profile.update'));
+    const handleValidate = (actionValue, typeValue) => {
+        setProcessing(true);
+        router.patch(route('psicologos.validate', psicologo.id), {
+            action: actionValue,
+            type: typeValue
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                console.log('Validación exitosa');
+                setProcessing(false);
+            },
+            onError: (errors) => {
+                console.error('Error en validación:', errors);
+                setProcessing(false);
+            }
+        });
     };
+
     console.log(psicologo);
 
 
@@ -41,7 +53,7 @@ export default function ValidatePsicologo({ psicologo }) {
                     }
                 </span>
             </label>
-            <form onSubmit={submit} className="mt-6 space-y-6 ">
+            <div className="mt-6 space-y-6">
                 <div className="grid grid-cols-2">
                     {
                         psicologo?.cedula_selfie_url && (
@@ -50,7 +62,14 @@ export default function ValidatePsicologo({ psicologo }) {
                                     <img src={psicologo?.cedula_selfie_url} className='w-48 h-48 rounded-full object-cover' alt="" />
                                 </a>
                                 {psicologo?.identity_verification_status === 'pending' && (
-                                    <PrimaryButton className="ml-4" disabled={processing}>
+                                    <PrimaryButton
+                                        className="ml-4 mt-2"
+                                        disabled={processing}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            handleValidate('approve', 'cedula');
+                                        }}
+                                    >
                                         Validar foto de cédula
                                     </PrimaryButton>
                                 )}
@@ -64,7 +83,14 @@ export default function ValidatePsicologo({ psicologo }) {
                                     <img src={psicologo?.ine_selfie_url} className='w-48 h-48 rounded-full object-cover' alt="" />
                                 </a>
                                 {psicologo?.identity_verification_status === 'pending' && (
-                                    <PrimaryButton className="ml-4" disabled={processing}>
+                                    <PrimaryButton
+                                        className="ml-4 mt-2"
+                                        disabled={processing}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            handleValidate('approve', 'ine');
+                                        }}
+                                    >
                                         Validar foto de INE
                                     </PrimaryButton>
                                 )}
@@ -75,24 +101,43 @@ export default function ValidatePsicologo({ psicologo }) {
                 <div className="flex items-center gap-4 justify-center">
                     {
                         !psicologo?.cedula_selfie_url || !psicologo?.ine_selfie_url ? (
-                            <PrimaryButton className="ml-4" disabled={processing} onClick={() => (
-                                post(route('user.psicologo.solicitud', psicologo.id))
-                            )}>
+                            <PrimaryButton
+                                className="ml-4"
+                                disabled={processing}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    router.post(route('user.psicologo.solicitud', psicologo.id));
+                                }}
+                            >
                                 {processing ? 'Solicitando Imagenes de verificacion...' : 'Solicitar Imagenes de verificacion'}
                             </PrimaryButton>
                         ) : psicologo?.identity_verification_status === 'pending' ? (
-                            <div className='grid grid-cols-2'>
-                                <PrimaryButton className="ml-4" disabled={processing}>
-                                    {processing ? 'Aprobado' : 'Aprobado'}
+                            <div className='grid grid-cols-2 gap-4'>
+                                <PrimaryButton
+                                    className="bg-green-600 hover:bg-green-700"
+                                    disabled={processing}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleValidate('approve', 'both');
+                                    }}
+                                >
+                                    {processing ? 'Aprobando...' : 'Aprobar'}
                                 </PrimaryButton>
-                                <PrimaryButton className="ml-4" disabled={processing} onClick={() => patch(route('psicologos.validate', psicologo.id))}>
-                                    {processing ? 'Verificando...' : 'Verificar'}
+                                <PrimaryButton
+                                    className="bg-red-600 hover:bg-red-700"
+                                    disabled={processing}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleValidate('reject', 'both');
+                                    }}
+                                >
+                                    {processing ? 'Rechazando...' : 'Rechazar'}
                                 </PrimaryButton>
                             </div>
                         ) : ""
                     }
                 </div>
-            </form>
+            </div>
         </section>
     );
 }

@@ -216,4 +216,65 @@ class UserController extends Controller
         );
         return response()->json(['ok' => true], 200);
     }
+
+    /**
+     * Validate identity documents (cedula and INE)
+     */
+    public function validateIdentity(Request $request, string $id)
+    {
+        $request->validate([
+            'action' => 'required|in:approve,reject',
+            'type' => 'nullable|in:cedula,ine,both'
+        ]);
+
+        $user = User::findOrFail($id);
+        $type = $request->type ?? 'both';
+
+        if ($request->action === 'approve') {
+            $user->identity_verification_status = 'approved';
+            $message = 'Identidad verificada correctamente';
+
+            // Enviar email de aprobación
+            EmailService::send(
+                $user->email,
+                'Identidad Verificada - MindMeet',
+                'email.identity-approved',
+                [
+                    'name' => $user->name
+                ]
+            );
+        } else {
+            $user->identity_verification_status = 'rejected';
+
+            // Si se rechaza, eliminar la URL de la imagen correspondiente
+            $documentType = '';
+            if ($type === 'cedula' || $type === 'both') {
+                $user->cedula_selfie_url = null;
+                $documentType = $type === 'both' ? 'tu cédula profesional e INE' : 'tu cédula profesional';
+            }
+
+            if ($type === 'ine' || $type === 'both') {
+                $user->ine_selfie_url = null;
+                $documentType = $type === 'cedula' ? 'tu cédula profesional e INE' : ($type === 'ine' ? 'tu INE' : 'tu cédula profesional e INE');
+            }
+
+            $message = 'Identidad rechazada. El usuario deberá subir nuevamente las imágenes.';
+
+            // Enviar email de rechazo
+            EmailService::send(
+                $user->email,
+                'Verificación de Identidad - Acción Requerida - MindMeet',
+                'email.identity-rejected',
+                [
+                    'name' => $user->name,
+                    'documentType' => $documentType,
+                    'url' => config('app.frontend_url') . '/perfil'
+                ]
+            );
+        }
+
+        $user->save();
+
+        return redirect()->route('psicologoShow', $user->id)->with('status', $message);
+    }
 }

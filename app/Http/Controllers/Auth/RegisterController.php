@@ -44,11 +44,11 @@ class RegisterController extends Controller
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
         ]);
-        Subscription::create([
+        /* Subscription::create([
             'user_id' => $user->id,
             'stripe_status' => 'trial',
             'trial_ends_at' => Carbon::now()->addDays(15),
-        ]);
+        ]); */
 
         if ($user) {
             try {

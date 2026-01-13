@@ -301,7 +301,17 @@ class PatientController extends Controller
      */
     public function show(Patient $patient)
     {
-        return response()->json($patient, 200);
+        $user = auth()->user();
+        $isPatientToUser = PatientUser::where('patient', $patient->id)->where('user', $user->id)->first();
+        if ($isPatientToUser) {
+            return response()->json($patient, 200);
+        }
+        return response()->json([
+            'rasson' => 'El paciente no pertenece al usuario',
+            'message' => 'El paciente no pertenece al usuario',
+            'type' => 'error'
+        ], 401);
+
     }
 
     /**

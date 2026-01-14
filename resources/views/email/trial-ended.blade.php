@@ -37,7 +37,7 @@
                     💳 Plan Mensual
                 </p>
                 <p style="margin:8px 0; font-size:14px;">
-                    <strong>$10 MXN</strong> al mes
+                    <strong>$99 MXN</strong> al mes
                 </p>
             </td>
         </tr>
@@ -50,7 +50,7 @@
                     ⭐ Plan Anual (recomendado)
                 </p>
                 <p style="margin:8px 0; font-size:14px;">
-                    <strong>$100 MXN</strong> al año<br>
+                    <strong>$1089 MXN</strong> al año<br>
                     <span style="font-size:12px; color:#16a34a;">
                         Ahorra y evita problemas de renovación
                     </span>

@@ -54,7 +54,8 @@ class RegisterController extends Controller
             try {
                 //code...
                 $user->notify(new NuevoPsicologoRegistrado($user, true));
-                event(new Registered($user));
+                // TODO: Descomentar si se quiere usar verificación por URL en lugar de código
+                // event(new Registered($user));
             } catch (\Throwable $th) {
                 Log::error($th->getMessage());
                 //throw $th;

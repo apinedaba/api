@@ -24,13 +24,13 @@ class UserStepsController extends Controller
 
                 // Si ya existe, no sobrescribir
                 if (!array_key_exists($topKey, $savedData)) {
-                    $savedData[$topKey] = $user->{$topKey} ?? [];
+                    $savedData[$topKey] = $user->{$topKey} ?? $topKey == "image" ? "" : [];
                 }
             }
         }
 
         return response()->json([
-            'savedData' => $savedData
+            'savedData' => $user
         ]);
     }
 

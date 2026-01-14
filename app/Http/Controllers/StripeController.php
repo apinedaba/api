@@ -428,7 +428,7 @@ class StripeController extends Controller
             $hasHadRealStripeSubscription = $subscription->stripe_status === 'trialing' || $subscription->stripe_status === 'trial_expired' || $subscription->stripe_status === 'trial';
         }
 
-        Log::info('Has had real stripe subscription: ' . $hasHadRealStripeSubscription . ' - ' . $subscription->stripe_status);
+        Log::info('Has had real stripe subscription: ' . $hasHadRealStripeSubscription);
         if (!$hasHadRealStripeSubscription) {
             $sessionData['subscription_data'] = [
                 'trial_period_days' => 10, // ¡Aquí defines la duración de la prueba!

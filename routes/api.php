@@ -16,6 +16,7 @@ use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\EmotionLogController;
+use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
@@ -157,6 +158,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
 
+    Route::apiResource('user/expedientes', ExpedienteController::class);
     Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);
 
 });

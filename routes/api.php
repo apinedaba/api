@@ -161,8 +161,16 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::apiResource('user/expedientes', ExpedienteController::class);
     Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);
 
+    // Gestión de consultorios
+    Route::get('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'show']);
+    Route::post('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'store']);
+    Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
+    Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
+
+// Búsqueda pública de psicólogos por ubicación
+Route::get('psychologists/search', [\App\Http\Controllers\Api\OfficeController::class, 'search']);
 
 // Rutas para Pacientes
 
@@ -190,7 +198,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
     // (opcional) Checkout OXXO por si lo usas en otro lado
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
-
 });
 Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);

@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -89,5 +90,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function escuelas()
     {
         return $this->hasMany(ValidacionCedulaManual::class);
+    }
+
+    /**
+     * Relación con los consultorios
+     */
+    public function offices(): HasMany
+    {
+        return $this->hasMany(Office::class);
+    }
+
+    /**
+     * Consultorio activo del usuario
+     */
+    public function activeOffice(): HasOne
+    {
+        return $this->hasOne(Office::class)->where('is_active', true);
     }
 }

@@ -111,7 +111,7 @@ export default function ValidatePsicologo({ psicologo }) {
                             >
                                 {processing ? 'Solicitando Imagenes de verificacion...' : 'Solicitar Imagenes de verificacion'}
                             </PrimaryButton>
-                        ) : psicologo?.identity_verification_status === 'pending' ? (
+                        ) : psicologo?.identity_verification_status === 'sending' ? (
                             <div className='grid grid-cols-2 gap-4'>
                                 <PrimaryButton
                                     className="bg-green-600 hover:bg-green-700"

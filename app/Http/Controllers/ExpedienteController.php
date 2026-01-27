@@ -52,6 +52,18 @@ class ExpedienteController extends Controller
             if ($request->vidaSocial) {
                 $data['vidaSocial'] = $request->vidaSocial;
             }
+            if ($request->escalas) {
+                $data['escalas'] = $request->escalas;
+            }
+            if ($request->linea_vida) {
+                $data['linea_vida'] = $request->linea_vida;
+            }
+            if ($request->diagnostico) {
+                $data['diagnostico'] = $request->diagnostico;
+            }
+            if ($request->firma) {
+                $data['firma'] = $request->firma;
+            }
 
             $expediente->update($data);
         } else {

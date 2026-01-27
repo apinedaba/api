@@ -83,9 +83,10 @@ class ExpedienteController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Expediente $expediente)
+    public function show($patient_id)
     {
-        //
+        $expediente = Expediente::where('user_id', auth()->id())->where('patient_id', $patient_id)->first();
+        return response()->json($expediente);
     }
 
     /**

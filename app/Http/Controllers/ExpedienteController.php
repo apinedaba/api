@@ -43,6 +43,12 @@ class ExpedienteController extends Controller
             if ($request->examen_mental) {
                 $data['examen_mental'] = $request->examen_mental;
             }
+            if ($request->antecedentes) {
+                $data['antecedentes'] = $request->antecedentes;
+            }
+            if ($request->motivoConsulta) {
+                $data['motivoConsulta'] = $request->motivoConsulta;
+            }
             if ($request->plan_tratamiento) {
                 $data['plan_tratamiento'] = $request->plan_tratamiento;
             }

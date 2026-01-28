@@ -43,6 +43,12 @@ class ExpedienteController extends Controller
             if ($request->examen_mental) {
                 $data['examen_mental'] = $request->examen_mental;
             }
+            if ($request->antecedentes) {
+                $data['antecedentes'] = $request->antecedentes;
+            }
+            if ($request->motivoConsulta) {
+                $data['motivoConsulta'] = $request->motivoConsulta;
+            }
             if ($request->plan_tratamiento) {
                 $data['plan_tratamiento'] = $request->plan_tratamiento;
             }
@@ -51,6 +57,18 @@ class ExpedienteController extends Controller
             }
             if ($request->vidaSocial) {
                 $data['vidaSocial'] = $request->vidaSocial;
+            }
+            if ($request->escalas) {
+                $data['escalas'] = $request->escalas;
+            }
+            if ($request->linea_vida) {
+                $data['linea_vida'] = $request->linea_vida;
+            }
+            if ($request->diagnostico) {
+                $data['diagnostico'] = $request->diagnostico;
+            }
+            if ($request->firma) {
+                $data['firma'] = $request->firma;
             }
 
             $expediente->update($data);
@@ -71,9 +89,10 @@ class ExpedienteController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Expediente $expediente)
+    public function show($patient_id)
     {
-        //
+        $expediente = Expediente::where('user_id', auth()->id())->where('patient_id', $patient_id)->first();
+        return response()->json($expediente);
     }
 
     /**

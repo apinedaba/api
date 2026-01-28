@@ -17,12 +17,24 @@ class Expediente extends Model
         'linea_vida',
         'diagnostico',
         'firma',
+        'examen_mental',
+        'plan_tratamiento',
+        'dinamicaFamiliar',
+        'vidaSocial',
+        'antecedentes',
+        'motivoConsulta',
     ];
     protected $casts = [
         'escalas' => 'array',
         'linea_vida' => 'array',
         'diagnostico' => 'string',
         'firma' => 'string',
+        'examen_mental' => 'array',
+        'plan_tratamiento' => 'array',
+        'dinamicaFamiliar' => 'array',
+        'vidaSocial' => 'array',
+        'antecedentes' => 'array',
+        'motivoConsulta' => 'string',
     ];
     public function paciente()
     {

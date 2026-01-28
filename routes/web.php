@@ -83,4 +83,5 @@ Route::middleware('auth')->group(function () {
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
     ->whereNumber('id')
     ->name('share.professional');
+Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 require __DIR__ . '/auth.php';

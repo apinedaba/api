@@ -76,10 +76,11 @@ class ExpedienteController extends Controller
             $expediente = Expediente::create([
                 'user_id' => auth()->id(),
                 'patient_id' => $patient_id,
-                'escalas' => $request->escalas,
-                'linea_vida' => $request->linea_vida,
-                'diagnostico' => $request->diagnostico,
-                'firma' => $request->firma,
+                'escalas' => $request->escalas ?? [],
+                'linea_vida' => $request->linea_vida ?? [],
+                'diagnostico' => $request->diagnostico ?? "",
+                'motivoConsulta' => $request->motivoConsulta ?? "",
+                'firma' => $request->firma ?? "",
             ]);
         }
         $expediente['isUpdate'] = $isUpdatde;

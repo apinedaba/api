@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\JsonResponse;
-
+use Illuminate\Validation\Rule;
 class PatientController extends Controller
 {
     protected $_patient;
@@ -325,6 +325,35 @@ class PatientController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    public function updateFromUser(Request $request)
+    {
+        $user = $request->user();
+
+        $patient = Patient::where('email', $user->email)->firstOrFail();
+
+        $validated = $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email,' . $user->id,
+            'telefono' => 'nullable|string|max:20',
+        ]);
+
+        $user->update([
+            'name'  => $validated['name'],
+            'email' => $validated['email'],
+        ]);
+
+        $contacto = $patient->contacto ?? [];
+        $contacto['telefono'] = $validated['telefono'] ?? null;
+
+        $patient->update([
+            'contacto' => $contacto,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'contacto' => $contacto,
+        ]);
+    }
     public function update(Request $request, Patient $patient)
     {
         try {

@@ -1,11 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import DataTable from 'react-data-table-component';
 import styled from 'styled-components';
 import FotoPerfil from '@/Components/FotoPerfil';
 export default function Dashboard({ auth, psicologos, status }) {
-
+  function limpiarTelefono(telefono) {
+    return telefono.replace(/[()\-\s+]/g, '');
+  }
   const columns = [
     {
       name: 'Foto',
@@ -65,7 +67,11 @@ export default function Dashboard({ auth, psicologos, status }) {
     },
     {
       name: 'Telefono',
-      selector: row => row?.contacto?.telefono || "",
+      cell: row => (
+        <Link href={`https://wa.me/${limpiarTelefono(row?.contacto?.whatsapp)}`} target="_blank">
+          {row?.contacto?.whatsapp || ""}
+        </Link>
+      ),
     },
     {
       name: 'Estado',

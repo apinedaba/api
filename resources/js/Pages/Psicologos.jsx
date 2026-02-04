@@ -6,7 +6,7 @@ import styled from 'styled-components';
 import FotoPerfil from '@/Components/FotoPerfil';
 export default function Dashboard({ auth, psicologos, status }) {
   function limpiarTelefono(telefono) {
-    return telefono.replace(/[()\-\s+]/g, '');
+    return telefono?.replace(/[()\-\s+]/g, '');
   }
   const columns = [
     {

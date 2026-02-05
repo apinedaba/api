@@ -122,7 +122,7 @@ export default function Dashboard({ auth, psicologos, status }) {
             <div className="p-6 text-gray-900">Lista de psicologos</div>
             <DataTable
               columns={columns}
-              data={filter?.onlyActives ? filteredItems?.filter(item => item?.identity_verification_status === "approved") : filteredItems}
+              data={filter?.onlyActives ? filteredItems?.filter(item => item?.identity_verification_status === "approved").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) : filteredItems.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))}
               pagination
               paginationPerPage={10}
               paginationComponentOptions

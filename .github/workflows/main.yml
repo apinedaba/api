@@ -1,4 +1,4 @@
-name: Deploy Backend
+name: Deploy Backend (Laravel)
 
 on:
   push:
@@ -10,18 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout
-      - name: Checkout repo
+      # 1. Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Node (solo si realmente necesitas build de admin)
+      # 2. Node (admin interno)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Install NPM dependencies
+      - name: Install NPM deps
         run: npm ci
 
       - name: Build admin assets
@@ -35,26 +34,25 @@ jobs:
           extensions: mbstring, pdo_pgsql
           coverage: none
 
-      - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+      - name: Install Composer deps
+        run: composer install --no-dev --optimize-autoloader
 
-      # 4. Deploy vía rsync
-      - name: Deploy backend via rsync
-        uses: contention/rsync-deployments@v2.0.0
+      # 4. Laravel Deploy (rsync + ssh)
+      - name: Laravel Deploy
+        uses: ngocquyhoang/laravel-deploy@laravel-custom-port
         with:
-          FLAGS: >
-            -az --delete
-            --exclude=.git
-            --exclude=node_modules
-            --exclude=.env
-            --exclude=storage/logs
-            --exclude=storage/framework/cache
-            --exclude=storage/framework/sessions
-            --exclude=storage/framework/views
-          USER: ${{ secrets.VPS_USER }}
-          HOST: ${{ secrets.VPS_HOST }}
-          PORT: ${{ secrets.VPS_PORT }}
-          LOCALPATH: ./
-          REMOTEPATH: /var/www/mindmeet/api/
-          DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_ARGS: -o StrictHostKeyChecking=no
+          user: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          path: /var/www/mindmeet/api
+          owner: mindmeet
+          source: api/
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          rsync_options: -avz --delete
+          exclude: |
+            .git
+            node_modules
+            .env
+          after_deploy: |
+            php artisan migrate --force
+            php artisan optimize

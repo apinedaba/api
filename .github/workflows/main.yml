@@ -37,6 +37,9 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader
 
+      - name: List directory
+        run: ls -la
+
       # 4. Deploy + comandos (TODO AQUÍ)
       - name: Deploy backend to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -46,11 +49,6 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            rsync -avz --delete \
-              --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='.env' \
-              ./ /var/www/mindmeet/api
             cd /var/www/mindmeet/api
             php artisan migrate --force
             php artisan optimize

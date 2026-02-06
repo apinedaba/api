@@ -10,9 +10,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Descargar código
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # 2. Node para assets del admin
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build admin assets
+        run: npm run build
+
+      # 3. PHP para Laravel
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -23,7 +37,8 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      - name: Deploy backend
+      # 4. Deploy a la VPS
+      - name: Upload backend
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -31,9 +46,21 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           ssh_options: ${{ secrets.SSH_OPTIONS }}
-          source: "./*"
-          target: "/var/www/mindmeet/api"
+          source: |
+            app/*
+            bootstrap/*
+            config/*
+            database/*
+            public/*
+            resources/*
+            routes/*
+            storage/*
+            vendor/*
+            artisan
+            composer.json
+          target: /var/www/mindmeet/api
 
+      # 5. Comandos finales en la VPS
       - name: Run Laravel commands
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -41,6 +68,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_options: ${{ secrets.SSH_OPTIONS }}
           script: |
             cd /var/www/mindmeet/api
             php artisan migrate --force

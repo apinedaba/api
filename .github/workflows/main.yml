@@ -1,4 +1,4 @@
-name: Deploy Backend (Laravel)
+name: Deploy Backend
 
 on:
   push:
@@ -10,17 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
-      - name: Checkout
+      # 1. Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Node (admin interno)
+      # 2. Node para admin
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install NPM deps
+      - name: Install NPM dependencies
         run: npm ci
 
       - name: Build admin assets
@@ -34,19 +34,24 @@ jobs:
           extensions: mbstring, pdo_pgsql
           coverage: none
 
-      - name: Install Composer deps
+      - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      # 4. Laravel Deploy (rsync + ssh)
-      - name: Laravel Deploy
-        uses: ngocquyhoang/laravel-deploy@laravel-custom-port
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      # 4. Deploy + comandos (TODO AQUÍ)
+      - name: Deploy backend to VPS
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          user: ${{ secrets.VPS_USER }}
           host: ${{ secrets.VPS_HOST }}
-          path: /var/www/mindmeet/api
-          owner: mindmeet
-          args: |
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          args: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa
+          script: |
+            rsync -avz --delete \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='.env' \
+              ./ /var/www/mindmeet/api
+            cd /var/www/mindmeet/api
             php artisan migrate --force
             php artisan optimize

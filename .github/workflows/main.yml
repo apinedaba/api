@@ -38,21 +38,18 @@ jobs:
         run: composer install --no-dev --optimize-autoloader
 
       # 4. Deploy + comandos (TODO AQUÍ)
-      - name: Deploy backend to VPS
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy backend via rsync
+        uses: contention/rsync-deployments@v2.0.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          use_insecure_cipher: true
-          script: |
-            rsync -avz --delete \
-              --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='.env' \
-              api/ /var/www/mindmeet/api
-
-            cd /var/www/mindmeet/api
-            php artisan migrate --force
-            php artisan optimize
+          FLAGS: -avz --delete
+          EXCLUDES: |
+            --exclude .git
+            --exclude node_modules
+            --exclude .env
+          USER: ${{ secrets.VPS_USER }}
+          HOST: ${{ secrets.VPS_HOST }}
+          PORT: ${{ secrets.VPS_PORT }}
+          LOCALPATH: api/
+          REMOTEPATH: /var/www/mindmeet/api/
+          DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_ARGS: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa

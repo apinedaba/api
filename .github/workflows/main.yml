@@ -61,13 +61,12 @@ jobs:
 
       # 5. Comandos finales en la VPS
       - name: Run Laravel commands
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh_options: ${{ secrets.SSH_OPTIONS }}
           script: |
             cd /var/www/mindmeet/api
             php artisan migrate --force

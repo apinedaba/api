@@ -14,11 +14,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Node para admin
+      # 2. Node (solo si realmente necesitas build de admin)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install NPM dependencies
         run: npm ci
@@ -35,21 +36,25 @@ jobs:
           coverage: none
 
       - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-      # 4. Deploy + comandos (TODO AQUÍ)
+      # 4. Deploy vía rsync
       - name: Deploy backend via rsync
         uses: contention/rsync-deployments@v2.0.0
         with:
-          FLAGS: -avz --delete
-          EXCLUDES: |
-            --exclude .git
-            --exclude node_modules
-            --exclude .env
+          FLAGS: -az --delete
           USER: ${{ secrets.VPS_USER }}
           HOST: ${{ secrets.VPS_HOST }}
           PORT: ${{ secrets.VPS_PORT }}
           LOCALPATH: ./
           REMOTEPATH: /var/www/mindmeet/api/
           DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_ARGS: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa
+          EXCLUDES: |
+            .git/
+            node_modules/
+            .env
+            storage/logs/
+            storage/framework/cache/
+            storage/framework/sessions/
+            storage/framework/views/
+          SSH_ARGS: -o StrictHostKeyChecking=no

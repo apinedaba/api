@@ -40,19 +40,13 @@ jobs:
       # 4. Laravel Deploy (rsync + ssh)
       - name: Laravel Deploy
         uses: ngocquyhoang/laravel-deploy@laravel-custom-port
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
         with:
           user: ${{ secrets.VPS_USER }}
           host: ${{ secrets.VPS_HOST }}
-          port: ${{ secrets.VPS_PORT }}
           path: /var/www/mindmeet/api
           owner: mindmeet
-          source: api/
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          rsync_options: -avz --delete
-          exclude: |
-            .git
-            node_modules
-            .env
-          after_deploy: |
+          args: |
             php artisan migrate --force
             php artisan optimize

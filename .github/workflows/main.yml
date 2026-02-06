@@ -78,5 +78,4 @@ jobs:
             cd /var/www/mindmeet/api/
             php artisan config:clear
             php artisan cache:clear      
-            php artisan migrate --force
             php artisan optimize          

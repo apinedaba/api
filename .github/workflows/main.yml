@@ -48,15 +48,4 @@ jobs:
                   -o StrictHostKeyChecking=no" \
               ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
 
-      # 4. Deploy + comandos (TODO AQUÍ)
-      - name: Deploy backend to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /var/www/mindmeet/api
-            php artisan migrate --force
-            php artisan optimize
+

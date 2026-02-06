@@ -64,6 +64,5 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /var/www/mindmeet/api
-            php artisan migrate --force
+            cd /var/www/mindmeet/api/
             php artisan optimize

@@ -45,7 +45,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          args: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa
           script: |
             rsync -avz --delete \
               --exclude='.git' \

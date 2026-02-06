@@ -1,11 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import DataTable from 'react-data-table-component';
 import styled from 'styled-components';
 import FotoPerfil from '@/Components/FotoPerfil';
 export default function Dashboard({ auth, psicologos, status }) {
-
+  function limpiarTelefono(telefono) {
+    return telefono?.replace(/[()\-\s+]/g, '');
+  }
   const columns = [
     {
       name: 'Foto',
@@ -19,7 +21,21 @@ export default function Dashboard({ auth, psicologos, status }) {
     {
       name: 'Estatus',
       cell: row => (
-        <span className={`${row?.identity_verification_status === "approved" ? "bg-green-700" : "bg-red-600"} text-white px-2 py-1 rounded-full`}>{row?.identity_verification_status === "approved" ? "Aprobado" : "Pendiente"}</span>)
+        <span className={`
+          ${row?.identity_verification_status === "approved" && "bg-green-700"}  
+          ${row?.identity_verification_status === "sended" && "bg-yellow-600"} 
+          ${row?.identity_verification_status === "rejected" && "bg-red-600"} 
+          text-white px-2 py-1 rounded-full`}>
+          {
+            row?.identity_verification_status === "approved" && "Aprobado"
+          }
+          {
+            row?.identity_verification_status === "sended" && "Recibido"
+          }
+          {
+            row?.identity_verification_status === "rejected" && "Rechazado"
+          }
+        </span>)
     },
     {
       name: 'Suscripcion',
@@ -63,7 +79,11 @@ export default function Dashboard({ auth, psicologos, status }) {
     },
     {
       name: 'Telefono',
-      selector: row => row?.contacto?.telefono || "",
+      cell: row => (
+        <Link href={`https://wa.me/${limpiarTelefono(row?.contacto?.whatsapp)}`} target="_blank">
+          {row?.contacto?.whatsapp || ""}
+        </Link>
+      ),
     },
     {
       name: 'Estado',
@@ -102,7 +122,7 @@ export default function Dashboard({ auth, psicologos, status }) {
             <div className="p-6 text-gray-900">Lista de psicologos</div>
             <DataTable
               columns={columns}
-              data={filter?.onlyActives ? filteredItems?.filter(item => item?.identity_verification_status === "approved") : filteredItems}
+              data={filter?.onlyActives ? filteredItems?.filter(item => item?.identity_verification_status === "approved").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) : filteredItems.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))}
               pagination
               paginationPerPage={10}
               paginationComponentOptions

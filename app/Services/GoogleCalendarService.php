@@ -3,11 +3,15 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\Patient;
 use App\Models\User;
+use App\Mail\GoogleMeetLinkMail;
 use Google\Client as GoogleClient;
 use Google\Service\Calendar as GoogleCalendar;
 use Google\Service\Calendar\Event as GoogleCalendarEvent;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Carbon\Carbon;
 
 /**
  * Excepción personalizada para manejar tokens de Google revocados o inválidos.
@@ -147,6 +151,28 @@ class GoogleCalendarService
         $appointment->google_event_id = $createdEvent->getId();
         $appointment->link = $createdEvent->getHangoutLink(); // Guardamos en tu campo 'link'
         $appointment->save();
+
+        // Enviar email al paciente con el enlace de la sesión
+        $patient = Patient::find($appointment->patient);
+        if ($appointment->link && $patient) {
+            try {
+                // Formatear fecha y hora
+                $start = Carbon::parse($appointment->start);
+                $fecha = $start->format('d/m/Y');
+                $hora = $start->format('H:i');
+
+                Mail::to($patient->email)->send(new GoogleMeetLinkMail(
+                    $patient->name,
+                    $appointment->link,
+                    $fecha,
+                    $hora,
+                    false, // isUpdate = false
+                    false  // linkChanged = false (es creación)
+                ));
+            } catch (\Exception $e) {
+                // Email falló, pero no loggeamos para mantener logs limpios
+            }
+        }
     }
 
     /**
@@ -192,7 +218,41 @@ class GoogleCalendarService
 
             // FIN DE LA CORRECCIÓN
 
-            return $calendarService->events->update('primary', $event->getId(), $event);
+            $updatedEvent = $calendarService->events->update('primary', $event->getId(), $event);
+            Log::info("Evento de Google {$appointment->google_event_id} actualizado para la cita {$appointment->id}.");
+            // Verificar si el enlace de Meet cambió y actualizarlo
+            $newLink = $updatedEvent->getHangoutLink();
+
+            $linkChanged = false;
+            if ($newLink && $newLink != $appointment->link) {
+                $appointment->link = $newLink;
+                $appointment->save();
+                $linkChanged = true;
+            }
+
+            // Enviar email al paciente informando de la actualización
+            $patient = Patient::find($appointment->patient);
+            if ($patient && $appointment->link) {
+                try {
+                    // Formatear fecha y hora
+                    $start = Carbon::parse($appointment->start);
+                    $fecha = $start->format('d/m/Y');
+                    $hora = $start->format('H:i');
+
+                    Mail::to($patient->email)->send(new GoogleMeetLinkMail(
+                        $patient->name,
+                        $appointment->link,
+                        $fecha,
+                        $hora,
+                        true, // isUpdate = true
+                        $linkChanged // linkChanged según lo determinado
+                    ));
+                } catch (\Exception $e) {
+                    // Email falló, pero no loggeamos para mantener logs limpios
+                }
+            }
+
+            return $updatedEvent;
         } catch (\Google\Service\Exception $e) {
             // Si el evento no se encuentra (Error 404), desvinculamos el evento.
             if ($e->getCode() == 404) {

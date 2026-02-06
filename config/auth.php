@@ -41,6 +41,11 @@ return [
             'provider' => 'administrators',
         ],
 
+        'vendedor' => [
+            'driver' => 'sanctum',
+            'provider' => 'vendedores',
+        ],
+
         'user' => [
             'driver' => 'sanctum',
             'provider' => 'users',
@@ -78,6 +83,10 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\Administrator::class,
         ],
+        'vendedores' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Vendedor::class,
+        ],
 
         'patients' => [
             'driver' => 'eloquent',
@@ -112,6 +121,12 @@ return [
         ],
         'admministrators' => [
             'provider' => 'administrators',
+            'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'vendedores' => [
+            'provider' => 'vendedores',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,

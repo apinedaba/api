@@ -8,6 +8,8 @@ use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VendedorController;
+use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -85,3 +87,21 @@ Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professi
     ->name('share.professional');
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 require __DIR__ . '/auth.php';
+
+Route::get('/vendedores', [VendedorController::class, 'index'])->name('vendedores');
+Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
+Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
+Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
+Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
+Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'generateQrImage'])->name('vendedores.qr.image');
+Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
+Route::get('/vendedores/{vendedor}/qr-download', [VendedorController::class, 'download'])->name('vendedores.qr.download');
+
+
+Route::get('/registro', function (Request $request) {
+    $vendedor = Vendedor::where('qr_token', $request->v)->firstOrFail();
+
+    return inertia('RegistroPaciente', [
+        'vendedor' => $vendedor->only('id', 'nombre'),
+    ]);
+})->name('registro.publico');

@@ -136,7 +136,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         Route::put('/{medication}', [PatientMedicationController::class, 'update']);
         Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
-    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
+    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);    
     Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
 
     // Agenda y citas
@@ -178,6 +178,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('info', function (Request $request) {
         return $request->user();
     });
+    Route::put('profile', [PatientController::class, 'updateFromUser']);
     // Cuestionarios asignados al paciente autenticado
     Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);

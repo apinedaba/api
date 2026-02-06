@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar código
+      # 1. Checkout
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Node para assets del admin
+      # 2. Node para admin
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -26,7 +26,7 @@ jobs:
       - name: Build admin assets
         run: npm run build
 
-      # 3. PHP para Laravel
+      # 3. PHP / Composer
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -37,37 +37,22 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      # 4. Deploy a la VPS
-      - name: Upload backend
-        uses: appleboy/scp-action@v0.1.7
+      # 4. Deploy + comandos (TODO AQUÍ)
+      - name: Deploy backend to VPS
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: |
-            app/*
-            bootstrap/*
-            config/*
-            database/*
-            public/*
-            resources/*
-            routes/*
-            storage/*
-            vendor/*
-            artisan
-            composer.json
-          target: /var/www/mindmeet/api
-
-      # 5. Comandos finales en la VPS
-      - name: Run Laravel commands
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_options: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa
           script: |
+            rsync -avz --delete \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='.env' \
+              ./ /var/www/mindmeet/api
+
             cd /var/www/mindmeet/api
             php artisan migrate --force
             php artisan optimize

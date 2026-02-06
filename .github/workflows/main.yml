@@ -38,7 +38,15 @@ jobs:
         run: composer install --no-dev --optimize-autoloader
 
       - name: List directory
-        run: ls -la
+        run: rsync -avz --delete \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='.env' \
+              -e "ssh -p ${{ secrets.VPS_PORT }} \
+                  -o HostKeyAlgorithms=+ssh-rsa \
+                  -o PubkeyAcceptedAlgorithms=+ssh-rsa \
+                  -o StrictHostKeyChecking=no" \
+              ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
 
       # 4. Deploy + comandos (TODO AQUÍ)
       - name: Deploy backend to VPS

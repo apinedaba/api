@@ -42,7 +42,7 @@ jobs:
               --exclude='.git' \
               --exclude='node_modules' \
               --exclude='.env' \
-              -e "ssh -p ${{ secrets.VPS_PORT }} \
+              -e "ssh -p 22022 \
                   -o HostKeyAlgorithms=+ssh-rsa \
                   -o PubkeyAcceptedAlgorithms=+ssh-rsa \
                   -o StrictHostKeyChecking=no" \

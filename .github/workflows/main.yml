@@ -35,8 +35,9 @@ jobs:
           coverage: none
 
       - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader
-        run: rsync -avz --delete .\ --exclude='.git' --exclude='node_modules' --exclude='.env' -e "ssh -p 22022 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o StrictHostKeyChecking=no" mindmeet@69.6.206.127:/var/www/mindmeet/api/
+        run: | 
+          composer install --no-dev --optimize-autoloader
+          rsync -avz --delete .\ --exclude='.git' --exclude='node_modules' --exclude='.env' -e "ssh -p 22022 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o StrictHostKeyChecking=no" mindmeet@69.6.206.127:/var/www/mindmeet/api/
 
       # 4. Deploy + comandos (TODO AQUÍ)
       - name: Deploy backend to VPS

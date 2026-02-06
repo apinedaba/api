@@ -45,7 +45,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh_options: ${{ secrets.SSH_OPTIONS }}
           source: |
             app/*
             bootstrap/*

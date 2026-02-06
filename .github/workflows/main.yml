@@ -49,7 +49,7 @@ jobs:
           USER: ${{ secrets.VPS_USER }}
           HOST: ${{ secrets.VPS_HOST }}
           PORT: ${{ secrets.VPS_PORT }}
-          LOCALPATH: api/
+          LOCALPATH: ./
           REMOTEPATH: /var/www/mindmeet/api/
           DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_ARGS: -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa

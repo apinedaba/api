@@ -65,4 +65,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /var/www/mindmeet/api/
+            chown -R www-data:www-data /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache
+            chmod -R 775 /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache
             php artisan migrate --force
+            

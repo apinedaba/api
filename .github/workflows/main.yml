@@ -35,7 +35,27 @@ jobs:
           coverage: none
 
       - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader
+        run: | 
+          composer install --no-dev --optimize-autoloader
+      - name: Setup SSH key
+        run: |
+              mkdir -p ~/.ssh
+              echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+              ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+      - name: Deploy backend via rsync
+        run: |
+              rsync -avz --delete \
+                  --exclude='.git' \
+                  --exclude='node_modules' \
+                  --exclude='.env' \
+                  --exclude='storage' \
+                  --exclude='bootstrap/cache' \
+                -e "ssh -i ~/.ssh/id_ed25519 \
+                    -p ${{ secrets.VPS_PORT }} \
+                    -o HostKeyAlgorithms=+ssh-rsa \
+                    -o PubkeyAcceptedAlgorithms=+ssh-rsa" \
+                /home/runner/work/api/api/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
 
       # 4. Deploy + comandos (TODO AQUÍ)
       - name: Deploy backend to VPS
@@ -45,14 +65,18 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          use_insecure_cipher: true
           script: |
-            rsync -avz --delete \
-              --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='.env' \
-              ./api /var/www/mindmeet/api
-
-            cd /var/www/mindmeet/api
-            php artisan migrate --force
-            php artisan optimize
+            cd /var/www/mindmeet/api/
+            sudo chown -R www-data:www-data /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache
+            sudo chmod -R 775 /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache            
+      - name: Run Laravel commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/mindmeet/api/
+            php artisan config:clear
+            php artisan cache:clear      

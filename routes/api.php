@@ -54,13 +54,13 @@ Route::post('user/resend-registration-code', [RegisterController::class, 'resend
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
-    ->name('questionnaire.public.show');
+    ->name('questionnaire.public.show.user');
 Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
-    ->name('questionnaire.public.show');
+    ->name('questionnaire.public.show.patient');
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
-    ->name('questionnaire.public.submit');
+    ->name('questionnaire.public.submit.user');
 Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
-    ->name('questionnaire.public.submit');
+    ->name('questionnaire.public.submit.patient');
 // Rutas para el reseteo de contraseña
 Route::post('user/forgot-password', [PasswordResetController::class, 'sendResetCode']);
 Route::post('user/verify-code', [PasswordResetController::class, 'verifyCode']);
@@ -136,7 +136,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         Route::put('/{medication}', [PatientMedicationController::class, 'update']);
         Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
     });
-    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);    
+    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
     Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
 
     // Agenda y citas

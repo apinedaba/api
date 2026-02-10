@@ -35,6 +35,9 @@ export default function Dashboard({ auth, psicologos, status }) {
           {
             row?.identity_verification_status === "rejected" && "Rechazado"
           }
+          {
+            row?.identity_verification_status === "pending" && "Pendiente"
+          }
         </span>)
     },
     {

@@ -23,14 +23,15 @@ export default function Dashboard({ auth, psicologos, status }) {
       cell: row => (
         <span className={`
           ${row?.identity_verification_status === "approved" && "bg-green-700"}  
-          ${row?.identity_verification_status === "sended" && "bg-yellow-600"} 
+          ${row?.identity_verification_status === "sending" && "bg-yellow-600"} 
           ${row?.identity_verification_status === "rejected" && "bg-red-600"} 
+          ${row?.identity_verification_status === "pending" && "bg-gray-600"} 
           text-white px-2 py-1 rounded-full`}>
           {
             row?.identity_verification_status === "approved" && "Aprobado"
           }
           {
-            row?.identity_verification_status === "sended" && "Recibido"
+            row?.identity_verification_status === "sending" && "Recibido"
           }
           {
             row?.identity_verification_status === "rejected" && "Rechazado"

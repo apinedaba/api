@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Node
+      # 2. Node para admin
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -35,30 +35,30 @@ jobs:
           coverage: none
 
       - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader
-
-      # 4. SSH key
-      - name: Setup SSH
+        run: | 
+          composer install --no-dev --optimize-autoloader
+      - name: Setup SSH key
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-      # 5. Rsync (solo código)
+              mkdir -p ~/.ssh
+              echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+              ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
       - name: Deploy backend via rsync
         run: |
-          rsync -avz --delete \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='.env' \
-            --exclude='storage' \
-            --exclude='bootstrap/cache' \
-            -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.VPS_PORT }}" \
-            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
+              rsync -avz --delete \
+                  --exclude='.git' \
+                  --exclude='node_modules' \
+                  --exclude='.env' \
+                  --exclude='storage' \
+                  --exclude='bootstrap/cache' \
+                -e "ssh -i ~/.ssh/id_ed25519 \
+                    -p ${{ secrets.VPS_PORT }} \
+                    -o HostKeyAlgorithms=+ssh-rsa \
+                    -o PubkeyAcceptedAlgorithms=+ssh-rsa" \
+                /home/runner/work/api/api/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
 
-      # 6. Post-deploy (UN SOLO SSH)
-      - name: Post deploy Laravel
+      # 4. Deploy + comandos (TODO AQUÍ)          
+      - name: Run Laravel commands
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}

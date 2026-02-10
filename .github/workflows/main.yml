@@ -56,7 +56,7 @@ jobs:
 
       - name: Deploy backend via rsync
         run: |
-              sudo rsync -avz --delete \
+              rsync -avz --delete \
                   --exclude='.git' \
                   --exclude='node_modules' \
                   --exclude='.env' \

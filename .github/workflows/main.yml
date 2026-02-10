@@ -49,8 +49,6 @@ jobs:
                   --exclude='.git' \
                   --exclude='node_modules' \
                   --exclude='.env' \
-                  --exclude='storage' \
-                  --exclude='bootstrap/cache' \
                 -e "ssh -i ~/.ssh/id_ed25519 \
                     -p ${{ secrets.VPS_PORT }} \
                     -o HostKeyAlgorithms=+ssh-rsa \

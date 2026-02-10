@@ -84,7 +84,8 @@ jobs:
             mkdir -p storage/framework/{cache,sessions,views}
 
             # Permisos correctos
-            sudo chown -R www-data:www-data storage bootstrap/cache
+            sudo chown -R ${{secrets.VPS_USER}}:www-data storage bootstrap/cache
+            sudo chown -R ${{secrets.VPS_USER}}:www-data ./*
             sudo chmod -R 775 storage bootstrap/cache
 
             # Laravel cleanup seguro

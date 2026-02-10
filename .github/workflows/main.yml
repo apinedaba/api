@@ -49,6 +49,7 @@ jobs:
                   --exclude='.git' \
                   --exclude='node_modules' \
                   --exclude='.env' \
+                  --exclude='storage' \
                 -e "ssh -i ~/.ssh/id_ed25519 \
                     -p ${{ secrets.VPS_PORT }} \
                     -o HostKeyAlgorithms=+ssh-rsa \
@@ -65,8 +66,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /var/www/mindmeet/api/
-            sudo chown -R www-data:www-data /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache
-            sudo chmod -R 775 /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache            
+            sudo chown -R www-data:www-data /var/www/mindmeet/api/storage
+            sudo chmod -R 775 /var/www/mindmeet/api/storage            
       - name: Run Laravel commands
         uses: appleboy/ssh-action@v1.0.3
         with:

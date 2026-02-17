@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Stripe\Stripe;
+
 class CatalogosController extends Controller
 {
     public function generos()
@@ -136,8 +137,7 @@ class CatalogosController extends Controller
             ->where('activo', 1)
             ->pluck('address')
             ->map(
-                fn($p) =>
-                (
+                fn($p) => (
                     [
                         "pais" => $p['pais'] ?? null,
                         "estado" => $p['state'] ?? null
@@ -178,7 +178,7 @@ class CatalogosController extends Controller
 
     public function getPrices(): JsonResponse
     {
-        Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
         $allPrices = \Stripe\Price::all();
         $prices = collect($allPrices->data)
             ->filter(fn($price) => $price->active)
@@ -188,11 +188,10 @@ class CatalogosController extends Controller
 
     public function getPriceById($priceId)
     {
-        Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
 
         $price = \Stripe\Price::retrieve($priceId);
 
         return response()->json($price);
     }
-
 }

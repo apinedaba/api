@@ -41,3 +41,5 @@ Route::middleware(['auth:patient'])->prefix('patient')->group(function () {
     // (opcional) Checkout OXXO por si lo usas en otro lado
     Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
 });
+
+Route::post('patient/login', [PatientAuthController::class, 'login']);

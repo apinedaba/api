@@ -48,7 +48,7 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
-        return Redirect::route('profile.edit');
+        return Redirect::route('profile.edit.su');
     }
 
     /**
@@ -131,7 +131,7 @@ class ProfileController extends Controller
             ]);
         } catch (\Exception $e) {
             unlink($tempFilePath); // Asegurar que se borra el archivo
-            Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
+            \Log::error('Error al subir la foto a Cloudinary: ' . $e->getMessage());
             return response()->json(['error' => 'Error al subir la foto', 'trace' => $e->getMessage()], 500);
         }
     }

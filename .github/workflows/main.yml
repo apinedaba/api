@@ -42,7 +42,8 @@ jobs:
               mkdir -p ~/.ssh
               echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
               chmod 600 ~/.ssh/id_ed25519
-              ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+              ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts    
+
       - name: Deploy backend via rsync
         run: |
               rsync -avz --delete \
@@ -57,18 +58,7 @@ jobs:
                     -o PubkeyAcceptedAlgorithms=+ssh-rsa" \
                 /home/runner/work/api/api/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/mindmeet/api/
 
-      # 4. Deploy + comandos (TODO AQUÍ)
-      - name: Deploy backend to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /var/www/mindmeet/api/
-            sudo chown -R www-data:www-data /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache
-            sudo chmod -R 775 /var/www/mindmeet/api/storage /var/www/mindmeet/api/bootstrap/cache            
+      # 4. Deploy + comandos (TODO AQUÍ)          
       - name: Run Laravel commands
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -77,6 +67,22 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /var/www/mindmeet/api/
-            php artisan config:clear
-            php artisan cache:clear      
+            cd /var/www/mindmeet/api
+
+            # Crear carpetas runtime (idempotente)
+            mkdir -p bootstrap/cache
+            mkdir -p storage/framework/{cache,sessions,views}
+            mkdir -p storage/app/
+            cp ~/jsons/* storage/app/
+
+            # Permisos correctos
+            sudo chown -R ${{secrets.VPS_USER}}:www-data storage bootstrap/cache
+            sudo chown -R ${{secrets.VPS_USER}}:www-data ./*
+            sudo chmod -R 775 storage bootstrap/cache
+            
+            # Laravel cleanup seguro
+            php artisan optimize:clear
+
+            # Opcional (solo si quieres cachear en prod)
+            php artisan config:cache
+            php artisan route:cache

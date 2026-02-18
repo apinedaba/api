@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\AppointmentCartController;
+use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
@@ -105,3 +106,7 @@ Route::get('/registro', function (Request $request) {
         'vendedor' => $vendedor->only('id', 'nombre'),
     ]);
 })->name('registro.publico');
+
+
+
+Route::post('patient/login', [PatientAuthController::class, 'login']);

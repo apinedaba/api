@@ -2,12 +2,13 @@
 namespace App\Services;
 use OpenAI\Client;
 
-class AiDiagnosisService {
+class AiDiagnosisService
+{
     protected $client;
 
     public function __construct()
     {
-        $this->client = \OpenAI::client(env('OPENAI_API_KEY'));
+        $this->client = \OpenAI::client('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');
     }
 
     public function generateDiagnosis($symptoms)

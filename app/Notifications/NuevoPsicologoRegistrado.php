@@ -53,7 +53,7 @@ class NuevoPsicologoRegistrado extends Notification
                 ->greeting("¡Hola, {$notifiable->name}!")
                 ->line('Gracias por registrarte en MindMeet a través de tu cuenta de Google. Tu cuenta ya está activa y lista para usar.')
                 ->line('¡Ya puedes empezar a explorar la plataforma!')
-                ->action('Ir a mi panel', url(env('FRONTEND_URL_USER', 'http://localhost:3000')));
+                ->action('Ir a mi panel', url(config('app.front_url')));
         }
 
         // ✅ Genera el link firmado de verificación

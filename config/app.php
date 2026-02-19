@@ -155,6 +155,12 @@ return [
     |
     */
 
+    'firebase_server_key' => env('FIREBASE_SERVER_KEY'),
+    'front_url' => env('FRONTEND_URL_PATIENT'),
+    'front_url_user' => env('FRONTEND_URL_USER'),
+
+
+
     'providers' => ServiceProvider::defaultProviders()->merge([
         /*
          * Package Service Providers...

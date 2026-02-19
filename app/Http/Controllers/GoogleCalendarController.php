@@ -44,10 +44,10 @@ class GoogleCalendarController extends Controller
             $appointment = Appointment::findOrFail($appointmentId);
         } catch (DecryptException $e) {
             Log::error('Error al desencriptar el estado de Google Calendar: Payload inválido o manipulado.', ['exception' => $e]);
-            return redirect(env('FRONTEND_URL_USER') . '/agenda?error=invalid_state');
+            return redirect(config('app.front_url') . '/agenda?error=invalid_state');
         } catch (\Exception $e) {
             Log::error('Error en la validación inicial del callback de Google: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect(env('FRONTEND_URL_USER') . '/agenda?error=google_auth_failed');
+            return redirect(config('app.front_url') . '/agenda?error=google_auth_failed');
         }
 
 
@@ -70,10 +70,10 @@ class GoogleCalendarController extends Controller
             SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
 
             // Redirigimos al usuario al frontend con un mensaje de éxito.
-            return redirect(env('FRONTEND_URL_USER') . '/agenda?success=google_sync_complete');
+            return redirect(config('app.front_url') . '/agenda?success=google_sync_complete');
         } catch (\Exception $e) {
             Log::error('Error al obtener tokens u organizar el job en el callback: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect(env('FRONTEND_URL_USER') . '/agenda?error=token_fetch_failed');
+            return redirect(config('app.front_url') . '/agenda?error=token_fetch_failed');
         }
     }
 

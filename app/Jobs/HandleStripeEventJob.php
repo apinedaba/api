@@ -46,7 +46,7 @@ class HandleStripeEventJob implements ShouldQueue
     }
     protected function handleNewSubscription($session)
     {
-        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+        \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
 
         $user = User::find($session->metadata->user_id);
         if ($user) {

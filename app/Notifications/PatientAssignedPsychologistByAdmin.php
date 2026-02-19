@@ -47,7 +47,7 @@ class PatientAssignedPsychologistByAdmin extends Notification
         $cuerpo = "Se ha asignado el psicólogo {$this->psychologist->name} al paciente {$notifiable->name}:\n\nPsicólogo: {$this->psychologist->name}\nCorreo: {$this->psychologist->email}\n\nAsignado por: {$this->admin->name} ({$this->admin->email})\nEstado: " . ($this->isActive ? 'Activo' : 'Inactivo');
         $this->enviarNotificacionInterna($notifiable, $asunto, $cuerpo);
 
-        $url = env('APP_FRONT') . "/perfil";
+        $url = config('app.front_url') . "/perfil";
 
         return (new MailMessage)
             ->subject('Nuevo psicólogo asignado - ' . $this->psychologist->name)

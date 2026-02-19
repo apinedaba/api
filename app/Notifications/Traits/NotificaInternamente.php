@@ -17,7 +17,7 @@ trait NotificaInternamente
     protected function enviarNotificacionInterna($usuario, $asunto, $cuerpoMensaje)
     {
         // Solo enviar en producción para no generar spam en desarrollo
-        if (env('APP_ENV') !== 'production') {
+        if (config('app.env') !== 'production') {
             return;
         }
         $correosInternos = ['jhernandez961116@gmail.com', 'apinedabawork@gmail.com', 'axelboyzowork@gmail.com'];

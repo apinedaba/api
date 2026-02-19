@@ -37,7 +37,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
     'fcm' => [
-        'server_key' => env('FCM_SERVER_KEY'),
+        'server_key' => env('FIREBASE_SERVER_KEY'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+
     ],
     // config/services.php
 
@@ -46,6 +48,9 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
         'calendar_redirect_uri' => env('GOOGLE_CALENDAR_REDIRECT_URI'),
+        'redirect_uri_patient' => env('GOOGLE_REDIRECT_URI_PATIENT'),
+        'redirect_uri_user' => env('GOOGLE_REDIRECT_URI_USER'),
+        'redirect_uri_professional' => env('GOOGLE_REDIRECT_URI_PROFESSIONAL'),
     ],
 
 ];

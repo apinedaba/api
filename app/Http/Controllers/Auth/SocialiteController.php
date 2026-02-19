@@ -23,7 +23,7 @@ class SocialiteController extends Controller
     {
         return Socialite::driver($provider)
             ->stateless()
-            ->redirectUrl(env('GOOGLE_REDIRECT_URI_USER')) // Le decimos qué URL usar
+            ->redirectUrl(config('services.google.redirect_uri_user')) // Le decimos qué URL usar
             ->redirect();
     }
 
@@ -36,7 +36,7 @@ class SocialiteController extends Controller
         try {
             $socialUser = Socialite::driver($provider)
                 ->stateless()
-                ->redirectUrl(env('GOOGLE_REDIRECT_URI_USER'))
+                ->redirectUrl(config('services.google.redirect_uri_user'))
                 ->user();
 
             $user = User::where('email', $socialUser->email)->first();
@@ -66,10 +66,10 @@ class SocialiteController extends Controller
             }
 
             $token = $user->createToken('user_token')->plainTextToken;
-            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/auth/callback?token=' . $token);
+            return redirect(config('app.front_url') . '/auth/callback?token=' . $token);
         } catch (Exception $e) {
             Log::error('Socialite Callback Error (Professional): ' . $e->getMessage());
-            return redirect(env('FRONTEND_URL_USER', 'http://localhost:3000') . '/login?error=social_auth_failed');
+            return redirect(config('app.front_url') . '/login?error=social_auth_failed');
         }
     }
 
@@ -79,7 +79,7 @@ class SocialiteController extends Controller
     {
         return Socialite::driver($provider)
             ->stateless()
-            ->redirectUrl(env('GOOGLE_REDIRECT_URI_PATIENT')) // Le decimos qué URL usar
+            ->redirectUrl(config('services.google.redirect_uri_patient')) // Le decimos qué URL usar
             ->redirect();
     }
 
@@ -88,7 +88,7 @@ class SocialiteController extends Controller
         try {
             $socialUser = Socialite::driver($provider)
                 ->stateless()
-                ->redirectUrl(env('GOOGLE_REDIRECT_URI_PATIENT'))
+                ->redirectUrl(config('services.google.redirect_uri_patient'))
                 ->user();
 
             $patient = Patient::where('email', $socialUser->email)->first();
@@ -111,10 +111,10 @@ class SocialiteController extends Controller
             }
 
             $token = $patient->createToken('patient_token')->plainTextToken;
-            return redirect(env('FRONTEND_URL_PATIENT', 'http://localhost:5173') . '/auth/callback?token=' . $token . '&userType=patient');
+            return redirect(config('app.front_url') . '/auth/callback?token=' . $token . '&userType=patient');
         } catch (Exception $e) {
             Log::error('Socialite Callback Error (Patient): ' . $e->getMessage());
-            return redirect(env('FRONTEND_URL_PATIENT', 'http://localhost:5173') . '/iniciar-sesion?error=social_auth_failed');
+            return redirect(config('app.front_url') . '/iniciar-sesion?error=social_auth_failed');
         }
     }
 }

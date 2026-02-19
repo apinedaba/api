@@ -1,47 +1,51 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Models\User;
 use Illuminate\Http\Request;
 use App\Models\DeviceToken;
+use Illuminate\Support\Facades\Http;
 
-class DeviceTokenController extends Controller {
-  public function store(Request $r) {
-    $r->validate(['platform'=>'required|in:web', 'token'=>'required|string']);
+class DeviceTokenController extends Controller
+{
+  public function store(Request $r)
+  {
+    $r->validate(['platform' => 'required|in:web', 'token' => 'required|string']);
     DeviceToken::updateOrCreate(
-      ['token'=>$r->token],
-      ['user_id'=>$r->user()->id, 'platform'=>$r->platform]
+      ['token' => $r->token],
+      ['user_id' => $r->user()->id, 'platform' => $r->platform]
     );
-    return response()->json(['ok'=>true]);
+    return response()->json(['ok' => true]);
   }
 
   public function register(Request $request)
   {
-      $request->validate([
-          'user_id' => 'required',
-          'token' => 'required'
-      ]);
+    $request->validate([
+      'user_id' => 'required',
+      'token' => 'required'
+    ]);
 
-      $user = User::find($request->user_id);
-      $user->push_token = $request->token;
-      $user->save();
+    $user = User::find($request->user_id);
+    $user->push_token = $request->token;
+    $user->save();
 
-      return response()->json(['success' => true]);
+    return response()->json(['success' => true]);
   }
 
   public function sendPush(User $user, $title, $body)
   {
-      $response = Http::withHeaders([
-          'Authorization' => 'key=' . env('FIREBASE_SERVER_KEY'),
-          'Content-Type' => 'application/json',
-      ])->post('https://fcm.googleapis.com/fcm/send', [
+    $response = Http::withHeaders([
+      'Authorization' => 'key=' . config('services.fcm.server_key'),
+      'Content-Type' => 'application/json',
+    ])->post('https://fcm.googleapis.com/fcm/send', [
           'to' => $user->push_token,
           'notification' => [
-              'title' => $title,
-              'body' => $body,
-              'icon' => 'https://mindmeet.com.mx/assets/icon.png',
+            'title' => $title,
+            'body' => $body,
+            'icon' => 'https://mindmeet.com.mx/assets/icon.png',
           ],
-      ]);
+        ]);
 
-      return $response->json();
+    return $response->json();
   }
 }

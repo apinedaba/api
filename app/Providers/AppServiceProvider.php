@@ -25,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Carbon::setLocale('es');
         date_default_timezone_set(config('app.timezone'));
-        Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
+        Stripe::setApiKey(config('services.stripe.secret_key'));
         Configuration::instance([
             'cloud' => [
                 'cloud_name' => config('cloudinary.cloud_name'),

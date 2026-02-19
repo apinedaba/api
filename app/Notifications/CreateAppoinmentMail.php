@@ -17,7 +17,7 @@ class CreateAppoinmentMail extends Notification
     protected $hora;
     protected $fecha;
     protected $interval;
-    
+
     /**
      * Create a new notification instance.
      */
@@ -48,20 +48,20 @@ class CreateAppoinmentMail extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-                    ->subject('Nueva cita creada en MindMeet')
-                    ->view('email.createAppointment', [
-                        'cita' => $this->appointment,
-                        'paciente' => $this->patient,
-                        'pacienteName' => $notifiable->name,
-                        'user' => $this->user,
-                        'hora'=> $this->hora,
-                        'fecha' => $this->fecha,
-                        'interval' => $this->interval->format('%h horas %i minutos'),
-                        'url' => env('APP_FRONT', 'http://localhost:3000').'/appointments/status/'.base64_encode($this->appointment).'/'.'Confirmed',
+            ->subject('Nueva cita creada en MindMeet')
+            ->view('email.createAppointment', [
+                'cita' => $this->appointment,
+                'paciente' => $this->patient,
+                'pacienteName' => $notifiable->name,
+                'user' => $this->user,
+                'hora' => $this->hora,
+                'fecha' => $this->fecha,
+                'interval' => $this->interval->format('%h horas %i minutos'),
+                'url' => config('app.front_url') . '/appointments/status/' . base64_encode($this->appointment) . '/' . 'Confirmed',
 
-                    ])
-                    ->action('Confirmar cita', url('/'))
-                    ->line('Gracias por usar nuestra aplicación!');
+            ])
+            ->action('Confirmar cita', url('/'))
+            ->line('Gracias por usar nuestra aplicación!');
     }
 
     /**

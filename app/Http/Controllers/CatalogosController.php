@@ -121,16 +121,6 @@ class CatalogosController extends Controller
     }
     public function estado()
     {
-        $catalogo = [
-            "MX" => "México",
-            "AR" => "Argentina",
-            "CO" => "Colombia",
-            "CL" => "Chile",
-            "PE" => "Perú",
-            "UY" => "Uruguay",
-            "EC" => "Ecuador",
-            "BO" => "Bolivia"
-        ];
         $pais = User::whereNotNull('address')
             ->where('isProfileComplete', 1)
             ->where('activo', 1)
@@ -144,14 +134,8 @@ class CatalogosController extends Controller
                     ]
                 )
             )
-            ->filter()
             ->unique()
-            ->values()
-            ->map(fn($key) => [
-                'value' => $key,
-                'pais' => $key['pais'],
-                'estado' => $key['estado']
-            ]);
+            ->values();
 
         $response = [
             "type" => "autocomplete",

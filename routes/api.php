@@ -88,7 +88,85 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.
 // Aquí van todas las funcionalidades principales de la plataforma.
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+    // Info básica y gestión de cuenta
+    Route::get('user/info', function (Request $request) {
+        return $request->user()->load('subscription', 'escuelas');
+    });
+    Route::post('user/logout', [UserAuthController::class, 'logout']);
+    Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
 
+    // Onboarding y configuración de perfil
+    Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
+    Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
+    Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
+
+    // Validación de cédula profesional (deshabilitada temporalmente)
+    Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
+
+    // Validación manual de cédula
+    Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
+    Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
+    Route::delete('user/cedula/eliminar-validacion/{id}', [CedulaCheck::class, 'eliminarValidacionRechazada']);
+    Route::post('user/cedula/actualizar-validacion/{id}', [CedulaCheck::class, 'actualizarValidacionRechazada']);
+
+    // Admin: Gestión de validaciones manuales
+    Route::get('admin/cedula/validaciones-pendientes', [CedulaCheck::class, 'listarValidacionesPendientes']);
+    Route::patch('admin/cedula/revisar-validacion/{id}', [CedulaCheck::class, 'revisarValidacion']);
+
+    Route::resource('user/education', EducationUserController::class);
+    Route::resource('user/address', AddressController::class);
+    Route::resource('user/profile', ProfileController::class);
+    Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
+    Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
+    Route::post('user/identity/upload', [IdentityController::class, 'store']);
+
+    // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
+    Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
+    Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
+    Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
+    Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
+    Route::resource('user/payments', PaymentsController::class);
+    // Gestión de pacientes
+    Route::resource('user/patient', PatientController::class);
+    Route::resource('user/catalog/patients', PatientUserController::class);
+    Route::prefix('user/patients/{patient}/medications')->group(function () {
+        Route::get('/', [PatientMedicationController::class, 'index']);
+        Route::post('/', [PatientMedicationController::class, 'store']);
+        Route::put('/{medication}', [PatientMedicationController::class, 'update']);
+        Route::delete('/{medication}', [PatientMedicationController::class, 'destroy']);
+    });
+    Route::put('user/patients/{id}/relationships', [PatientController::class, 'updateRelationships']);
+    Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
+
+    // Agenda y citas
+    Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+    Route::resource('user/appointments', AppointmentController::class);
+
+    // Funcionalidades avanzadas (cuestionarios, chat, etc.)
+    Route::apiResource('user/questionnaires', QuestionnaireController::class);
+    Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
+    Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
+    Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->name('questionnaire.show.response');
+    Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
+    Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
+
+    // Datos clínicos del paciente
+    Route::get('user/emotion-logs', [EmotionLogController::class, 'index']);
+    Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
+    Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
+    Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
+
+    Route::apiResource('user/expedientes', ExpedienteController::class);
+    Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);
+
+    // Gestión de consultorios
+    Route::get('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'show']);
+    Route::post('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'store']);
+    Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
+    Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
+});
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
 // Búsqueda pública de psicólogos por ubicación
@@ -96,8 +174,35 @@ Route::get('psychologists/search', [\App\Http\Controllers\Api\OfficeController::
 
 // Rutas para Pacientes
 
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
+    Route::get('info', function (Request $request) {
+        return $request->user();
+    });
+    Route::put('profile', [PatientController::class, 'updateFromUser']);
+    // Cuestionarios asignados al paciente autenticado
+    Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
+    Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+    Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
+    Route::post('logout', [PatientAuthController::class, 'logout']);
+    Route::get('emotion-logs', [EmotionLogController::class, 'index']);
+    Route::post('emotion-logs', [EmotionLogController::class, 'store']);
+    Route::post('availability', [AvailabilitiController::class, 'store']);
+    Route::post('cart', [AppointmentCartController::class, 'store']);
+    Route::get('cart', [AppointmentCartController::class, 'show']);
+    Route::get('cart/reserva/{id}', [AppointmentCartController::class, 'cartById']);
+    Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
+    Route::post('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
+    // OXXO con Elements (nuevo / ajustado)
+    Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
+    // (opcional) Checkout OXXO por si lo usas en otro lado
+    Route::post('/stripe/oxxo-checkout', [StripeController::class, 'oxxoCheckout']);
+});
+Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::post('/stripe/subscription/webhook', [StripeController::class, 'handle']);
+Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
@@ -123,4 +228,3 @@ require __DIR__ . '/api/professional.php';
 require __DIR__ . '/api/deviceToken.php';
 require __DIR__ . '/api/timeline.php';
 require __DIR__ . '/api/attachments.php';
-require __DIR__ . '/api/patient.php';

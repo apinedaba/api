@@ -7,7 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class PsychologistReview extends Model
 {
-    protected $fillable = ['patient_id', 'psychologist_id', 'rating', 'comment'];
+    protected $fillable = [
+            
+            'patient_id',
+            'psychologist_id',
+            'name',
+            'email',
+            'email_hash',
+            'device_id',
+            'rating',
+            'comment',
+            'approved'
+            
+    ];
 
     public function patient()
     {

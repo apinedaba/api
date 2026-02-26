@@ -24,8 +24,8 @@ class ProfessionalController extends Controller
          * 1. Normalización de parámetros (query o cuerpo)
          * ---------------------------------------------------------
          */
-        $params = $request->query('params', $request->input('params', []));
-
+        $params = $request->all();
+        \Log::info("Params:", $params);
         $page = (int) ($params['page'] ?? 1);
         $perPage = (int) ($params['perPage'] ?? 12);
         $search = trim($params['search'] ?? '');
@@ -33,6 +33,11 @@ class ProfessionalController extends Controller
         $pais = $params['pais'] ?? null;
         $idioma = $params['idioma'] ?? null;
         $especial = $params['especialidad'] ?? null;
+        $estados = (array) $request->query('estado', []);
+        $estados = implode(',', $estados);
+        $estados = array_filter(explode(',', $estados), fn($estado) => $estado !== "");
+        \Log::info("Estados:", $estados);
+
 
         $generos = !empty($params['generos'])
             ? array_filter(array_map('trim', explode(',', $params['generos'])))
@@ -85,6 +90,10 @@ class ProfessionalController extends Controller
 
         if ($especial) {
             $q->whereJsonContains('educacion->especialidades', $especial);
+        }
+
+        if (!empty($estados)) {
+            $q->whereIn('address->state', $estados);
         }
 
         if ($generos) {

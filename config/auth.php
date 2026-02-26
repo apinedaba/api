@@ -52,7 +52,7 @@ return [
         ],
 
         'patient' => [
-            'driver' => 'sanctum',
+            'driver' => 'session',
             'provider' => 'patients',
         ],
     ],

@@ -12,11 +12,14 @@ class ConsultaContactoController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'nombre'      => 'required|string|max:255',
-            'email'       => 'required|email|max:255',
-            'telefono'    => 'required|string|max:20',
+            'nombre' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'telefono' => 'required|string|max:20',
             'tipo_sesion' => 'required|string',
-            'motivo'      => 'required|string',
+            'motivo' => 'required|string',
+            'fecha' => 'required|string',
+            'hora' => 'required|string',
+            'user_id' => 'required|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -40,9 +43,9 @@ class ConsultaContactoController extends Controller
         }
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => '¡Consulta enviada con éxito!',
-            'data'    => $consulta
+            'data' => $consulta
         ], 201);
     }
 }

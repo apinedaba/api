@@ -188,7 +188,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::post('logout', [PatientAuthController::class, 'logout']);
     Route::get('emotion-logs', [EmotionLogController::class, 'index']);
     Route::post('emotion-logs', [EmotionLogController::class, 'store']);
-    Route::post('psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
     Route::post('availability', [AvailabilitiController::class, 'store']);
     Route::post('cart', [AppointmentCartController::class, 'store']);
     Route::get('cart', [AppointmentCartController::class, 'show']);
@@ -203,6 +202,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
 Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::post('/stripe/subscription/webhook', [StripeController::class, 'handle']);
+Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'store']);
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);

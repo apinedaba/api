@@ -40,41 +40,54 @@ class HomeController extends Controller
     /**
      * Obtiene profesionales filtrados por especialidad o enfoque
      */
-    private function getProfessionalsByFilter($filterType, $filterValues, $limit = 6)
+    private function getProfessionalsByFilter($filterType = null, $filterValues = [], $limit = 6)
     {
         $query = User::query()
-            ->where('isProfileComplete', true)
-            ->where('activo', true)
-            ->where('identity_verification_status', 'approved');
+            ->where('isProfileComplete', 1)
+            ->where('activo', 1)
+            ->where('identity_verification_status', 'approved')
+            ->whereRaw("JSON_VALID(educacion)");
 
-        if ($filterType === 'especialidades' && !empty($filterValues)) {
-            $query->where(function ($q) use ($filterValues) {
-                foreach ($filterValues as $especialidad) {
-                    $q->orWhereJsonContains('educacion->especialidades', $especialidad);
+        if (!empty($filterType) && !empty($filterValues)) {
+
+            $query->where(function ($q) use ($filterType, $filterValues) {
+
+                foreach ($filterValues as $value) {
+
+                    if ($filterType === 'especialidades') {
+                        $q->orWhereJsonContains('educacion->especialidades', $value);
+                    }
+
+                    if ($filterType === 'enfoques') {
+                        $q->orWhere('educacion->enfoque', $value);
+                    }
+
                 }
+
             });
-        } elseif ($filterType === 'enfoques' && !empty($filterValues)) {
-            $query->where(function ($q) use ($filterValues) {
-                foreach ($filterValues as $enfoque) {
-                    $q->orWhere('educacion->enfoque', $enfoque);
-                }
-            });
+
         }
 
-        return $query->inRandomOrder()
-            ->limit($limit)
-            ->get()
-            ->map(function ($user) {
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'image' => $user->image,
-                    'contacto' => $user->contacto,
-                    'personales' => $user->personales,
-                    'educacion' => $user->educacion,
-                    'configurations' => $user->configurations,
-                    'address' => $user->address,
-                ];
-            });
+        return $this->formatProfessionals(
+            $query->inRandomOrder()
+                ->limit($limit)
+                ->get()
+        );
+    }
+
+    private function formatProfessionals($collection)
+    {
+        return $collection->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'image' => $user->image,
+                'contacto' => $user->contacto,
+                'personales' => $user->personales,
+                'educacion' => $user->educacion,
+                'configurations' => $user->configurations,
+                'address' => $user->address,
+            ];
+        });
     }
 }

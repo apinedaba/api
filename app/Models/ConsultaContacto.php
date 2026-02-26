@@ -15,6 +15,14 @@ class ConsultaContacto extends Model
         'email',
         'telefono',
         'tipo_sesion',
-        'motivo'
+        'motivo',
+        'fecha',
+        'hora',
+        'user_id'
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

@@ -27,7 +27,7 @@ class ProfessionalController extends Controller
         $params = $request->all();
         \Log::info("Params:", $params);
         $page = (int) ($params['page'] ?? 1);
-        $perPage = (int) ($params['perPage'] ?? 12);
+        $perPage = (int) ($params['perPage'] ?? 10);
         $search = trim($params['search'] ?? '');
         $precioMax = $params['precioMax'] ?? null;
         $pais = $params['pais'] ?? null;
@@ -146,8 +146,8 @@ class ProfessionalController extends Controller
          * 6. Orden aleatorio estable (por seed)
          * ---------------------------------------------------------
          */
-        $seed = $params['seed'] ?? random_int(1, 999999);
-        $q->orderByRaw('RAND(?)', [$seed]);
+        // $seed = $params['seed'] ?? random_int(1, 999999);
+        // $q->orderByRaw('RAND(?)', [$seed]);
 
         /*
          * ---------------------------------------------------------
@@ -161,7 +161,6 @@ class ProfessionalController extends Controller
             'total' => $result->total(),
             'page' => $result->currentPage(),
             'pages' => $result->lastPage(),
-            'seed' => $seed
         ]);
     }
 

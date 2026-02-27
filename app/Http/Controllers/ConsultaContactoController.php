@@ -48,4 +48,16 @@ class ConsultaContactoController extends Controller
             'data' => $consulta
         ], 201);
     }
+    public function getData()
+    {
+        $userId = auth()->id(); 
+        $consultas = \App\Models\ConsultaContacto::where('user_id', $userId)
+                        ->latest()
+                        ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $consultas
+        ], 200);
+    }
 }

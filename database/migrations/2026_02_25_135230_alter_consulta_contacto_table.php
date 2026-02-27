@@ -11,9 +11,11 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('consultas_contacto', function (Blueprint $table) {
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
             $table->string('fecha')->nullable();
             $table->string('hora')->nullable();
             $table->string('status')->default("created");
+            $table->string('codigo_descuento')->nullable()->after('status');
         });
     }
 
@@ -24,9 +26,7 @@ return new class extends Migration {
     {
         Schema::table('consultas_contacto', function (Blueprint $table) {
             $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-            $table->dropColumn('fecha');
-            $table->dropColumn('hora');
+            $table->dropColumn(['user_id', 'fecha', 'hora', 'status', 'codigo_descuento']);
         });
     }
 };

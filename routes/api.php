@@ -166,6 +166,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'store']);
     Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
     Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
+    Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

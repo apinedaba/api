@@ -16,6 +16,11 @@ return new class extends Migration {
             $table->string('hora')->nullable();
             $table->string('status')->default("created");
             $table->string('codigo_descuento')->nullable()->after('status');
+            $table->string('precio')->nullable()->after('status');
+            $table->string('formato')->nullable()->after('status');
+            $table->string('categoria')->nullable()->after('status');
+            $table->string('discount')->nullable()->after('status');
+            $table->string('discount_type')->nullable()->after('status');
         });
     }
 
@@ -25,8 +30,8 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('consultas_contacto', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn(['user_id', 'fecha', 'hora', 'status', 'codigo_descuento']);
+            $table->dropForeign('user_id');
+            $table->dropColumn(['user_id', 'fecha', 'hora', 'status', 'codigo_descuento', 'precio', 'formato', 'categoria']);
         });
     }
 };

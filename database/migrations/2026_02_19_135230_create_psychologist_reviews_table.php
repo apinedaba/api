@@ -20,6 +20,8 @@ return new class extends Migration {
             $table->text('comment')->nullable();
             $table->boolean('approved')->default(true);
             $table->unique(['psychologist_id', 'email_hash']);
+            $table->id();
+            $table->timestamps();
         });
     }
 

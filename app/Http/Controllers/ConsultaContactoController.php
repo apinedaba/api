@@ -6,6 +6,7 @@ use App\Models\ConsultaContacto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
+use App\Notifications\NuevoPosibleContacto;
 
 class ConsultaContactoController extends Controller
 {
@@ -29,16 +30,16 @@ class ConsultaContactoController extends Controller
             ], 422);
         }
 
-        // 1. Creamos el registro en la base de datos
         $consulta = ConsultaContacto::create($request->all());
-
-        // 2. Intentamos enviar la notificación por correo
         try {
-            // Usamos la clase NuevoContacto que ya importaste
-            // Pasamos $consulta como el "paciente" que espera tu constructor
             $consulta->notify(new NuevoContacto($consulta));
+
+            $psicologo = \App\Models\User::find($request->user_id);
+
+            if ($psicologo) {
+                $psicologo->notify(new NotificacionPsicologo($consulta));
+            }
         } catch (\Throwable $th) {
-            // Si el correo falla, lo registramos en el log pero dejamos que el usuario vea éxito
             \Log::error("Error enviando notificación de contacto: " . $th->getMessage());
         }
 

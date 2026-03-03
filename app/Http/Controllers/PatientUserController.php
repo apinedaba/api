@@ -17,7 +17,7 @@ class PatientUserController extends Controller
     public function index()
     {
         $user = Auth::user();
-        return response()->json(data: PatientUser::with('patient')->where('user', $user->id)->get(), status: 200);
+        return response()->json(data: PatientUser::with('patient')->with('expediente')->where('user', $user->id)->get(), status: 200);
     }
 
     /**

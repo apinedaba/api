@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Patient_Medication;
 use App\Models\PatientUser;
+use App\Models\Expediente;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -39,5 +40,10 @@ class Patient extends Authenticatable
     public function connections()
     {
         return $this->hasMany(PatientUser::class, 'patient', 'id');
+    }
+
+    public function expediente()
+    {
+        return $this->hasOne(Expediente::class, 'patient_id', 'id');
     }
 }

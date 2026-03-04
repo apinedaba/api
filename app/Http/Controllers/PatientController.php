@@ -207,7 +207,6 @@ class PatientController extends Controller
             'relationships' => 'array',
             'relationships.*.nombre' => 'required|string',
             'relationships.*.parentesco' => 'required|string',
-            'relationships.*.telefono' => 'required|string',
             'relationships.*.correo' => 'nullable|email',
             'relationships.*.es_contacto_emergencia' => 'required|boolean',
         ]);

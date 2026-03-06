@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Patient_Medication;
 use App\Models\User;
+use App\Models\Expediente;
 class PatientUser extends Model
 {
     use HasFactory;
@@ -17,17 +18,24 @@ class PatientUser extends Model
         'status'
     ];
 
-    protected $hidden =["created_at", "updated_at"];
+    protected $hidden = ["created_at", "updated_at"];
 
-    public function patient() {
+    public function patient()
+    {
         return $this->belongsTo(Patient::class, 'patient', 'id');
     }
-    public function user() {
+    public function user()
+    {
         return $this->belongsTo(User::class, 'user', 'id');
     }
 
     public function medications()
     {
         return $this->hasMany(Patient_Medication::class, 'patient_id', 'patient');
+    }
+
+    public function expediente()
+    {
+        return $this->hasOne(Expediente::class, 'patient_id', 'patient');
     }
 }

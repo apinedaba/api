@@ -75,7 +75,7 @@ class PatientController extends Controller
 
     public function getAllPatients()
     {
-        $patients = Patient::with('connections')->with('connections.user')->get();
+        $patients = Patient::with('connections')->with('connections.user')->with('expediente')->get();
         return Inertia::render('Pacientes', [
             'pacientes' => $patients,
             'status' => session('status'),
@@ -207,7 +207,6 @@ class PatientController extends Controller
             'relationships' => 'array',
             'relationships.*.nombre' => 'required|string',
             'relationships.*.parentesco' => 'required|string',
-            'relationships.*.telefono' => 'required|string',
             'relationships.*.correo' => 'nullable|email',
             'relationships.*.es_contacto_emergencia' => 'required|boolean',
         ]);
@@ -332,13 +331,13 @@ class PatientController extends Controller
         $patient = Patient::where('email', $user->email)->firstOrFail();
 
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email,' . $user->id,
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
             'telefono' => 'nullable|string|max:20',
         ]);
 
         $user->update([
-            'name'  => $validated['name'],
+            'name' => $validated['name'],
             'email' => $validated['email'],
         ]);
 

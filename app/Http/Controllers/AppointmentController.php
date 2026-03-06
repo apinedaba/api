@@ -21,7 +21,7 @@ use App\Services\GoogleCalendarService;
 use App\Services\InvalidGoogleTokenException;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use Illuminate\Support\Facades\Crypt;
-
+use RRule\RRule;
 
 class AppointmentController extends Controller
 {
@@ -165,18 +165,21 @@ class AppointmentController extends Controller
         $middlewares = $route->gatherMiddleware();
         $authUser = Auth::user();
 
-        // Validar campos mínimos requeridos
         $validated = $request->validate([
             'start' => 'required|date',
-            'end' => 'required',
+            'end' => 'required|date',
             'title' => 'required|string|max:255',
             'user' => 'required_if:middleware,patient',
             'patient' => 'required_if:middleware,user',
             'costo' => 'nullable|numeric',
-            'tipo' => 'nullable|string',
+            'tipoSesion' => 'nullable|string',
+            'formato' => 'nullable|string',
+            'is_recurrent' => 'nullable|boolean',
+            'recurrence.frequency' => 'required_if:is_recurrent,true|string',
+            'recurrence.until' => 'required_if:is_recurrent,true|date',
         ]);
 
-        // Forzar asignación correcta
+        // Determinar usuario según middleware
         if (in_array('user', $middlewares)) {
             $request['user'] = $authUser->id;
         } elseif (in_array('patient', $middlewares)) {
@@ -188,89 +191,157 @@ class AppointmentController extends Controller
                 'type' => "error"
             ], 403);
         }
-        $relation = $this->service->ensureRelationshipAndRoom($request['user'], $request['patient']);
+
+        // Relación y sala
+        $relation = $this->service->ensureRelationshipAndRoom(
+            $request['user'],
+            $request['patient']
+        );
+
         $request->video_call_room = $relation->video_call_room;
-        $appointment = Appointment::create($request->except(['costo', 'formato', 'tipoSesion']));
-        if (!$appointment) {
-            return response()->json([
-                'rasson' => 'No se logró crear la cita',
-                'message' => "Cita no creada",
-                'type' => "error"
-            ], 400);
-        }
 
-        // Notificación
-        $send = $this->sendNotificacionCreateAppoimentEmail($appointment);
-        event(new \App\Events\AppointmentCreated(
-            appointmentId: $appointment->id,
-            psychologistId: $appointment->user,
-            patientId: $appointment->patient
-        ));
+        $appointments = [];
+        $duration = Carbon::parse($request->start)
+            ->diffInMinutes(Carbon::parse($request->end));
 
-        if (!$send) {
-            return response()->json([
-                'rasson' => 'No se logró enviar la notificación vía email',
-                'message' => "Cita creada sin notificación",
-                'type' => "warning",
-                'appointment' => $appointment
-            ], 200);
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | CREACIÓN RECURRENTE
+        |--------------------------------------------------------------------------
+        */
+        if ($request->boolean('is_recurrent')) {
 
+            $recurrenceId = Str::uuid();
 
-        $cart = AppointmentCart::create([
-            'appointment_id' => $appointment->id,
-            'tipoSesion' => $request->tipoSesion,
-            'formato' => $request->formato ?? 'online',
-            'precio' => $request->costo ?? 0,
-            'status' => 'pending',
-            'patient_id' => $appointment->patient,
-            'user_id' => $appointment->user,
-            'duracion' => "0"
+            $rrule = new RRule([
+                'FREQ' => strtoupper($request->recurrence['frequency']),
+                'INTERVAL' => $request->recurrence['interval'] ?? 1,
+                'DTSTART' => Carbon::parse($request->start)->format('Ymd\THis'),
+                'UNTIL' => Carbon::parse($request->recurrence['until'])->format('Ymd\THis'),
+            ]);
 
-        ]);
+            foreach ($rrule as $occurrence) {
 
-        if ($cart) {
-            $appointment->cart_id = $cart->id;
-            $appointment->save();
-        }
-        $user = User::find($appointment->user);
+                $appointment = Appointment::create([
+                    'user' => $request['user'],
+                    'patient' => $request['patient'],
+                    'title' => $request->title,
+                    'start' => Carbon::parse($occurrence),
+                    'end' => Carbon::parse($occurrence)->addMinutes($duration),
+                    'video_call_room' => $request->video_call_room,
+                    'recurrence_id' => $recurrenceId,
+                ]);
 
-        // Lógica para despachar el job
-        if ($request->boolean('syncWithGoogle')) {
-            if ($user->googleAccount && $user->googleAccount->refresh_token) {
-                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
-            } else {
-                // --- INICIO DE LA MODIFICACIÓN ---
+                $appointments[] = $appointment;
+            }
 
-                // 1. Preparamos los datos que necesitamos recordar.
-                $statePayload = [
-                    'user_id' => $user->id,
-                    'appointment_id' => $appointment->id,
-                ];
+        } else {
 
-                // 2. Encriptamos los datos en una cadena segura.
-                $encryptedState = Crypt::encrypt(json_encode($statePayload));
+            /*
+            |--------------------------------------------------------------------------
+            | CREACIÓN NORMAL
+            |--------------------------------------------------------------------------
+            */
 
-                // 3. Obtenemos la URL de autenticación y le adjuntamos nuestro estado encriptado.
-                $authUrl = $this->googleCalendarService->getAuthUrl($encryptedState);
+            $appointment = Appointment::create(
+                $request->except([
+                    'costo',
+                    'formato',
+                    'tipoSesion',
+                    'is_recurrent',
+                    'recurrence'
+                ])
+            );
 
-                // Ya no usamos la sesión.
-                // session(['pending_google_sync_appointment_id' => $appointment->id]);
-
+            if (!$appointment) {
                 return response()->json([
-                    'action' => 'redirect_to_google_auth',
-                    'url' => $authUrl
-                ], 202);
+                    'rasson' => 'No se logró crear la cita',
+                    'message' => "Cita no creada",
+                    'type' => "error"
+                ], 400);
+            }
 
-                // --- FIN DE LA MODIFICACIÓN ---
+            $appointments[] = $appointment;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | POST PROCESO (NOTIFICACIONES, CART, GOOGLE)
+        |--------------------------------------------------------------------------
+        */
+
+        foreach ($appointments as $appointment) {
+
+            // Notificación email
+            $this->sendNotificacionCreateAppoimentEmail($appointment);
+
+            // Evento broadcast
+            event(new \App\Events\AppointmentCreated(
+                appointmentId: $appointment->id,
+                psychologistId: $appointment->user,
+                patientId: $appointment->patient
+            ));
+
+            // Crear carrito
+            $cart = AppointmentCart::create([
+                'appointment_id' => $appointment->id,
+                'tipoSesion' => $request->tipoSesion,
+                'formato' => $request->formato ?? 'online',
+                'precio' => $request->costo ?? 0,
+                'status' => 'pending',
+                'patient_id' => $appointment->patient,
+                'user_id' => $appointment->user,
+                'duracion' => "0"
+            ]);
+
+            if ($cart) {
+                $appointment->cart_id = $cart->id;
+                $appointment->save();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | GOOGLE SYNC
+            |--------------------------------------------------------------------------
+            */
+
+            if ($request->boolean('syncWithGoogle')) {
+
+                $user = User::find($appointment->user);
+
+                if ($user->googleAccount && $user->googleAccount->refresh_token) {
+
+                    SyncAppointmentToGoogleCalendar::dispatch(
+                        $appointment,
+                        $user,
+                        'create'
+                    );
+
+                } else {
+
+                    $statePayload = [
+                        'user_id' => $user->id,
+                        'appointment_id' => $appointment->id,
+                    ];
+
+                    $encryptedState = Crypt::encrypt(json_encode($statePayload));
+
+                    $authUrl = $this->googleCalendarService
+                        ->getAuthUrl($encryptedState);
+
+                    return response()->json([
+                        'action' => 'redirect_to_google_auth',
+                        'url' => $authUrl
+                    ], 202);
+                }
             }
         }
 
         return response()->json([
-            'rasson' => 'Se creó la cita correctamente',
-            'message' => "Cita creada",
+            'rasson' => 'Se creó la(s) cita(s) correctamente',
+            'message' => "Cita(s) creada(s)",
             'type' => "success",
-            'appointment' => $appointment
+            'appointments' => $appointments
         ], 200);
     }
 

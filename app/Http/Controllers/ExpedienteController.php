@@ -31,10 +31,10 @@ class ExpedienteController extends Controller
     public function store(Request $request)
     {
         $patient_id = $request->patient_id;
+        \Log::info($request->all());
         $isUpdatde = Expediente::where('user_id', auth()->id())->where('patient_id', $patient_id)->exists();
         if ($isUpdatde) {
             $expediente = Expediente::where('user_id', auth()->id())->where('patient_id', $patient_id)->first();
-
             $data = [
                 'user_id' => auth()->id(),
                 'patient_id' => $patient_id,

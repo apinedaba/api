@@ -34,10 +34,10 @@ class ConsultaContactoController extends Controller
         $consulta = ConsultaContacto::create($request->all());
         try {
             $consulta->notify(new ConfirmacionPaciente());
-            
             $psicologo = \App\Models\User::find($request->user_id);
-            if ($psicologo) {               
-                $psicologo->notify(new NotificacionPsicologo($consulta));
+            \Log::info("PSICOLGO: " . $psicologo);
+            if ($psicologo) {
+                $psicologo->notify(new NuevoPosiblePaciente($consulta, $psicologo));
             }
         } catch (\Throwable $th) {
             \Log::error("ERROR REAL: " . $th->getMessage());

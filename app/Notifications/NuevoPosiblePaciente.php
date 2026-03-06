@@ -60,11 +60,11 @@ class NuevoPosiblePaciente extends Notification
         $especialidadTraducida = $especialidades[$this->lead->tipo_sesion] ?? 'Consulta General';
 
         return (new MailMessage)
-            ->subject('🔔 Tienes un nuevo posible paciente en MindMeet')
-            // IMPORTANTE: Cambiamos 'patient' por 'lead' que es como lo definiste arriba
+            ->subject('🔔 Tienes un nuevo posible paciente en MindMeet')        
             ->view('email.newPotencialPatient', [
                 'consulta' => $this->lead, 
-                'especialidad' => $especialidadTraducida
+                'especialidad' => $especialidadTraducida,
+                'user' => $notifiable
             ]);
     }
 }

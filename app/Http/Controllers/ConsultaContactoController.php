@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConsultaContacto;
+use App\Notifications\NotificacionPsicologo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
@@ -34,10 +35,10 @@ class ConsultaContactoController extends Controller
         $consulta = ConsultaContacto::create($request->all());
         try {
             $consulta->notify(new ConfirmacionPaciente());
-            
             $psicologo = \App\Models\User::find($request->user_id);
-            if ($psicologo) {               
-                $psicologo->notify(new NotificacionPsicologo($consulta));
+            \Log::info("PSICOLGO: " . $psicologo);
+            if ($psicologo) {
+                $psicologo->notify(new NotificacionPsicologo($consulta, $psicologo));
             }
         } catch (\Throwable $th) {
             \Log::error("ERROR REAL: " . $th->getMessage());
@@ -51,10 +52,10 @@ class ConsultaContactoController extends Controller
     }
     public function getData()
     {
-        $userId = auth()->id(); 
+        $userId = auth()->id();
         $consultas = \App\Models\ConsultaContacto::where('user_id', $userId)
-                        ->latest()
-                        ->get();
+            ->latest()
+            ->get();
 
         return response()->json([
             'status' => 'success',

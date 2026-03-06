@@ -220,7 +220,7 @@ Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'stor
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
-
+Route::get('user/cedula/{cedula}', [CedulaCheck::class, 'validarCedula']);
 
 
 require __DIR__ . '/api/catalogos.php';

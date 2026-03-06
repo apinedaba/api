@@ -12,6 +12,21 @@ use Inertia\Inertia;
 
 class CedulaCheck extends Controller
 {
+
+
+    public function validarCedula($cedula)
+    {
+        $token = Http::post(
+            "https://cedulaprofesional.sep.gob.mx/api/auth/token"
+        );
+
+        $accessToken = $token->json()['access_token'];
+
+        $data = Http::withToken($accessToken)
+            ->get("https://cedulaprofesional.sep.gob.mx/api/cedula/" . $cedula);
+
+        return response()->json($data->json());
+    }
     /**
      * Método original deshabilitado - Ahora se usa validación manual
      */

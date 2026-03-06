@@ -38,7 +38,7 @@ class ConsultaContactoController extends Controller
             $psicologo = \App\Models\User::find($request->user_id);
             \Log::info("PSICOLGO: " . $psicologo);
             if ($psicologo) {
-                $psicologo->notify(new NotificacionPsicologo($consulta, $psicologo));
+                $psicologo->notify(new NuevoPosiblePaciente($consulta, $psicologo));
             }
         } catch (\Throwable $th) {
             \Log::error("ERROR REAL: " . $th->getMessage());

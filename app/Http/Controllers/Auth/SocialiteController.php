@@ -66,10 +66,10 @@ class SocialiteController extends Controller
             }
 
             $token = $user->createToken('user_token')->plainTextToken;
-            return redirect(config('app.front_url') . '/auth/callback?token=' . $token);
+            return redirect(config('app.front_url_user') . '/auth/callback?token=' . $token);
         } catch (Exception $e) {
             Log::error('Socialite Callback Error (Professional): ' . $e->getMessage());
-            return redirect(config('app.front_url') . '/login?error=social_auth_failed');
+            return redirect(config('app.front_url_user') . '/login?error=social_auth_failed');
         }
     }
 

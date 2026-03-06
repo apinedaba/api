@@ -23,10 +23,12 @@ class PatientAuthController extends Controller
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
-        $request->session()->regenerate();
+        $user = Auth::user();
+        $token = $user->createToken('patient-token')->plainTextToken;
 
         return response()->json([
-            'user' => Auth::user()
+            'user' => $user,
+            'token' => $token
         ]);
     }
 

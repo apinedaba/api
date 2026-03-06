@@ -33,7 +33,7 @@ class ConsultaContactoController extends Controller
 
         $consulta = ConsultaContacto::create($request->all());
         try {
-            $consulta->notify(new ConfirmacionPaciente());
+            $consulta->notify(new NuevoContacto($consulta));
             $psicologo = \App\Models\User::find($request->user_id);
             \Log::info("PSICOLGO: " . $psicologo);
             if ($psicologo) {

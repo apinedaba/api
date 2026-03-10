@@ -105,6 +105,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
 
     // Validación manual de cédula
+    Route::get('user/cedula/{cedula}', [CedulaCheck::class, 'validarCedula']);
     Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
     Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
     Route::delete('user/cedula/eliminar-validacion/{id}', [CedulaCheck::class, 'eliminarValidacionRechazada']);
@@ -220,7 +221,6 @@ Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'stor
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
-
 
 
 require __DIR__ . '/api/catalogos.php';

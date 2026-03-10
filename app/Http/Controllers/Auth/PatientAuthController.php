@@ -17,17 +17,27 @@ class PatientAuthController extends Controller
             'password' => 'required',
         ]);
 
-        $credentials = $request->only('email', 'password');
+        $patient = Patient::where('email', $request->email)->first();
 
-        if (!Auth::guard('patient')->attempt($credentials)) {
-            return response()->json(['message' => 'Credenciales incorrectas'], 401);
+        if (!$patient) {
+            return response()->json([
+                'rasson' => "Crea una cuenta para poder iniciar sesión",
+                'message' => "¡Oh, No! aun no estas registrado.",
+                'type' => "error",
+            ], 404);
+        }
+        if ($patient && !Hash::check($request->password, $patient->password)) {
+            return response()->json([
+                'rasson' => "Los datos ingresados no son correctos",
+                'message' => "¡Oh, No! algo esta mal.",
+                'type' => "error",
+                'check' => Hash::check($request->password, $patient->password)
+            ], 400);
         }
 
-        $request->session()->regenerate();
+        $token = $patient->createToken('patient_token')->plainTextToken;
 
-        return response()->json([
-            'user' => Auth::user()
-        ]);
+        return response()->json(['token' => $token], 200);
     }
 
     public function logout(Request $request)

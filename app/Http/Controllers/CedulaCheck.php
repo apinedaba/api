@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use App\Models\ValidacionCedulaManual;
 use Illuminate\Support\Facades\Storage;
 use Cloudinary\Api\Upload\UploadApi;
@@ -16,16 +18,113 @@ class CedulaCheck extends Controller
 
     public function validarCedula($cedula)
     {
-        $token = Http::post(
-            "https://cedulaprofesional.sep.gob.mx/api/auth/token"
+        $validationCedula = ValidacionCedulaManual::where('numero_cedula', $cedula);
+        $existe = $validationCedula->exists();
+        $user = Auth::user();
+
+        if ($existe) {
+            $cedula = $validationCedula->first();
+            if ($cedula->user_id == $user->id) {
+                $cedula['valid'] = true;
+                return response()->json(
+                    $cedula
+                );
+            }
+            return response()->json([
+                "valid" => false,
+                "message" => "La cedula ya esta siendo usada por un psicologo, si esta cedula te pertenece comunicate con nosotros para proteger tu información."
+            ]);
+        }
+
+        $token = Cache::remember('sep_token', 3500, function () {
+
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                    'X-API-Key' => '65da8s675f8s75fda675s8d76as87d5as675da',
+                    'X-Client-Id' => 'rnp-angular-app-prod',
+                    'Referer' => 'https://cedulaprofesional.sep.gob.mx/',
+                    'User-Agent' => 'Mozilla/5.0',
+                ])
+                ->get('https://cedulaprofesional.sep.gob.mx/api/auth/token');
+
+            return $response->json()['access_token'];
+        });
+
+        $response = Http::withoutVerifying()
+            ->withToken($token)
+            ->post(
+                "https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle",
+                [
+                    "numCedula" => $cedula
+                ]
+            );
+
+        $data = $response->json();
+
+        Log::info('Respuesta SEP: ' . count($data));
+
+        if (count($data) == 0) {
+            return response()->json([
+                "valid" => false,
+                "message" => "No se encontró la cédula en SEP"
+            ]);
+        }
+
+        $profesionista = $data[0];
+
+        $profesion = strtoupper($profesionista['profesion'] ?? '');
+
+        $nombre = trim(
+            ($profesionista['nombre'] ?? '') . ' ' .
+            ($profesionista['primerApellido'] ?? '') . ' ' .
+            ($profesionista['segundoApellido'] ?? '')
         );
 
-        $accessToken = $token->json()['access_token'];
+        $grado = 'OTRO';
 
-        $data = Http::withToken($accessToken)
-            ->get("https://cedulaprofesional.sep.gob.mx/api/cedula/" . $cedula);
+        if (str_contains($profesion, 'LICENCIAT')) {
+            $grado = 'LICENCIATURA';
+        }
 
-        return response()->json($data->json());
+        if (str_contains($profesion, 'MAESTR')) {
+            $grado = 'MAESTRIA';
+        }
+
+        if (str_contains($profesion, 'DOCTOR')) {
+            $grado = 'DOCTORADO';
+        }
+
+        if (str_contains($profesion, 'ESPECIAL')) {
+            $grado = 'ESPECIALIDAD';
+        }
+
+
+
+        $esPsicologo = str_contains($profesion, 'PSICOLOG');
+        $esPsiquiatra = str_contains($profesion, 'PSIQUIATR');
+
+        $permitido = $esPsicologo || $esPsiquiatra;
+
+        if (!$permitido) {
+            return response()->json([
+                "valid" => false,
+                "message" => "Esta cedula no pertenece a una profesion permitida en mindmeet"
+            ]);
+        }
+
+        return response()->json([
+
+            "valid" => true,
+            "permitido" => $permitido,
+            "tipo_profesional" => $esPsiquiatra ? "PSIQUIATRA" : ($esPsicologo ? "PSICOLOGO" : "OTRO"),
+            "numero_cedula" => $cedula,
+            "nombre_completo" => $nombre,
+            "fecha_expedicion" => $profesionista['fechaExpedicion'] ?? null,
+            "carrera" => $profesionista['profesion'] ?? null,
+            "institucion" => $profesionista['institucion'] ?? null,
+            "grado" => $grado
+        ]);
     }
     /**
      * Método original deshabilitado - Ahora se usa validación manual
@@ -39,6 +138,7 @@ class CedulaCheck extends Controller
             'requires_manual_data' => true
         ], 200);
     }
+
 
 
 

@@ -489,21 +489,32 @@ class StripeController extends Controller
     }
     public function handle(Request $request)
     {
-        Log::info('Stripe webhook received');
         try {
             $payload = $request->getContent();
             $sigHeader = $request->header('Stripe-Signature');
-            Log::info('Stripe webhook processed 1');
             $event = Webhook::constructEvent(
                 $payload,
                 $sigHeader,
                 config('services.stripe.webhook_secret')
             );
-            Log::info('Stripe webhook processed 2');
-            // 🚀 SOLO despachar el job
+            if ($event->type == 'checkout.session.completed') {
+                $session = $event->data->object;
+                if ($session->mode == 'subscription') {
+                    $user = User::find($session->metadata->user_id);
+                    Subscription::updateOrCreate(
+                        ['user_id' => $user->id],
+                        [
+                            'stripe_id' => null,
+                            'stripe_plan' => null,
+                            'stripe_status' => 'pending',
+                            'trial_ends_at' => null,
+                            'ends_at' => null,
+                        ]
+                    );
+                }
+            }
+
             HandleStripeEventJob::dispatch($event);
-            Log::info('Stripe webhook dispatched');
-            // ⚡ RESPUESTA INMEDIATA A STRIPE
             return response()->json(['received' => true], 200);
         } catch (\Throwable $e) {
             Log::error('Stripe webhook error', [

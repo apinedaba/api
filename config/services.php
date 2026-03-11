@@ -41,6 +41,9 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID'),
 
     ],
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
     // config/services.php
 
     'google' => [

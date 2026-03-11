@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\NewNotification;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -91,11 +92,21 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
+        logger($request->user()->id);
+        event(new NewNotification($request->user()->id, "Usuario detectado"));
         return $request->user()->load('subscription', 'escuelas');
+    });
+    Route::get('/subscription/status', function (Request $request) {
+
+        $user = $request->user()->load('subscription');
+
+        return [
+            'active' => $user->subscription->stripe_status === 'active'
+        ];
+
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
-
     // Onboarding y configuración de perfil
     Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);

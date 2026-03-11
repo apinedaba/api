@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\NewNotification;
+use App\Events\SubscriptionActivated;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
 
 class CatalogosController extends Controller
@@ -173,9 +176,7 @@ class CatalogosController extends Controller
     public function getPriceById($priceId)
     {
         Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
-
         $price = \Stripe\Price::retrieve($priceId);
-
         return response()->json($price);
     }
 }

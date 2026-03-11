@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Events\NewNotification;
+use App\Events\SubscriptionActivated;
 use App\Models\User;
 use App\Models\Subscription;
 use App\Services\EmailService;
@@ -30,9 +32,10 @@ class HandleStripeEventJob implements ShouldQueue
 
             case 'checkout.session.completed':
                 $session = $this->event->data->object;
-                Log::info("Checkout session completed: {$session}");
+                Log::info("Checkout session completed");
                 if ($session->mode == 'subscription') {
                     $this->handleNewSubscription($session);
+
                 }
                 break;
             case 'customer.subscription.updated':
@@ -46,7 +49,8 @@ class HandleStripeEventJob implements ShouldQueue
     }
     protected function handleNewSubscription($session)
     {
-        \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
+        logger(config('services.stripe.secret_key'));
+        \Stripe\Stripe::setApiKey(config('services.stripe.secret_key'));
 
         $user = User::find($session->metadata->user_id);
         if ($user) {
@@ -61,6 +65,9 @@ class HandleStripeEventJob implements ShouldQueue
                     'ends_at' => null,
                 ]
             );
+            logger("JOB EJECUTADO");
+            broadcast(new SubscriptionActivated($user->id));
+            logger("EVENTO DISPARADO");
             Log::info("Nueva suscripción creada para el usuario: {$user->id}");
         }
 

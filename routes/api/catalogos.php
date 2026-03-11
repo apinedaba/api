@@ -8,7 +8,7 @@ Route::prefix('patient/catalogos')->group(function () {
     Route::get('/prices', [CatalogosController::class, 'getPrices']);
     Route::get('/price/{priceId}', [CatalogosController::class, 'getPriceById']);
 });
-Route::prefix('user/catalogos')->group(function () {
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('user/catalogos')->group(function () {
     Route::get('/prices', [CatalogosController::class, 'getPrices']);
-    Route::get('/price/{priceId}', [CatalogosController::class, 'getPriceById']);
+    Route::get('/prices/{priceId}', [CatalogosController::class, 'getPriceById']);
 });

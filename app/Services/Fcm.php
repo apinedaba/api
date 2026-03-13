@@ -36,12 +36,6 @@ class Fcm
                     ],
                 ]
             ]);
-
-        \Log::info("FCM v1 response", [
-            'status' => $response->status(),
-            'body' => $response->body()
-        ]);
-
-        return $response->json();
+        return $response;
     }
 }

@@ -16,6 +16,7 @@
         "inertiajs/inertia-laravel": "^0.6.3",
         "laravel/breeze": "^1.29",
         "laravel/framework": "^10.10",
+        "laravel/reverb": "^1.8",
         "laravel/sanctum": "^3.2",
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.8",

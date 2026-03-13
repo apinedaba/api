@@ -38,32 +38,6 @@
     ]
   },
   {
-    "id": 2,
-    "title": "Especialidades",
-    "fields": [
-      {
-        "name": "educacion.especialidades",
-        "label": "Especialidades",
-        "type": "select",
-        "multiple": true,
-        "options": [
-          {
-            "label": "Ansiedad",
-            "value": "ansiedad"
-          },
-          {
-            "label": "Duelo",
-            "value": "duelo"
-          },
-          {
-            "label": "Psicoterapia",
-            "value": "psicoterapia"
-          }
-        ]
-      }
-    ]
-  },
-  {
     "id": 3,
     "title": "Enfoque",
     "description": "Enfoque terapéutico que utilizas en tus sesiones. Esto ayudará a tus pacientes a conocer mejor tu método de trabajo.",
@@ -73,7 +47,7 @@
         "type": "select",
         "label": "Enfoque",
         "name": "personales.additional.enfoque",
-        "options": [          
+        "options": [
           {
             "value": "Enfoque Cognitivo-Conductual",
             "label": "Enfoque Cognitivo-Conductual"
@@ -121,7 +95,7 @@
         "label": "Nacionalidad",
         "name": "personales.additional.country",
         "type": "select",
-        "options": [          
+        "options": [
           {
             "value": "Afgana"
           },
@@ -299,7 +273,7 @@
         "label": "Idioma nativo",
         "name": "personales.additional.language",
         "type": "select",
-        "options": [          
+        "options": [
           {
             "value": "Alemán"
           },
@@ -445,39 +419,38 @@
         "type": "select",
         "label": "País",
         "options": [
-            {
+          {
             "value": "MX",
             "label": "México"
-            },
-            {
+          },
+          {
             "value": "AR",
             "label": "Argentina"
-            },
-            {
+          },
+          {
             "value": "CO",
             "label": "Colombia"
-            },
-            {
+          },
+          {
             "value": "CL",
             "label": "Chile"
-            },
-            {
+          },
+          {
             "value": "PE",
             "label": "Perú"
-            },
-            
-            {
+          },
+          {
             "value": "UY",
             "label": "Uruguay"
-            },
-            {
+          },
+          {
             "value": "EC",
             "label": "Ecuador"
-            },
-            {
+          },
+          {
             "value": "BO",
             "label": "Bolivia"
-            }
+          }
         ],
         "rules": {
           "required": true

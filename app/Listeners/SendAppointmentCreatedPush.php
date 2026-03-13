@@ -39,7 +39,12 @@ class SendAppointmentCreatedPush implements ShouldQueue
         $link = url("/dashboard/psychologist/appointments/{$appt->id}"); // ajusta ruta
 
         foreach ($tokens as $token) {
-            Fcm::send($token, $title, $body, ['link' => $link]);
+            $push = Fcm::send($token, $title, $body, ['link' => $link]);
+            logger($push->status());
+            if ($push->status() === 400) {
+                DeviceToken::delete($token);
+                logger("SE elimino un dispotivo puch");
+            }
         }
     }
 }

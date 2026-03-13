@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Events\NewNotification;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -22,10 +23,10 @@ class UserAuthController extends Controller
             return response()->json([
                 'rasson' => "Crea una cuenta para poder iniciar sesión",
                 'message' => "¡Oh, No! aun no estas registrado.",
-                'type' => "error",  
+                'type' => "error",
             ], 404);
         }
-
+        event(new NewNotification($user->id, "Login correcto"));
         $token = $user->createToken('user_token')->plainTextToken;
         \Log::alert($token);
         return response()->json(['token' => $token], 200);

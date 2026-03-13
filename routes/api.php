@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\NewNotification;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -93,9 +94,17 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/info', function (Request $request) {
         return $request->user()->load('subscription', 'escuelas');
     });
+    Route::get('/subscription/status', function (Request $request) {
+
+        $user = $request->user()->load('subscription');
+
+        return [
+            'active' => $user->subscription->stripe_status === 'active'
+        ];
+
+    });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
-
     // Onboarding y configuración de perfil
     Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
@@ -106,6 +115,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
     // Validación manual de cédula
     Route::get('user/cedula/{cedula}', [CedulaCheck::class, 'validarCedula']);
+    Route::get('user/cedulas', [CedulaCheck::class, 'getCedulasByUser']);
     Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
     Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
     Route::delete('user/cedula/eliminar-validacion/{id}', [CedulaCheck::class, 'eliminarValidacionRechazada']);
@@ -141,7 +151,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
 
     // Agenda y citas
-    Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
 

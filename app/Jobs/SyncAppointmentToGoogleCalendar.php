@@ -50,11 +50,12 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
      */
     public function handle(GoogleCalendarService $googleCalendarService): void
     {
+        logger("Despachando evento");
         // Si el usuario no tiene una cuenta de Google conectada, no hacemos nada.
         if (!$this->user->googleAccount) {
             return;
         }
-
+        logger($this->action);
         try {
             // Usamos un 'match' para ejecutar el código correcto según la acción.
             match ($this->action) {

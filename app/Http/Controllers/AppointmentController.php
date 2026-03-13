@@ -44,33 +44,16 @@ class AppointmentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function getAppoinmentsByPatient(Request $request)
+    public function getAppoinmentsByPatient($patient)
     {
         $route = Route::getCurrentRoute();
         $middlewares = $route->gatherMiddleware();
         $user = Auth::user();
-        $requestAll = $request->all();
+
 
         if (in_array("user", $middlewares)) {
-            $patientId = $requestAll['patient'];
-            $enlaceId = $requestAll['id'];
-            $filter = [
-                'id' => $enlaceId,
-                'patient' => $patientId,
-                'user' => $user->id
-            ];
-            $enlace = PatientUser::where($filter)->first();
-
-            if (!isset($enlace['id'])) {
-                return response()->json([
-                    'rasson' => 'No se pudo obtener informacion de la  consulta',
-                    'message' => "No coincide la informacion",
-                    'type' => "error",
-                    'middleware' => $middlewares
-                ], 400);
-            }
             $appoinments = Appointment::where('user', $user->id)
-                ->where('patient', $patientId)
+                ->where('patient', $patient)
                 ->orderBy('id', 'desc')
                 ->get();
         }
@@ -78,8 +61,6 @@ class AppointmentController extends Controller
         if (in_array("patient", $middlewares)) {
             $appoinments = Appointment::where("patient", $user->id)->with(['user', 'payments'])->get();
         }
-
-
 
 
         return response()->json($appoinments, 200);

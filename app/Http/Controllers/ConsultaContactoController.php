@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\LeadsEvent;
 use App\Models\ConsultaContacto;
+use App\Models\DeviceToken;
+use App\Services\Fcm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
@@ -35,9 +38,16 @@ class ConsultaContactoController extends Controller
         try {
             $consulta->notify(new ConfirmacionPaciente());
             $psicologo = \App\Models\User::find($request->user_id);
-            \Log::info("PSICOLGO: " . $psicologo);
             if ($psicologo) {
-                $psicologo->notify(new NuevoPosiblePaciente($consulta, $psicologo));
+                $psicologo->notify(new NuevoPosiblePaciente($consulta));
+                event(new LeadsEvent($psicologo, $consulta));
+                $tokens = DeviceToken::where('user_id', $psicologo->id)->pluck('token')->all();
+                foreach ($tokens as $token) {
+                    Fcm::send($token, "Tienes un nuevo posible paciente", "Tienes un nuevo posible paciente", [
+                        'link' => 'https://minder.mindmeet.com.mx/leads',
+                        'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
+                    ]);
+                }
             }
         } catch (\Throwable $th) {
             \Log::error("ERROR REAL: " . $th->getMessage());
@@ -51,10 +61,10 @@ class ConsultaContactoController extends Controller
     }
     public function getData()
     {
-        $userId = auth()->id(); 
+        $userId = auth()->id();
         $consultas = \App\Models\ConsultaContacto::where('user_id', $userId)
-                        ->latest()
-                        ->get();
+            ->latest()
+            ->get();
 
         return response()->json([
             'status' => 'success',

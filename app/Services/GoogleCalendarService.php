@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\NewNotification;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\User;
@@ -16,7 +17,9 @@ use Carbon\Carbon;
 /**
  * Excepción personalizada para manejar tokens de Google revocados o inválidos.
  */
-class InvalidGoogleTokenException extends \Exception {}
+class InvalidGoogleTokenException extends \Exception
+{
+}
 
 class GoogleCalendarService
 {
@@ -129,6 +132,7 @@ class GoogleCalendarService
      */
     public function createEvent(Appointment $appointment, User $user): void
     {
+        logger("Entrando a create");
         $client = $this->getAuthenticatedClient($user);
         $calendarService = new GoogleCalendar($client);
 
@@ -151,7 +155,9 @@ class GoogleCalendarService
         $appointment->google_event_id = $createdEvent->getId();
         $appointment->link = $createdEvent->getHangoutLink(); // Guardamos en tu campo 'link'
         $appointment->save();
-
+        logger($appointment->user);
+        logger("Se mando el evento y la sesion a google");
+        event(new NewNotification($appointment->user, "Cita, Sincronizada con google, ¡Link de meet disponible!"));
         // Enviar email al paciente con el enlace de la sesión
         $patient = Patient::find($appointment->patient);
         if ($appointment->link && $patient) {
@@ -169,6 +175,7 @@ class GoogleCalendarService
                     false, // isUpdate = false
                     false  // linkChanged = false (es creación)
                 ));
+
             } catch (\Exception $e) {
                 // Email falló, pero no loggeamos para mantener logs limpios
             }
@@ -189,6 +196,7 @@ class GoogleCalendarService
      */
     public function updateEvent(Appointment $appointment, User $user)
     {
+        logger("Entrando a update");
         // Si la cita no tiene un ID de evento de Google, no hay nada que actualizar.
         if (!$appointment->google_event_id) {
             return;
@@ -229,7 +237,9 @@ class GoogleCalendarService
                 $appointment->save();
                 $linkChanged = true;
             }
-
+            logger($user->id);
+            logger("Se actualizo el evento y la sesion a google");
+            event(new NewNotification($appointment->user, "Link disponible en la sesion"));
             // Enviar email al paciente informando de la actualización
             $patient = Patient::find($appointment->patient);
             if ($patient && $appointment->link) {
@@ -238,7 +248,7 @@ class GoogleCalendarService
                     $start = Carbon::parse($appointment->start);
                     $fecha = $start->format('d/m/Y');
                     $hora = $start->format('H:i');
-
+                    logger("Actualizacion Google", $user->id);
                     Mail::to($patient->email)->send(new GoogleMeetLinkMail(
                         $patient->name,
                         $appointment->link,

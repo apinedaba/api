@@ -92,8 +92,6 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
-        logger($request->user()->id);
-        event(new NewNotification($request->user()->id, "Usuario detectado"));
         return $request->user()->load('subscription', 'escuelas');
     });
     Route::get('/subscription/status', function (Request $request) {
@@ -117,6 +115,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
     // Validación manual de cédula
     Route::get('user/cedula/{cedula}', [CedulaCheck::class, 'validarCedula']);
+    Route::get('user/cedulas', [CedulaCheck::class, 'getCedulasByUser']);
     Route::post('user/cedula/validacion-manual', [CedulaCheck::class, 'registrarCedulaManual']);
     Route::get('user/cedula/estado-validacion', [CedulaCheck::class, 'obtenerEstadoValidacion']);
     Route::delete('user/cedula/eliminar-validacion/{id}', [CedulaCheck::class, 'eliminarValidacionRechazada']);
@@ -152,7 +151,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/patient/verify', [PatientController::class, 'verifyPatient']);
 
     // Agenda y citas
-    Route::get('user/appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
+    Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
 

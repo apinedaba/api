@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\NewNotification;
 use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\AppointmentCartController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendedorController;
+use App\Jobs\TestNotificacionJob;
 use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -110,3 +112,7 @@ Route::get('/registro', function (Request $request) {
 
 
 Route::post('patient/login', [PatientAuthController::class, 'login']);
+Route::get('enviar-prueba', function () {
+    TestNotificacionJob::dispatch();
+    return response()->json(['status' => 'Job Dispatched']);
+});

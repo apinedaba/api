@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ValidationCedulaEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -24,15 +25,15 @@ class CedulaCheck extends Controller
 
         if ($existe) {
             $cedula = $validationCedula->first();
-            if ($cedula->user_id == $user->id) {
-                $cedula['valid'] = true;
-                return response()->json(
-                    $cedula
-                );
+            if (($cedula->user_id == $user->id)) {
+                return response()->json([
+                    "valid" => false,
+                    "message" => "Ya tienes esta cedula registrada, si no aparece probablemente esta pendiente de verificación manual."
+                ]);
             }
             return response()->json([
                 "valid" => false,
-                "message" => "La cedula ya esta siendo usada por un psicologo, si esta cedula te pertenece comunicate con nosotros para proteger tu información."
+                "message" => "La cedula ya esta siendo usada por otro profesional, si esta cedula te pertenece comunicate con nosotros para proteger tu información."
             ]);
         }
 
@@ -142,8 +143,9 @@ class CedulaCheck extends Controller
 
 
 
-    public function getCedulasByUser($userId)
+    public function getCedulasByUser($userId = null)
     {
+        $userId = $userId ?? Auth::user()->id;
         $cedulas = ValidacionCedulaManual::where('user_id', $userId)->get();
         return response()->json([
             'status' => 'success',
@@ -291,7 +293,10 @@ class CedulaCheck extends Controller
 
             $user->educacion = $educacion;
             $user->save();
+
+            event(new ValidationCedulaEvent($user, 'Tu cédula ' . $validacion->numero_cedula . ' ha sido aprobada'));
         }
+
 
         return Inertia::location(route('psicologoShow', $user->id));
     }

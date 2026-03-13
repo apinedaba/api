@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeviceToken;
 use Google\Client;
 use Illuminate\Support\Facades\Http;
 
@@ -36,6 +37,17 @@ class Fcm
                     ],
                 ]
             ]);
-        return $response->json();
+        \Log::info("FCM v1 response", [
+            'status' => $response->status(),
+            'body' => $response->body()
+        ]);
+        $body = $response->json();
+        if ($response->status() != 200) {
+            if (isset($body['error']['details'][0]['errorCode']) && $body['error']['details'][0]['errorCode'] == "UNREGISTERED") {
+                DeviceToken::where('token', $deviceToken)->delete();
+            }
+            return true;
+        }
+        return $response->status() == 200;
     }
 }

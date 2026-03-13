@@ -43,7 +43,7 @@ class ConsultaContactoController extends Controller
                 event(new LeadsEvent($psicologo, $consulta));
                 $tokens = DeviceToken::where('user_id', $psicologo->id)->pluck('token')->all();
                 foreach ($tokens as $token) {
-                    Fcm::send($token, "Tienes un nuevo posible paciente", "Tienes un nuevo posible paciente", [
+                    $response = Fcm::send($token, "Nuevo contacto recibido", "Un visitante de mindmeet esta interesado en ti, su info esta disponible en leads", [
                         'link' => 'https://minder.mindmeet.com.mx/leads',
                         'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
                     ]);

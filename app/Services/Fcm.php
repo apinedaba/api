@@ -18,7 +18,7 @@ class Fcm
     public static function send(string $deviceToken, string $title, string $body, array $data = [])
     {
         $accessToken = self::getAccessToken();
-        $projectId = config('services.firebase.project_id'); // pon tu ID de proyecto de Firebase en .env
+        $projectId = config('services.fcm.project_id'); // pon tu ID de proyecto de Firebase en .env
 
         $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
@@ -36,6 +36,6 @@ class Fcm
                     ],
                 ]
             ]);
-        return $response;
+        return $response->json();
     }
 }

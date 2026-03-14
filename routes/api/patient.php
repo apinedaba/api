@@ -13,6 +13,7 @@ use App\Http\Controllers\StripeController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CatalogosController;
 use Illuminate\Http\Request;
+
 Route::middleware('auth:patient')->get('patient/me', function (Request $request) {
     return $request->user();
 });
@@ -20,6 +21,7 @@ Route::middleware('auth:patient')->get('patient/me', function (Request $request)
 Route::middleware(['auth:patient'])->prefix('patient')->group(function () {
 
     Route::put('profile', [PatientController::class, 'updateFromUser']);
+    Route::post('avatar/upload', [PatientController::class, 'uploadAvatar']);
     // Cuestionarios asignados al paciente autenticado
     Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);

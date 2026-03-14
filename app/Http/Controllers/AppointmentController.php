@@ -44,7 +44,7 @@ class AppointmentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function getAppoinmentsByPatient($patient)
+    public function getAppoinmentsByPatient($patient = null)
     {
         $route = Route::getCurrentRoute();
         $middlewares = $route->gatherMiddleware();
@@ -215,7 +215,6 @@ class AppointmentController extends Controller
 
                 $appointments[] = $appointment;
             }
-
         } else {
 
             /*
@@ -297,7 +296,6 @@ class AppointmentController extends Controller
                         $user,
                         'create'
                     );
-
                 } else {
 
                     $statePayload = [

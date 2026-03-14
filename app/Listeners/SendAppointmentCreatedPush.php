@@ -40,10 +40,12 @@ class SendAppointmentCreatedPush implements ShouldQueue
 
         foreach ($tokens as $token) {
             $push = Fcm::send($token, $title, $body, ['link' => $link]);
-            logger($push->status());
-            if ($push->status() === 400) {
-                DeviceToken::delete($token);
-                logger("SE elimino un dispotivo puch");
+            $status = $push['status'] ?? null;
+            logger("Estatus del push: " . $status);
+
+            if ($status === 400 || $status === 401) {
+                DeviceToken::where('token', $token)->delete();
+                logger("SE eliminó un dispositivo push por token inválido");
             }
         }
     }

@@ -101,7 +101,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         return [
             'active' => $user->subscription->stripe_status === 'active'
         ];
-
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
     Route::post('user/email/resend', [UserAuthController::class, 'resendVerifyEmail'])->middleware(['throttle:6,1'])->name('verification.resend');
@@ -191,6 +190,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
         return $request->user();
     });
     Route::put('profile', [PatientController::class, 'updateFromUser']);
+    Route::post('avatar/upload', [PatientController::class, 'uploadAvatar']);
     // Cuestionarios asignados al paciente autenticado
     Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);

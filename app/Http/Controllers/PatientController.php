@@ -341,6 +341,8 @@ class PatientController extends Controller
         }
 
         try {
+            \Cloudinary\Configuration\Configuration::instance()->init(env('CLOUDINARY_URL'));
+
             $result = (new UploadApi)->upload($tempFilePath, ['folder' => 'ProfilePhotos']);
             unlink($tempFilePath);
 

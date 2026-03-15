@@ -22,6 +22,8 @@ use App\Services\InvalidGoogleTokenException;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use Illuminate\Support\Facades\Crypt;
 use RRule\RRule;
+use App\Models\ConsultaContacto;
+use Illuminate\Support\Facades\Hash;
 
 class AppointmentController extends Controller
 {
@@ -142,9 +144,11 @@ class AppointmentController extends Controller
 
     public function store(Request $request)
     {
+        Log::info("Creando cita con datos: " . json_encode($request->all()));
         $route = Route::getCurrentRoute();
         $middlewares = $route->gatherMiddleware();
         $authUser = Auth::user();
+        Log::info("Middleware detectado: " . implode(", ", $middlewares));
 
         $validated = $request->validate([
             'start' => 'required|date',
@@ -159,6 +163,7 @@ class AppointmentController extends Controller
             'recurrence.frequency' => 'required_if:is_recurrent,true|string',
             'recurrence.until' => 'required_if:is_recurrent,true|date',
         ]);
+        Log::info("Datos validados correctamente");
 
         // Determinar usuario según middleware
         if (in_array('user', $middlewares)) {
@@ -166,6 +171,7 @@ class AppointmentController extends Controller
         } elseif (in_array('patient', $middlewares)) {
             $request['patient'] = $authUser->id;
         } else {
+            Log::error("Middleware inválido detectado");
             return response()->json([
                 'rasson' => 'Middleware inválido',
                 'message' => "No se pudo crear la cita",
@@ -173,12 +179,21 @@ class AppointmentController extends Controller
             ], 403);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | RESOLUCIÓN DE LEAD → PACIENTE (opcional)
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('lead') && in_array('user', $middlewares)) {
+            $request['patient'] = $this->resolveLeadToPatient($request->input('lead'), $request['user']);
+        }
+
         // Relación y sala
         $relation = $this->service->ensureRelationshipAndRoom(
             $request['user'],
             $request['patient']
         );
-
+        Log::info("Relación y sala asegurada: " . json_encode($relation));
         $request->video_call_room = $relation->video_call_room;
 
         $appointments = [];
@@ -422,6 +437,38 @@ class AppointmentController extends Controller
             'type' => "success"
         ], 200);
     }*/
+    }
+
+    /**
+     * Dada una consulta (lead) y el id del psicólogo autenticado,
+     * busca o crea el paciente y garantiza la relación antes de crear la cita.
+     * Devuelve el id del paciente resuelto.
+     */
+    private function resolveLeadToPatient(int $leadId, int $userId): int
+    {
+        $consulta = ConsultaContacto::findOrFail($leadId);
+
+        $patient = Patient::firstOrCreate(
+            ['email' => $consulta->email],
+            [
+                'name'     => $consulta->nombre,
+                'contacto' => ['telefono' => $consulta->telefono],
+                'password' => Hash::make($consulta->telefono ?? Str::random(12)),
+            ]
+        );
+
+        $relacionExiste = PatientUser::where('user', $userId)
+            ->where('patient', $patient->id)
+            ->exists();
+
+        if (!$relacionExiste) {
+            (new PatientUserController())->enlacePacienteProfesional($patient->id);
+            Log::info("Relación creada: psicólogo #{$userId} → paciente #{$patient->id}");
+        }
+
+        Log::info("Lead resuelto: consulta #{$consulta->id} → paciente #{$patient->id} (" . ($patient->wasRecentlyCreated ? 'nuevo' : 'existente') . ")");
+
+        return $patient->id;
     }
 
     public function sendNotificacionStatusEmail($appointment)

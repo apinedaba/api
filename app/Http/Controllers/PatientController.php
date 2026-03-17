@@ -349,12 +349,37 @@ class PatientController extends Controller
 
             if ($cloudName && $apiKey && $apiSecret) {
                 Configuration::instance()->init([
-                    'cloud' => ['cloud_name' => $cloudName],
-                    'api_key' => $apiKey,
-                    'api_secret' => $apiSecret,
+                    'cloud' => [
+                        'cloud_name' => $cloudName,
+                        'api_key'    => $apiKey,
+                        'api_secret' => $apiSecret,
+                    ],
                 ]);
             } elseif ($cloudinaryUrl) {
-                Configuration::instance()->init($cloudinaryUrl);
+                // Intentar inicializar directamente con la URL; si la SDK no la interpreta,
+                // parseamos la URL y creamos la configuración manualmente.
+                try {
+                    Configuration::instance()->init($cloudinaryUrl);
+                } catch (\Throwable $inner) {
+                    $parts = parse_url($cloudinaryUrl);
+                    $parsedKey = $parts['user'] ?? null;
+                    $parsedSecret = $parts['pass'] ?? null;
+                    $parsedCloud = $parts['host'] ?? null;
+
+                    if ($parsedKey && $parsedSecret && $parsedCloud) {
+                        Configuration::instance()->init([
+                            'cloud' => [
+                                'cloud_name' => $parsedCloud,
+                                'api_key'    => $parsedKey,
+                                'api_secret' => $parsedSecret,
+                            ],
+                        ]);
+                    } else {
+                        @unlink($tempFilePath);
+                        Log::error('Cloudinary: CLOUDINARY_URL presente pero no parseable: ' . $cloudinaryUrl);
+                        return response()->json(['error' => 'Cloudinary no está configurado correctamente'], 500);
+                    }
+                }
             } else {
                 @unlink($tempFilePath);
                 Log::error('Cloudinary no está configurado correctamente: faltan credenciales (cloud_name/api_key/api_secret) y CLOUDINARY_URL');

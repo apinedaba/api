@@ -345,18 +345,21 @@ class PatientController extends Controller
             $cloudName = config('cloudinary.cloud_name');
             $apiKey = config('cloudinary.api_key');
             $apiSecret = config('cloudinary.api_secret');
+            $cloudinaryUrl = config('cloudinary.url');
 
-            if (!$cloudName || !$apiKey || !$apiSecret) {
+            if ($cloudName && $apiKey && $apiSecret) {
+                Configuration::instance()->init([
+                    'cloud' => ['cloud_name' => $cloudName],
+                    'api_key' => $apiKey,
+                    'api_secret' => $apiSecret,
+                ]);
+            } elseif ($cloudinaryUrl) {
+                Configuration::instance()->init($cloudinaryUrl);
+            } else {
                 @unlink($tempFilePath);
-                Log::error('Cloudinary no está configurado correctamente: faltan credenciales');
+                Log::error('Cloudinary no está configurado correctamente: faltan credenciales (cloud_name/api_key/api_secret) y CLOUDINARY_URL');
                 return response()->json(['error' => 'Cloudinary no está configurado'], 500);
             }
-
-            Configuration::instance()->init([
-                'cloud' => ['cloud_name' => $cloudName],
-                'api_key' => $apiKey,
-                'api_secret' => $apiSecret,
-            ]);
 
             $result = (new UploadApi)->upload($tempFilePath, ['folder' => 'ProfilePhotos']);
             unlink($tempFilePath);

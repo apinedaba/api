@@ -218,8 +218,6 @@ Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController:
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
-Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);

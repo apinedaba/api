@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Notifications\PatientAssignedEmailNotification;
 use App\Notifications\SendEmail;
+use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Illuminate\Validation\Rule;
+
 class PatientController extends Controller
 {
     protected $_patient;
@@ -70,7 +72,6 @@ class PatientController extends Controller
                 'data' => ['patient' => $patient]
             ], 200);
         }
-
     }
 
     public function getAllPatients()
@@ -310,7 +311,6 @@ class PatientController extends Controller
             'message' => 'El paciente no pertenece al usuario',
             'type' => 'error'
         ], 401);
-
     }
 
     /**
@@ -324,6 +324,39 @@ class PatientController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'photo' => 'required|string',
+        ]);
+
+        $imageData = base64_decode($request->input('photo'));
+        if ($imageData === false) {
+            return response()->json(['error' => 'Formato Base64 inválido'], 400);
+        }
+
+        $tempFilePath = tempnam(sys_get_temp_dir(), 'photo') . '.jpg';
+        if (file_put_contents($tempFilePath, $imageData) === false) {
+            return response()->json(['error' => 'No se pudo guardar el archivo temporal'], 500);
+        }
+
+        try {
+            \Cloudinary\Configuration\Configuration::instance()->init(env('CLOUDINARY_URL'));
+
+            $result = (new UploadApi)->upload($tempFilePath, ['folder' => 'ProfilePhotos']);
+            unlink($tempFilePath);
+
+            $patient = Patient::where('email', $request->user()->email)->firstOrFail();
+            $patient->update(['image' => $result['secure_url']]);
+
+            return response()->json(['url' => $result['secure_url']]);
+        } catch (\Exception $e) {
+            @unlink($tempFilePath);
+            Log::error('Error al subir avatar de paciente: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al subir la foto'], 500);
+        }
+    }
+
     public function updateFromUser(Request $request)
     {
         $user = $request->user();
@@ -331,26 +364,40 @@ class PatientController extends Controller
         $patient = Patient::where('email', $user->email)->firstOrFail();
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'telefono' => 'nullable|string|max:20',
+            // contacto
+            'contacto.telefono'       => 'nullable|string|max:20',
+            'contacto.whatsapp'       => 'nullable|string|max:20',
+            'contacto.fijo'           => 'nullable|string|max:20',
+            // relevantes (solo los que el paciente puede editar)
+            'relevantes.ocupacion'    => 'nullable|string|max:255',
+            'relevantes.genero'       => 'nullable|string|max:50',
+            'relevantes.sexualidad'   => 'nullable|string|max:50',
+            'relevantes.estadoCivil'  => 'nullable|string|max:50',
+            // dirección
+            'address.cp'              => 'nullable|string|max:10',
+            'address.calle'           => 'nullable|string|max:255',
+            'address.numExt'          => 'nullable|string|max:20',
+            'address.numInt'          => 'nullable|string|max:20',
+            'address.colonia'         => 'nullable|string|max:255',
+            'address.municipio'       => 'nullable|string|max:255',
+            'address.estado'          => 'nullable|string|max:100',
         ]);
 
-        $user->update([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-        ]);
-
-        $contacto = $patient->contacto ?? [];
-        $contacto['telefono'] = $validated['telefono'] ?? null;
+        $contacto   = array_merge($patient->contacto   ?? [], $request->input('contacto',   []) ?? []);
+        $relevantes = array_merge($patient->relevantes ?? [], $request->input('relevantes', []) ?? []);
+        $address    = array_merge($patient->address    ?? [], $request->input('address',    []) ?? []);
 
         $patient->update([
-            'contacto' => $contacto,
+            'contacto'   => $contacto,
+            'relevantes' => $relevantes,
+            'address'    => $address,
         ]);
 
         return response()->json([
-            'ok' => true,
-            'contacto' => $contacto,
+            'ok'        => true,
+            'contacto'  => $contacto,
+            'relevantes' => $relevantes,
+            'address'   => $address,
         ]);
     }
     public function update(Request $request, Patient $patient)
@@ -376,7 +423,5 @@ class PatientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Patient $patient)
-    {
-    }
+    public function destroy(Patient $patient) {}
 }

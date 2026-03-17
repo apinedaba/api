@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Cloudinary\Configuration\Configuration;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -341,7 +342,21 @@ class PatientController extends Controller
         }
 
         try {
-            \Cloudinary\Configuration\Configuration::instance()->init(env('CLOUDINARY_URL'));
+            $cloudName = config('cloudinary.cloud_name');
+            $apiKey = config('cloudinary.api_key');
+            $apiSecret = config('cloudinary.api_secret');
+
+            if (!$cloudName || !$apiKey || !$apiSecret) {
+                @unlink($tempFilePath);
+                Log::error('Cloudinary no está configurado correctamente: faltan credenciales');
+                return response()->json(['error' => 'Cloudinary no está configurado'], 500);
+            }
+
+            Configuration::instance()->init([
+                'cloud' => ['cloud_name' => $cloudName],
+                'api_key' => $apiKey,
+                'api_secret' => $apiSecret,
+            ]);
 
             $result = (new UploadApi)->upload($tempFilePath, ['folder' => 'ProfilePhotos']);
             unlink($tempFilePath);

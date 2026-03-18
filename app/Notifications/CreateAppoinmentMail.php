@@ -57,7 +57,7 @@ class CreateAppoinmentMail extends Notification
                 'hora' => $this->hora,
                 'fecha' => $this->fecha,
                 'interval' => $this->interval->format('%h horas %i minutos'),
-                'url' => config('app.front_url') . '/appointments/status/' . base64_encode($this->appointment) . '/' . 'Confirmed',
+                'url' => config('app.front_url') . '/appointments/status/' . base64_encode(json_encode(['id' => $this->appointment->id])) . '/' . 'Confirmed',
 
             ])
             ->action('Confirmar cita', url('/'))

@@ -158,6 +158,7 @@ return [
     'firebase_server_key' => env('FIREBASE_SERVER_KEY'),
     'front_url' => env('FRONTEND_URL_PATIENT', env('APP_FRONT', env('FRONTEND_URL_USER', 'http://localhost:3000'))),
     'front_url_user' => env('FRONTEND_URL_USER'),
+    'perfil_paciente_url' => env('PERFIL_PACIENTE_URL', env('APP_FRONT', 'http://localhost:5173')),
 
 
 

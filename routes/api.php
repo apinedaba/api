@@ -12,6 +12,7 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AiDiagnoseController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
@@ -153,6 +154,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
+    // Solicitudes de citas: consultar pendientes y actualizar estado (approved/rejected)
+    Route::get('psychologists/{id}/appointment-requests', [AppointmentRequestController::class, 'indexByPsychologist']);
+    Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
 
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
     Route::apiResource('user/questionnaires', QuestionnaireController::class);
@@ -196,6 +200,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    // Solicitud de cita creada por el paciente
+    Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('logout', [PatientAuthController::class, 'logout']);
     Route::get('emotion-logs', [EmotionLogController::class, 'index']);

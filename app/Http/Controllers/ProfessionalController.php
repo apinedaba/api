@@ -25,18 +25,17 @@ class ProfessionalController extends Controller
          * ---------------------------------------------------------
          */
         $params = $request->all();
-        \Log::info("Params:", $params);
         $page = (int) ($params['page'] ?? 1);
         $perPage = (int) ($params['perPage'] ?? 10);
         $search = trim($params['search'] ?? '');
         $precioMax = $params['precioMax'] ?? null;
         $pais = $params['pais'] ?? null;
         $idioma = $params['idioma'] ?? null;
-        $especial = $params['especialidad'] ?? null;
+        $especial = $params['especialidades'] ?? null;
         $estados = (array) $request->query('estado', []);
         $estados = implode(',', $estados);
         $estados = array_filter(explode(',', $estados), fn($estado) => $estado !== "");
-        \Log::info("Estados:", $estados);
+
 
 
         $generos = !empty($params['generos'])

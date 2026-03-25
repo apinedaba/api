@@ -522,4 +522,80 @@ class AppointmentController extends Controller
             //throw $th;
         }
     }
+
+    /**
+     * Confirm appointment status from a public link (base64 json hash).
+     * Accessible without authentication.
+     */
+    public function publicConfirm(Request $request)
+    {
+        $hash = $request->input('hash');
+        $status = $request->input('status', 'Confirmed');
+
+        if (!$hash) {
+            return response()->json(['rasson' => 'Hash requerido', 'message' => 'Hash missing', 'type' => 'error'], 400);
+        }
+
+        try {
+            $decoded = json_decode(base64_decode($hash), true);
+            if (!is_array($decoded) || !isset($decoded['id'])) {
+                return response()->json(['rasson' => 'Hash inválido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
+            }
+
+            $appointment = Appointment::find($decoded['id']);
+            if (!$appointment) {
+                return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
+            }
+
+            $appointment->statusPatient = $status;
+            $appointment->save();
+
+            // Enviar notificación de cambio de estado al paciente
+            $this->sendNotificacionStatusEmail($appointment);
+
+            return response()->json(['rasson' => 'Cita confirmada', 'message' => 'Appointment confirmed', 'type' => 'success'], 200);
+        } catch (\Throwable $th) {
+            Log::error('publicConfirm error: ' . $th->getMessage());
+            return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
+        }
+    }
+
+    /**
+     * Public show: return readable appointment data for a given base64 hash.
+     * Does not expose the appointment id directly.
+     */
+    public function publicShow($hash)
+    {
+        try {
+            $decoded = json_decode(base64_decode($hash), true);
+            if (!is_array($decoded) || !isset($decoded['id'])) {
+                return response()->json(['rasson' => 'Hash inválido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
+            }
+
+            $appointment = Appointment::where('id', $decoded['id'])->with('user')->first();
+            if (!$appointment) {
+                return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
+            }
+
+            $start = Carbon::parse($appointment->start);
+            $end = Carbon::parse($appointment->end);
+            $fecha = $start->format('d/m/Y');
+            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+            $duration = $start->diff($end)->format('%h horas %i minutos');
+
+            $data = [
+                'professional' => $appointment->user?->name ?? null,
+                'fecha' => $fecha,
+                'hora' => $hora,
+                'duration' => $duration,
+                'statusPatient' => $appointment->statusPatient ?? null,
+                // Do not include the id in response to avoid exposing it directly
+            ];
+
+            return response()->json($data, 200);
+        } catch (\Throwable $th) {
+            Log::error('publicShow error: ' . $th->getMessage());
+            return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
+        }
+    }
 }

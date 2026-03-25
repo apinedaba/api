@@ -61,6 +61,10 @@ Route::get('user/public-questionnaire/{token}', [QuestionnaireLinkController::cl
     ->name('questionnaire.public.show.user');
 Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController::class, 'showPublicQuestionnaire'])
     ->name('questionnaire.public.show.patient');
+// Endpoint público para confirmar citas desde links enviados por email
+Route::post('public/appointments/confirm', [AppointmentController::class, 'publicConfirm']);
+// Endpoint público para obtener datos legibles de la cita (no expone id)
+Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit.user');
 Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
@@ -233,8 +237,6 @@ Route::post('patient/psychologists/{id}/reviews', [PsychologistReviewController:
 Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::class, 'index']);
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
-Route::get('patient/profesional/{id}', [UserController::class, 'getProfessionalById']);
-Route::post('patient/profesional/{id}/disponibilidad', [AppointmentController::class, 'getAvailableSlots']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);

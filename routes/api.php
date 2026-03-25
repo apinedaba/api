@@ -36,6 +36,7 @@ use App\Http\Controllers\SintomasController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
+use App\Http\Controllers\DocumentacionController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
 use App\Models\User;
@@ -44,6 +45,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+
 
 // Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
@@ -181,6 +183,13 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
     Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
     Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
+
+    // Documentación Drive
+    Route::get('user/documentacion',            [DocumentacionController::class, 'index']);
+    Route::get('user/documentacion/categorias', [DocumentacionController::class, 'categorias']);
+    Route::get('user/documentacion/favoritos',  [DocumentacionController::class, 'favoritos']);
+    Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
+    Route::get('user/documentacion/{driveId}/download',  [DocumentacionController::class, 'download']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

@@ -12,6 +12,7 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AiDiagnoseController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\SintomasController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
+use App\Http\Controllers\DocumentacionController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
 use App\Models\User;
@@ -43,6 +45,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+
 
 // Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
@@ -157,6 +160,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
+    // Solicitudes de citas: consultar pendientes y actualizar estado (approved/rejected)
+    Route::get('psychologists/{id}/appointment-requests', [AppointmentRequestController::class, 'indexByPsychologist']);
+    Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
 
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
     Route::apiResource('user/questionnaires', QuestionnaireController::class);
@@ -181,6 +187,13 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
     Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
     Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
+
+    // Documentación Drive
+    Route::get('user/documentacion',            [DocumentacionController::class, 'index']);
+    Route::get('user/documentacion/categorias', [DocumentacionController::class, 'categorias']);
+    Route::get('user/documentacion/favoritos',  [DocumentacionController::class, 'favoritos']);
+    Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
+    Route::get('user/documentacion/{driveId}/download',  [DocumentacionController::class, 'download']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
@@ -200,6 +213,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    // Solicitud de cita creada por el paciente
+    Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('logout', [PatientAuthController::class, 'logout']);
     Route::get('emotion-logs', [EmotionLogController::class, 'index']);

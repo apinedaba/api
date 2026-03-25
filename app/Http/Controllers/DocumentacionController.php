@@ -95,13 +95,23 @@ class DocumentacionController extends Controller
 
     /**
      * GET /api/documentacion/{driveId}/download
-     * Devuelve la URL de descarga directa del archivo en Drive.
+     * Descarga el archivo a través del backend (Proxy)
      */
-    public function download(string $driveId): JsonResponse
+    public function download(string $driveId)
     {
-        return response()->json([
-            'url'        => $this->drive->getDownloadUrl($driveId),
-            'preview_url' => $this->drive->getPreviewUrl($driveId),
-        ]);
+        try {
+            // Obtenemos los datos desde el servicio
+            $fileData = $this->drive->downloadFileRaw($driveId);
+
+            // Retornamos la respuesta como una descarga de archivo
+            return response($fileData['content'])
+                ->header('Content-Type', $fileData['mime_type'])
+                ->header('Content-Disposition', 'attachment; filename="' . $fileData['name'] . '"');
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'No se pudo descargar el archivo.',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -24,12 +24,14 @@ class GoogleDriveService
     public function __construct()
     {
         $client = new Client();
-        $client->setAuthConfig(base_path(env('GOOGLE_DRIVE_CREDENTIALS', 'storage/app/google/credentials.json')));
+        $credentialsPath = config('google_drive.credentials', env('GOOGLE_DRIVE_CREDENTIALS', 'storage/app/google/credentials.json'));
+        $client->setAuthConfig(base_path($credentialsPath));
+
         $client->addScope(Drive::DRIVE_READONLY);
-        $client->setApplicationName('MindMeet México');
+        $client->setApplicationName(config('app.name', 'MindMeet'));
 
         $this->drive    = new Drive($client);
-        $this->folderId = env('GOOGLE_DRIVE_FOLDER_ID', '');
+        $this->folderId = config('google_drive.folder_id', env('GOOGLE_DRIVE_FOLDER_ID', ''));
     }
 
     /**
@@ -40,7 +42,8 @@ class GoogleDriveService
     {
         $cacheKey = 'drive_documentos_' . md5($this->folderId);
 
-        $documentos = Cache::remember($cacheKey, now()->addMinutes(60), function () {
+        $cacheMinutes = config('google_drive.cache_minutes', 60);
+        $documentos = Cache::remember($cacheKey, now()->addMinutes($cacheMinutes), function () {
             return $this->fetchDocumentosFromDrive();
         });
 
@@ -118,11 +121,36 @@ class GoogleDriveService
     /**
      * Genera una URL de descarga directa (válida para el usuario final).
      */
-    public function getDownloadUrl(string $driveId): string
+    /* public function getDownloadUrl(string $driveId): string
     {
         // Para PDFs: fuerza descarga directa
         return "https://drive.google.com/uc?export=download&id={$driveId}";
+    } */
+
+    /**
+     * Descarga el archivo desde Drive usando la Service Account
+     * y devuelve su contenido, nombre y tipo.
+     */
+    public function downloadFileRaw(string $driveId): array
+    {
+        try {
+            // 1. Obtenemos el nombre y tipo del archivo original
+            $fileMeta = $this->drive->files->get($driveId, ['fields' => 'name, mimeType']);
+
+            // 2. Descargamos el contenido binario del archivo
+            $response = $this->drive->files->get($driveId, ['alt' => 'media']);
+
+            return [
+                'name'      => $fileMeta->getName(),
+                'mime_type' => $fileMeta->getMimeType(),
+                'content'   => $response->getBody()->getContents(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error descargando archivo de Drive: ' . $e->getMessage());
+            throw $e; // Lanzamos el error para que el controlador lo maneje
+        }
     }
+
 
     /**
      * Genera un enlace de vista previa embebido (para mostrar en iframe).

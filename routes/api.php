@@ -14,6 +14,7 @@ use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\AvailabilitiController;
+use App\Http\Controllers\CatalogosController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
 use App\Http\Controllers\EducationUserController;
@@ -118,6 +119,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
+    Route::post('user/subscription/cancel', [CatalogosController::class, 'cancelSubscription']);
 
     // Validación manual de cédula
     Route::get('user/cedula/{cedula}', [CedulaCheck::class, 'validarCedula']);
@@ -189,11 +191,11 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
 
     // Documentación Drive
-    Route::get('user/documentacion',            [DocumentacionController::class, 'index']);
+    Route::get('user/documentacion', [DocumentacionController::class, 'index']);
     Route::get('user/documentacion/categorias', [DocumentacionController::class, 'categorias']);
-    Route::get('user/documentacion/favoritos',  [DocumentacionController::class, 'favoritos']);
+    Route::get('user/documentacion/favoritos', [DocumentacionController::class, 'favoritos']);
     Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
-    Route::get('user/documentacion/{driveId}/download',  [DocumentacionController::class, 'download']);
+    Route::get('user/documentacion/{driveId}/download', [DocumentacionController::class, 'download']);
     Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Events\ValidationCedulaEvent;
+use App\Models\DeviceToken;
+use App\Services\Fcm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -293,7 +295,15 @@ class CedulaCheck extends Controller
 
             $user->educacion = $educacion;
             $user->save();
-
+            $tokens = DeviceToken::where('user_id', $user->id)->get();
+            foreach ($tokens as $token) {
+                Fcm::send($token->token, 'Tu cédula ' . $validacion->numero_cedula . ' ha sido aprobada', 'Tu cédula ' . $validacion->numero_cedula . ' ha sido aprobada', [
+                    'link' => route('psicologoShow', $user->id),
+                    'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1773885819/web-app-manifest-512x512_ccv3yf.png',
+                    'type' => 'validacion',
+                    'id' => $validacion->id
+                ]);
+            }
             event(new ValidationCedulaEvent($user, 'Tu cédula ' . $validacion->numero_cedula . ' ha sido aprobada'));
         }
 

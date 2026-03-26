@@ -176,7 +176,18 @@ class CatalogosController extends Controller
     public function getPriceById($priceId)
     {
         Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
-        $price = \Stripe\Price::retrieve($priceId);
+        $price = \Stripe\Subscription::retrieve($priceId);
         return response()->json($price);
+    }
+
+    public function cancelSubscription(Request $request)
+    {
+        $subscription = $request->all();
+        $subscription = $subscription[0];
+        Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
+        $subscription = \Stripe\Subscription::update($subscription, [
+            'cancel_at_period_end' => true,
+        ]);
+        return response()->json($subscription);
     }
 }

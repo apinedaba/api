@@ -17,9 +17,7 @@ use Carbon\Carbon;
 /**
  * Excepción personalizada para manejar tokens de Google revocados o inválidos.
  */
-class InvalidGoogleTokenException extends \Exception
-{
-}
+class InvalidGoogleTokenException extends \Exception {}
 
 class GoogleCalendarService
 {
@@ -175,7 +173,6 @@ class GoogleCalendarService
                     false, // isUpdate = false
                     false  // linkChanged = false (es creación)
                 ));
-
             } catch (\Exception $e) {
                 // Email falló, pero no loggeamos para mantener logs limpios
             }
@@ -299,5 +296,31 @@ class GoogleCalendarService
                 throw $e; // Relanzamos cualquier otro error.
             }
         }
+    }
+
+    /**
+     * Descarga el contenido raw del archivo desde Drive (para proxy).
+     * Úsalo en el controller para hacer streaming al frontend.
+     */
+    public function downloadFileRaw(string $driveId): array
+    {
+        $file = $this->drive->files->get($driveId, [
+            'fields' => 'id, name, mimeType',
+        ]);
+
+        $response = $this->drive->files->get($driveId, [
+            'alt' => 'media',
+        ]);
+
+        return [
+            'content'   => $response->getBody()->getContents(),
+            'mime_type' => $file->getMimeType(),
+            'name'      => $file->getName(),
+        ];
+    }
+
+    public function getPreviewUrl(string $driveId): string
+    {
+        return "https://drive.google.com/file/d/{$driveId}/preview";
     }
 }

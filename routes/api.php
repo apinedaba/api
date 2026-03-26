@@ -194,6 +194,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/documentacion/favoritos',  [DocumentacionController::class, 'favoritos']);
     Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
     Route::get('user/documentacion/{driveId}/download',  [DocumentacionController::class, 'download']);
+    Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

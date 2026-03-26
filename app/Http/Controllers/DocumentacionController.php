@@ -114,4 +114,16 @@ class DocumentacionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * GET /api/documentacion/{driveId}/preview
+     * Devuelve la URL de previsualización embebida.
+     */
+    public function preview(string $driveId): JsonResponse
+    {
+        return response()->json([
+            'preview_url' => $this->drive->getPreviewUrl($driveId),
+            'drive_id'    => $driveId,
+        ]);
+    }
 }

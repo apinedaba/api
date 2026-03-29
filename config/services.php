@@ -55,5 +55,8 @@ return [
         'redirect_uri_user' => env('GOOGLE_REDIRECT_URI_USER'),
         'redirect_uri_professional' => env('GOOGLE_REDIRECT_URI_PROFESSIONAL'),
     ],
+    'brevo' => [
+        'sms_key' => env('BREVO_SMS_KEY'),
+    ],
 
 ];

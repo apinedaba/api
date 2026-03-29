@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use App\Models\PasswordResetTokensPatient; // Asegúrate de importar el modelo correcto
 use Illuminate\Support\Facades\Log;
+use App\Services\BrevoSmsService;
 
 class PasswordResetController extends Controller
 {
@@ -35,8 +36,14 @@ class PasswordResetController extends Controller
             'created_at' => now()
         ]);
 
+
         try {
             Mail::to($request->email)->send(new SendPasswordResetCode($code, $user->name));
+            $smsService = new BrevoSmsService();
+            $response = $smsService->send($user->contacto['telefono'], "Tu código de recuperación es: $code");
+            if (isset($response['code']) && $response['code'] == "not_enough_credits") {
+                Log::error('credito insuficiente para enviar sms');
+            }
         } catch (\Exception $e) {
             Log::error('Error al enviar el correo de recuperación: ' . $e->getMessage());
             return response()->json(['message' => 'No se pudo enviar el correo de recuperación.'], 500);

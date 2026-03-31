@@ -106,8 +106,12 @@ class CedulaCheck extends Controller
 
         $esPsicologo = str_contains($profesion, 'PSICOLOG');
         $esPsiquiatra = str_contains($profesion, 'PSIQUIATR');
+        $esOtro = !$esPsicologo && str_contains($profesion, 'PSICO');
 
-        $permitido = $esPsicologo || $esPsiquiatra;
+        \Log::info("Es Otro $esOtro");
+        \Log::info("Es Psico $esPsicologo");
+
+        $permitido = $esPsicologo || $esPsiquiatra || $esOtro;
 
         if (!$permitido) {
             return response()->json([

@@ -431,7 +431,7 @@ class StripeController extends Controller
         Log::info('Has had real stripe subscription: ' . $hasHadRealStripeSubscription);
         if (!$hasHadRealStripeSubscription) {
             $sessionData['subscription_data'] = [
-                'trial_period_days' => 10, // ¡Aquí defines la duración de la prueba!
+                'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
             ];
         }
         $session = CheckoutSession::create($sessionData);

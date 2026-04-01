@@ -19,7 +19,6 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
         //$schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00')->timezone('America/Mexico_City');
-        $schedule->command('mindmeet:trial-reminders')->dailyAt('11:00')->timezone('America/Mexico_City');
     }
 
     /**

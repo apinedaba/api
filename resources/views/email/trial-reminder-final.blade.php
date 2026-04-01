@@ -34,7 +34,7 @@
         <tr>
             <td style="padding:14px; border:1px solid #e5e7eb; border-radius:8px;">
                 <strong>💳 Plan mensual</strong><br>
-                $10 MXN al mes
+                $99 MXN al mes
             </td>
         </tr>
         <tr>
@@ -43,7 +43,7 @@
         <tr>
             <td style="padding:14px; border:1px solid #e5e7eb; border-radius:8px;">
                 <strong>⭐ Plan anual</strong><br>
-                $100 MXN al año · Acceso continuo
+                $1,089 MXN al año · Acceso continuo
             </td>
         </tr>
     </table>

@@ -12,21 +12,11 @@ class GoogleDriveService
     private Drive $drive;
     private string $folderId;
 
-    // Mapa de categorías: si el nombre del archivo o carpeta contiene
-    // estas palabras clave, se asigna la categoría correspondiente.
-    private array $categorias = [
-        'tcc'          => ['tcc', 'cognitivo', 'conductual', 'beck', 'reestructuración', 'mindfulness'],
-        'evaluacion'   => ['evaluación', 'evaluacion', 'test', 'escala', 'diagnóstico', 'diagnostico', 'batería', 'bateria', 'scid', 'banfe'],
-        'trauma'       => ['trauma', 'emdr', 'tept', 'ptsd', 'disociación', 'disociacion'],
-        'intervencion' => ['intervención', 'intervencion', 'crisis', 'motivacional', 'adicciones', 'suicid', 'ansiedad'],
-    ];
-
     public function __construct()
     {
         $client = new Client();
         $credentialsPath = config('google_drive.credentials', env('GOOGLE_DRIVE_CREDENTIALS', 'storage/app/google/credentials.json'));
         $client->setAuthConfig(base_path($credentialsPath));
-
         $client->addScope(Drive::DRIVE_READONLY);
         $client->setApplicationName(config('app.name', 'MindMeet'));
 
@@ -35,19 +25,18 @@ class GoogleDriveService
     }
 
     /**
-     * Obtiene todos los documentos de la carpeta de Drive.
-     * Resultado cacheado 60 minutos para no exceder cuotas de la API.
+     * Obtiene todos los documentos de la carpeta raíz y sus subcarpetas.
+     * Resultado cacheado según configuración (default 60 min).
      */
     public function getDocumentos(?string $categoria = null, ?string $busqueda = null): array
     {
-        $cacheKey = 'drive_documentos_' . md5($this->folderId);
-
+        $cacheKey     = 'drive_documentos_' . md5($this->folderId);
         $cacheMinutes = config('google_drive.cache_minutes', 60);
+
         $documentos = Cache::remember($cacheKey, now()->addMinutes($cacheMinutes), function () {
-            return $this->fetchDocumentosFromDrive();
+            return $this->fetchRecursivo($this->folderId, null);
         });
 
-        // Filtrar en PHP (no en la API) para aprovechar el caché
         if ($categoria && $categoria !== 'all') {
             $documentos = array_filter($documentos, fn($d) => $d['categoria'] === $categoria);
         }
@@ -64,80 +53,107 @@ class GoogleDriveService
     }
 
     /**
-     * Llama a la API de Drive y transforma los archivos al formato del frontend.
+     * Recorre recursivamente carpeta y subcarpetas.
+     * El nombre de cada subcarpeta se convierte en la categoría de sus archivos.
+     *
+     * @param string      $folderId        ID de la carpeta a explorar
+     * @param string|null $categoriaNombre Nombre de la carpeta padre (null = raíz → "General")
      */
-    private function fetchDocumentosFromDrive(): array
+    private function fetchRecursivo(string $folderId, ?string $categoriaNombre): array
     {
+        $documentos = [];
+
         try {
             $response = $this->drive->files->listFiles([
-                'q'          => "'{$this->folderId}' in parents and trashed = false",
-                'fields'     => 'files(id, name, description, mimeType, webViewLink, size, createdTime, properties)',
-                'pageSize'   => 100,
-                'orderBy'    => 'name',
+                'q'        => "'{$folderId}' in parents and trashed = false",
+                'fields'   => 'files(id, name, description, mimeType, webViewLink, size, createdTime, properties)',
+                'pageSize' => 200,
+                'orderBy'  => 'name',
             ]);
 
-            return array_map(
-                fn($file) => $this->transformFile($file),
-                $response->getFiles()
-            );
+            foreach ($response->getFiles() as $file) {
+                if ($file->getMimeType() === 'application/vnd.google-apps.folder') {
+                    // Es subcarpeta → entrar recursivamente usando su nombre como categoría
+                    $subDocs    = $this->fetchRecursivo($file->getId(), $file->getName());
+                    $documentos = array_merge($documentos, $subDocs);
+                } else {
+                    // Es archivo → transformar con la categoría de su carpeta contenedora
+                    $documentos[] = $this->transformFile($file, $categoriaNombre);
+                }
+            }
         } catch (\Exception $e) {
-            Log::error('Google Drive API error: ' . $e->getMessage());
-            return [];
+            Log::error('Google Drive API error en carpeta ' . $folderId . ': ' . $e->getMessage());
         }
+
+        return $documentos;
     }
 
     /**
      * Transforma un archivo de Drive al formato esperado por el frontend.
-     * Los metadatos (autor, año, resumen) se leen de las "propiedades personalizadas"
-     * del archivo en Drive. Puedes editarlas desde Drive o desde un script.
+     * La categoría viene del nombre de la subcarpeta donde está el archivo.
      */
-    private function transformFile(\Google\Service\Drive\DriveFile $file): array
+    private function transformFile(\Google\Service\Drive\DriveFile $file, ?string $categoriaNombre): array
     {
-        $props    = $file->getProperties() ?? [];
-        $nombre   = $file->getName();
-        $categoria = $this->detectarCategoria($nombre);
+        $props = $file->getProperties() ?? [];
+        $nombre = $file->getName();
 
-        // Estima páginas desde el tamaño del archivo (PDF ~75KB por página)
+        $categoriaSlug   = $categoriaNombre ? $this->slugify($categoriaNombre) : 'general';
+        $categoriaMostrar = $categoriaNombre ?? 'General';
+
         $paginas = isset($props['paginas'])
             ? $props['paginas'] . ' pág.'
             : $this->estimarPaginas((int) ($file->getSize() ?? 0));
 
         return [
-            'id'              => $file->getId(),
-            'titulo'          => $props['titulo'] ?? $this->limpiarNombre($nombre),
-            'resumen'         => $props['resumen'] ?? 'Sin descripción disponible.',
-            'cuerpo'          => $props['cuerpo']  ?? ($props['resumen'] ?? 'Sin descripción disponible.'),
-            'autor'           => $props['autor']   ?? 'Autor desconocido',
-            'anio'            => $props['anio']    ?? substr($file->getCreatedTime(), 0, 4),
-            'paginas'         => $paginas,
-            'categoria'       => $categoria,
-            'categoria_nombre' => $this->categoriaNombre($categoria),
-            'mime_type'       => $file->getMimeType(),
-            'drive_url'       => $file->getWebViewLink(),
-            'favorito'        => false, // se sobreescribe en el controlador
+            'id'               => $file->getId(),
+            'titulo'           => $props['titulo'] ?? $this->limpiarNombre($nombre),
+            'resumen'          => $props['resumen'] ?? 'Sin descripción disponible.',
+            'cuerpo'           => $props['cuerpo']  ?? ($props['resumen'] ?? 'Sin descripción disponible.'),
+            'autor'            => $props['autor']   ?? 'Autor desconocido',
+            'anio'             => $props['anio']    ?? substr($file->getCreatedTime(), 0, 4),
+            'paginas'          => $paginas,
+            'categoria'        => $categoriaSlug,
+            'categoria_nombre' => $categoriaMostrar,
+            'mime_type'        => $file->getMimeType(),
+            'drive_url'        => $file->getWebViewLink(),
+            'favorito'         => false,
         ];
     }
 
     /**
-     * Genera una URL de descarga directa (válida para el usuario final).
+     * Devuelve las categorías únicas encontradas en Drive.
+     * Se generan automáticamente desde los nombres de las subcarpetas.
      */
-    /* public function getDownloadUrl(string $driveId): string
+    public function getCategorias(): array
     {
-        // Para PDFs: fuerza descarga directa
-        return "https://drive.google.com/uc?export=download&id={$driveId}";
-    } */
+        $docs = $this->getDocumentos();
+
+        $mapa = [];
+        foreach ($docs as $doc) {
+            $slug   = $doc['categoria'];
+            $nombre = $doc['categoria_nombre'];
+            if (!isset($mapa[$slug])) {
+                $mapa[$slug] = [
+                    'slug'   => $slug,
+                    'nombre' => $nombre,
+                    'color'  => $this->colorParaCategoria($slug),
+                    'total'  => 0,
+                ];
+            }
+            $mapa[$slug]['total']++;
+        }
+
+        return array_values($mapa);
+    }
 
     /**
      * Descarga el archivo desde Drive usando la Service Account
-     * y devuelve su contenido, nombre y tipo.
+     * y devuelve su contenido, nombre y tipo MIME.
      */
     public function downloadFileRaw(string $driveId): array
     {
         try {
-            // 1. Obtenemos el nombre y tipo del archivo original
             $fileMeta = $this->drive->files->get($driveId, ['fields' => 'name, mimeType']);
-
-            // 2. Descargamos el contenido binario del archivo
             $response = $this->drive->files->get($driveId, ['alt' => 'media']);
 
             return [
@@ -147,65 +163,58 @@ class GoogleDriveService
             ];
         } catch (\Exception $e) {
             Log::error('Error descargando archivo de Drive: ' . $e->getMessage());
-            throw $e; // Lanzamos el error para que el controlador lo maneje
+            throw $e;
         }
     }
 
-
     /**
-     * Genera un enlace de vista previa embebido (para mostrar en iframe).
+     * Genera una URL de previsualización embebida (para iframe).
      */
     public function getPreviewUrl(string $driveId): string
     {
         return "https://drive.google.com/file/d/{$driveId}/preview";
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     /**
-     * Devuelve las categorías disponibles con conteo.
+     * Convierte el nombre de una carpeta a slug.
+     * Ej: "Terapia Cognitiva" → "terapia-cognitiva"
      */
-    public function getCategorias(): array
+    private function slugify(string $texto): string
     {
-        $docs = $this->getDocumentos();
+        $texto = mb_strtolower($texto, 'UTF-8');
+        $texto = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ', 'à', 'è', 'ì', 'ò', 'ù'],
+            ['a', 'e', 'i', 'o', 'u', 'u', 'n', 'a', 'e', 'i', 'o', 'u'],
+            $texto
+        );
+        $texto = preg_replace('/[^a-z0-9]+/', '-', $texto);
+        return trim($texto, '-');
+    }
 
-        $conteos = array_count_values(array_column($docs, 'categoria'));
-
-        return [
-            ['slug' => 'tcc',          'nombre' => 'TCC',          'color' => '#00c4b8', 'total' => $conteos['tcc'] ?? 0],
-            ['slug' => 'evaluacion',   'nombre' => 'Evaluación',   'color' => '#3fc0e8', 'total' => $conteos['evaluacion'] ?? 0],
-            ['slug' => 'trauma',       'nombre' => 'Trauma',       'color' => '#e05a7a', 'total' => $conteos['trauma'] ?? 0],
-            ['slug' => 'intervencion', 'nombre' => 'Intervención', 'color' => '#30bfb5', 'total' => $conteos['intervencion'] ?? 0],
+    /**
+     * Asigna un color consistente a cada categoría basado en su slug.
+     * El mismo nombre de carpeta siempre tendrá el mismo color.
+     */
+    private function colorParaCategoria(string $slug): string
+    {
+        $colores = [
+            '#00c4b8',
+            '#3fc0e8',
+            '#30bfb5',
+            '#007ca9',
+            '#e05a7a',
+            '#f59e0b',
+            '#8b5cf6',
+            '#10b981',
         ];
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private function detectarCategoria(string $nombre): string
-    {
-        $nombreLower = mb_strtolower($nombre);
-        foreach ($this->categorias as $cat => $palabras) {
-            foreach ($palabras as $palabra) {
-                if (str_contains($nombreLower, $palabra)) {
-                    return $cat;
-                }
-            }
-        }
-        return 'intervencion'; // categoría por defecto
-    }
-
-    private function categoriaNombre(string $cat): string
-    {
-        return match ($cat) {
-            'tcc'          => 'TCC',
-            'evaluacion'   => 'Evaluación',
-            'trauma'       => 'Trauma',
-            'intervencion' => 'Intervención',
-            default        => ucfirst($cat),
-        };
+        $index = abs(crc32($slug)) % count($colores);
+        return $colores[$index];
     }
 
     private function limpiarNombre(string $nombre): string
     {
-        // Quita extensión y guiones/guiones bajos
         return ucfirst(trim(preg_replace('/[-_]+/', ' ', pathinfo($nombre, PATHINFO_FILENAME))));
     }
 

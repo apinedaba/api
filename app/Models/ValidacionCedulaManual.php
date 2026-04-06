@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Administrator;
 
 class ValidacionCedulaManual extends Model
 {
@@ -39,6 +40,6 @@ class ValidacionCedulaManual extends Model
 
     public function revisor()
     {
-        return $this->belongsTo(User::class, 'revisado_por');
+        return $this->belongsTo(Administrator::class, 'revisado_por');
     }
 }

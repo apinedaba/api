@@ -39,29 +39,60 @@ class CedulaCheck extends Controller
             ]);
         }
 
-        $token = Cache::remember('sep_token', 3500, function () {
+        try {
+            $token = Cache::remember('sep_token', 3500, function () {
+                $response = Http::withoutVerifying()
+                    ->timeout(15)
+                    ->withHeaders([
+                        'Accept' => 'application/json',
+                        'X-API-Key' => '65da8s675f8s75fda675s8d76as87d5as675da',
+                        'X-Client-Id' => 'rnp-angular-app-prod',
+                        'Referer' => 'https://cedulaprofesional.sep.gob.mx/',
+                        'User-Agent' => 'Mozilla/5.0',
+                    ])
+                    ->get('https://cedulaprofesional.sep.gob.mx/api/auth/token');
 
+                $token = $response->json()['access_token'] ?? null;
+
+                if (!$token) {
+                    throw new \Exception('Token de SEP vacío o inválido');
+                }
+
+                return $token;
+            });
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Cache::forget('sep_token');
+            Log::warning('SEP no disponible (timeout): ' . $e->getMessage());
+            return response()->json([
+                "valid" => false,
+                "message" => "No se pudo conectar al servicio de SEP. Intenta más tarde o usa la validación manual."
+            ], 503);
+        } catch (\Exception $e) {
+            Cache::forget('sep_token');
+            Log::warning('Error al obtener token SEP: ' . $e->getMessage());
+            return response()->json([
+                "valid" => false,
+                "message" => "Error al conectar con SEP. Intenta más tarde o usa la validación manual."
+            ], 503);
+        }
+
+        try {
             $response = Http::withoutVerifying()
-                ->withHeaders([
-                    'Accept' => 'application/json',
-                    'X-API-Key' => '65da8s675f8s75fda675s8d76as87d5as675da',
-                    'X-Client-Id' => 'rnp-angular-app-prod',
-                    'Referer' => 'https://cedulaprofesional.sep.gob.mx/',
-                    'User-Agent' => 'Mozilla/5.0',
-                ])
-                ->get('https://cedulaprofesional.sep.gob.mx/api/auth/token');
-
-            return $response->json()['access_token'];
-        });
-
-        $response = Http::withoutVerifying()
-            ->withToken($token)
-            ->post(
-                "https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle",
-                [
-                    "numCedula" => $cedula
-                ]
-            );
+                ->timeout(15)
+                ->withToken($token)
+                ->post(
+                    "https://cedulaprofesional.sep.gob.mx/api/solr/profesionista/consultar/byDetalle",
+                    [
+                        "numCedula" => $cedula
+                    ]
+                );
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::warning('SEP timeout en consulta: ' . $e->getMessage());
+            return response()->json([
+                "valid" => false,
+                "message" => "No se pudo consultar el servicio de SEP. Intenta más tarde o usa la validación manual."
+            ], 503);
+        }
 
         $data = $response->json();
 
@@ -80,8 +111,8 @@ class CedulaCheck extends Controller
 
         $nombre = trim(
             ($profesionista['nombre'] ?? '') . ' ' .
-            ($profesionista['primerApellido'] ?? '') . ' ' .
-            ($profesionista['segundoApellido'] ?? '')
+                ($profesionista['primerApellido'] ?? '') . ' ' .
+                ($profesionista['segundoApellido'] ?? '')
         );
 
         $grado = 'OTRO';

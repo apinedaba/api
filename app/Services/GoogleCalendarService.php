@@ -245,7 +245,6 @@ class GoogleCalendarService
                     $start = Carbon::parse($appointment->start);
                     $fecha = $start->format('d/m/Y');
                     $hora = $start->format('H:i');
-                    logger("Actualizacion Google", $user->id);
                     Mail::to($patient->email)->send(new GoogleMeetLinkMail(
                         $patient->name,
                         $appointment->link,

@@ -17,7 +17,6 @@ class SendAppointmentReminders extends Command
     {
         $now = now()->timezone(config('app.timezone'));
         $windows = [
-            ['key' => '24h', 'minutes' => 24 * 60],
             ['key' => '30m', 'minutes' => 30],
         ];
 
@@ -25,7 +24,7 @@ class SendAppointmentReminders extends Command
             ->whereNotIn('statusUser', ['Cancel', 'Completed'])
             ->whereNotIn('statusPatient', ['Cancel', 'Completed'])
             ->where('start', '>=', $now)
-            ->where('start', '<=', $now->copy()->addDay()->addMinutes(10))
+            ->where('start', '<=', $now->copy()->addMinutes(40))
             ->orderBy('start')
             ->get();
 

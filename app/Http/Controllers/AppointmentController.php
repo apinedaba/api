@@ -11,6 +11,7 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\RecurringAppointmentSeriesNotification;
 use App\Notifications\StateAppoinmentMail;
 use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
@@ -240,8 +241,18 @@ class AppointmentController extends Controller
             }
 
             $appointments[] = $appointment->fresh(['patient', 'user', 'cart']);
-            $this->sendNotificacionCreateAppoimentEmail($appointment);
-            event(new AppointmentCreated($appointment->id, $appointment->user, $appointment->patient));
+
+            if (!$isRecurrent) {
+                $this->sendNotificacionCreateAppoimentEmail($appointment);
+            }
+
+            if (!$isRecurrent) {
+                event(new AppointmentCreated($appointment->id, $appointment->user, $appointment->patient));
+            }
+        }
+
+        if ($isRecurrent && count($appointments) > 0) {
+            $this->sendRecurringSeriesNotification($appointments, $frequency, $until);
         }
 
         if ($syncWithGoogle && count($appointments) > 0) {
@@ -547,6 +558,41 @@ class AppointmentController extends Controller
             }
 
             $patient->notify(new CreateAppoinmentMail($appointment, $patient, $hora, $fecha, $interval));
+            return true;
+        } catch (\Throwable $th) {
+            Log::error($th->getMessage());
+            return false;
+        }
+    }
+
+    public function sendRecurringSeriesNotification(array $appointments, string $frequency, string $until): bool
+    {
+        try {
+            $firstAppointment = collect($appointments)->sortBy('start')->first();
+            if (!$firstAppointment) {
+                return false;
+            }
+
+            $patient = Patient::find($firstAppointment->patient);
+            $professional = User::find($firstAppointment->user);
+            if ($patient) {
+                $patient->notify(new RecurringAppointmentSeriesNotification(
+                    $firstAppointment->loadMissing(['patient', 'user']),
+                    $frequency,
+                    $until,
+                    count($appointments)
+                ));
+            }
+
+            if ($professional) {
+                $professional->notify(new RecurringAppointmentSeriesNotification(
+                    $firstAppointment->loadMissing(['patient', 'user']),
+                    $frequency,
+                    $until,
+                    count($appointments)
+                ));
+            }
+
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());

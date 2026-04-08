@@ -31,9 +31,11 @@ class RecurringAppointmentSeriesNotification extends Notification
         $isProfessional = $notifiable instanceof User;
         $start = Carbon::parse($this->firstAppointment->start)->timezone(config('app.timezone'));
         $until = Carbon::parse($this->until)->timezone(config('app.timezone'));
+        $patient = $this->firstAppointment->patient()->first();
+        $professional = $this->firstAppointment->user()->first();
         $counterpart = $isProfessional
-            ? ($this->firstAppointment->patient?->name ?: 'tu paciente')
-            : ($this->firstAppointment->user?->name ?: 'tu profesional');
+            ? ($patient?->name ?: 'tu paciente')
+            : ($professional?->name ?: 'tu profesional');
 
         return (new MailMessage)
             ->subject('Serie de sesiones creada')
@@ -57,9 +59,11 @@ class RecurringAppointmentSeriesNotification extends Notification
     public function toArray(object $notifiable): array
     {
         $isProfessional = $notifiable instanceof User;
+        $patient = $this->firstAppointment->patient()->first();
+        $professional = $this->firstAppointment->user()->first();
         $counterpart = $isProfessional
-            ? ($this->firstAppointment->patient?->name ?: 'tu paciente')
-            : ($this->firstAppointment->user?->name ?: 'tu profesional');
+            ? ($patient?->name ?: 'tu paciente')
+            : ($professional?->name ?: 'tu profesional');
 
         return [
             'title' => 'Serie recurrente creada',

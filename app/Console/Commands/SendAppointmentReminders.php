@@ -34,13 +34,16 @@ class SendAppointmentReminders extends Command
                     continue;
                 }
 
-                if ($appointment->patient) {
-                    $appointment->patient->notify(new AppointmentReminderNotification($appointment, $window['key']));
+                $patient = $appointment->patient()->first();
+                $professional = $appointment->user()->first();
+
+                if ($patient && !data_get($appointment->notification_meta ?? [], "{$window['key']}.patient")) {
+                    $patient->notify(new AppointmentReminderNotification($appointment, $window['key']));
                     $this->markReminderSent($appointment, 'patient', $window['key'], $now);
                 }
 
-                if ($appointment->user) {
-                    $appointment->user->notify(new AppointmentReminderNotification($appointment, $window['key']));
+                if ($professional && !data_get($appointment->notification_meta ?? [], "{$window['key']}.professional")) {
+                    $professional->notify(new AppointmentReminderNotification($appointment, $window['key']));
                     $this->markReminderSent($appointment, 'professional', $window['key'], $now);
                 }
             }

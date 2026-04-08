@@ -67,11 +67,14 @@ class AppointmentReminderNotification extends Notification
 
     protected function getCounterpart(object $notifiable): string
     {
+        $patient = $this->appointment->patient()->first();
+        $professional = $this->appointment->user()->first();
+
         if ($notifiable instanceof User) {
-            return optional($this->appointment->patient)->name ?: 'tu paciente';
+            return $patient?->name ?: 'tu paciente';
         }
 
-        return optional($this->appointment->user)->name ?: 'tu profesional';
+        return $professional?->name ?: 'tu profesional';
     }
 
     protected function humanReminderLabel(): string

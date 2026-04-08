@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Enlace de tu sesión en MindMeet</title>
+    <title>MindMeet | Enlace de sesion</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
 </head>
 
@@ -81,3 +81,4 @@
 </body>
 
 </html>
+

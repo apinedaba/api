@@ -32,7 +32,7 @@ class AppointmentReminderNotification extends Notification
         $timeLabel = $this->humanReminderLabel();
 
         return (new MailMessage)
-            ->subject($isProfessional ? 'Recordatorio de sesion proxima' : 'Tu sesion comienza pronto')
+            ->subject($isProfessional ? 'MindMeet | Recordatorio de sesion en 30 minutos' : 'MindMeet | Tu sesion comienza en 30 minutos')
             ->greeting('Hola ' . ($notifiable->name ?? ''))
             ->line(
                 $isProfessional

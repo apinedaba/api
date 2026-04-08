@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -20,9 +19,6 @@ class GoogleMeetLinkMail extends Mailable
     public $isUpdate;
     public $linkChanged;
 
-    /**
-     * Create a new message instance.
-     */
     public function __construct($patientName, $meetLink, $fecha, $hora, $isUpdate = false, $linkChanged = false)
     {
         $this->patientName = $patientName;
@@ -33,21 +29,17 @@ class GoogleMeetLinkMail extends Mailable
         $this->linkChanged = $linkChanged;
     }
 
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
-        $subject = $this->isUpdate ? 'Actualización de tu sesión en MindMeet' : 'Enlace de tu sesión en MindMeet';
+        $subject = $this->isUpdate
+            ? "MindMeet | Actualizacion del enlace de tu sesion para {$this->fecha} a las {$this->hora}"
+            : "MindMeet | Enlace de tu sesion para {$this->fecha} a las {$this->hora}";
 
         return new Envelope(
             subject: $subject,
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
@@ -55,11 +47,6 @@ class GoogleMeetLinkMail extends Mailable
         );
     }
 
-    /**
-     * Get the attachments for the message.
-     *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
-     */
     public function attachments(): array
     {
         return [];

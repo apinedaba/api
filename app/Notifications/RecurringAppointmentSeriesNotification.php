@@ -38,7 +38,7 @@ class RecurringAppointmentSeriesNotification extends Notification
             : ($professional?->name ?: 'tu profesional');
 
         return (new MailMessage)
-            ->subject('Serie de sesiones creada')
+            ->subject('MindMeet | Serie de sesiones programada')
             ->greeting('Hola ' . ($notifiable->name ?? ''))
             ->line(
                 $isProfessional

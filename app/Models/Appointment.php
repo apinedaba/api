@@ -28,11 +28,23 @@ class Appointment extends Model
         'cart_id',
         'link',
         'google_event_id',
+        'recurrence_id',
+        'recurrence_frequency',
+        'recurrence_interval',
+        'recurrence_until',
+        'recurrence_position',
+        'synced_with_google',
         'extendedProps',
+        'notification_meta',
     ];
 
     protected $casts = [
+        'start' => 'datetime',
+        'end' => 'datetime',
+        'recurrence_until' => 'date',
+        'synced_with_google' => 'boolean',
         'extendedProps' => 'array',
+        'notification_meta' => 'array',
     ];
 
     public function patient_user()

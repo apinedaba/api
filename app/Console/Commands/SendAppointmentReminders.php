@@ -3,44 +3,75 @@
 namespace App\Console\Commands;
 
 use App\Models\Appointment;
+use App\Notifications\AppointmentReminderNotification;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
-use App\Models\User;
-use App\Services\EmailService;
-use App\Services\Fcm;
-use App\Models\DeviceToken;
-use Log;
-
 
 class SendAppointmentReminders extends Command
 {
     protected $signature = 'appointments:send-reminders';
 
-    public function handle()
+    protected $description = 'Envia recordatorios de citas a pacientes y profesionales';
+
+    public function handle(): int
     {
-        $now = now();
-        $target = now()->addMinutes(30);
-        $this->info('Fecha actual: ' . $now);
-        $this->info('Fecha objetivo: ' . $target);
-        $appointments = Appointment::whereBetween(
-            'start',
-            [$now, $target]
-        );
+        $now = now()->timezone(config('app.timezone'));
+        $windows = [
+            ['key' => '24h', 'minutes' => 24 * 60],
+            ['key' => '30m', 'minutes' => 30],
+        ];
 
-        foreach ($appointments->get() as $appointment) {
-            $this->info('' . $appointment);
-            $this->info('Total de citas: ' . $appointment->patient()->name . '' . $appointment->patient()->email . '');
-            $psychologist = $appointment->user;
-            $patientName = $appointment->patient()->name;
-            $patientEmail = $appointment->patient()->email;
+        $appointments = Appointment::with(['patient', 'user'])
+            ->whereNotIn('statusUser', ['Cancel', 'Completed'])
+            ->whereNotIn('statusPatient', ['Cancel', 'Completed'])
+            ->where('start', '>=', $now)
+            ->where('start', '<=', $now->copy()->addDay()->addMinutes(10))
+            ->orderBy('start')
+            ->get();
 
-            $tokens = DeviceToken::where('user_id', $psychologist->id)->pluck('token')->all();
-            Log::info(count($tokens));
-            foreach ($tokens as $token) {
-                Fcm::send($token, "Tu sesión comienza pronto", "Tu sesión con {$patientName} comienza en 30 minutos, ¡prepárate!", [
-                    'link' => config('app.frontend_url') . '/perfil',
-                    'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
-                ]);
+        foreach ($appointments as $appointment) {
+            foreach ($windows as $window) {
+                if (!$this->shouldSendReminder($appointment, $window['minutes'], $window['key'], $now)) {
+                    continue;
+                }
+
+                if ($appointment->patient) {
+                    $appointment->patient->notify(new AppointmentReminderNotification($appointment, $window['key']));
+                    $this->markReminderSent($appointment, 'patient', $window['key'], $now);
+                }
+
+                if ($appointment->user) {
+                    $appointment->user->notify(new AppointmentReminderNotification($appointment, $window['key']));
+                    $this->markReminderSent($appointment, 'professional', $window['key'], $now);
+                }
             }
         }
+
+        $this->info('Recordatorios de citas procesados correctamente.');
+
+        return self::SUCCESS;
+    }
+
+    protected function shouldSendReminder(Appointment $appointment, int $minutesBefore, string $key, Carbon $now): bool
+    {
+        $targetStart = $now->copy()->addMinutes($minutesBefore);
+        $windowEnd = $targetStart->copy()->addMinutes(4);
+        $start = Carbon::parse($appointment->start)->timezone(config('app.timezone'));
+
+        if (!$start->betweenIncluded($targetStart, $windowEnd)) {
+            return false;
+        }
+
+        $meta = $appointment->notification_meta ?? [];
+
+        return !data_get($meta, "{$key}.patient") || !data_get($meta, "{$key}.professional");
+    }
+
+    protected function markReminderSent(Appointment $appointment, string $recipient, string $key, Carbon $now): void
+    {
+        $meta = $appointment->notification_meta ?? [];
+        data_set($meta, "{$key}.{$recipient}", $now->toIso8601String());
+        $appointment->notification_meta = $meta;
+        $appointment->save();
     }
 }

@@ -158,7 +158,7 @@ class GoogleCalendarService
         event(new NewNotification("user.{$appointment->user}", "Cita, Sincronizada con google, ¡Link de meet disponible!"));
         // Enviar email al paciente con el enlace de la sesión
         $patient = Patient::find($appointment->patient);
-        if ($appointment->link && $patient) {
+        if ($appointment->link && $patient && filled($patient->email)) {
             try {
                 // Formatear fecha y hora
                 $start = Carbon::parse($appointment->start);
@@ -239,7 +239,7 @@ class GoogleCalendarService
             event(new NewNotification("user.{$appointment->user}", "Link disponible en la sesion"));
             // Enviar email al paciente informando de la actualización
             $patient = Patient::find($appointment->patient);
-            if ($patient && $appointment->link) {
+            if ($patient && $appointment->link && filled($patient->email)) {
                 try {
                     // Formatear fecha y hora
                     $start = Carbon::parse($appointment->start);

@@ -17,6 +17,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('queue:work --stop-when-empty')
             ->everySecond()
             ->withoutOverlapping();
+        $schedule->command('appointments:send-reminders')
+            ->everyFiveMinutes()
+            ->timezone('America/Mexico_City');
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
         //$schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00')->timezone('America/Mexico_City');
     }

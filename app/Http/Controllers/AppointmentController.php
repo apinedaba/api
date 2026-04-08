@@ -2,70 +2,68 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AppointmentCreated;
+use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
+use App\Models\ConsultaContacto;
 use App\Models\Patient;
-use App\Models\User;
 use App\Models\PatientUser;
+use App\Models\User;
+use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\StateAppoinmentMail;
+use App\Services\AppointmentService;
+use App\Services\GoogleCalendarService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Notifications\StateAppoinmentMail;
-use App\Notifications\CreateAppoinmentMail;
-use Response;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
-use App\Services\AppointmentService;
-use App\Services\GoogleCalendarService;
-use App\Services\InvalidGoogleTokenException;
-use App\Jobs\SyncAppointmentToGoogleCalendar;
-use Illuminate\Support\Facades\Crypt;
-use RRule\RRule;
-use App\Models\ConsultaContacto;
-use Illuminate\Support\Facades\Hash;
 
 class AppointmentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    protected $service;
-    protected $googleCalendarService;
+    protected AppointmentService $service;
+    protected GoogleCalendarService $googleCalendarService;
+
     public function __construct(AppointmentService $service, GoogleCalendarService $googleCalendarService)
     {
         $this->service = $service;
         $this->googleCalendarService = $googleCalendarService;
     }
-    public function index(Request $request)
+
+    public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        $Appointments = Appointment::with('payments')->where("user", $user->id)->get();
-        return response()->json($Appointments, 200);
+        $appointments = Appointment::with(['payments', 'cart'])
+            ->where('user', $user->id)
+            ->orderBy('start')
+            ->get();
+
+        return response()->json($appointments, 200);
     }
-    /**
-     * Display a listing of the resource.
-     */
-    public function getAppoinmentsByPatient($patient = null)
+
+    public function getAppoinmentsByPatient($patient = null): JsonResponse
     {
-        $route = Route::getCurrentRoute();
-        $middlewares = $route->gatherMiddleware();
+        $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $user = Auth::user();
 
-
-        if (in_array("user", $middlewares)) {
-            $appoinments = Appointment::where('user', $user->id)
+        if (in_array('user', $middlewares, true)) {
+            $appointments = Appointment::where('user', $user->id)
                 ->where('patient', $patient)
-                ->orderBy('id', 'desc')
+                ->orderByDesc('id')
+                ->get();
+        } else {
+            $appointments = Appointment::where('patient', $user->id)
+                ->with(['user', 'payments'])
+                ->orderBy('start')
                 ->get();
         }
 
-        if (in_array("patient", $middlewares)) {
-            $appoinments = Appointment::where("patient", $user->id)->with(['user', 'payments'])->get();
-        }
-
-
-        return response()->json($appoinments, 200);
+        return response()->json($appointments, 200);
     }
 
     public function getAvailableSlots(Request $request, $id)
@@ -79,11 +77,12 @@ class AppointmentController extends Controller
 
         $appointments = Appointment::where('user', $id)
             ->whereBetween('start', [$start, $end])
+            ->whereNotIn('statusUser', ['Cancel'])
+            ->whereNotIn('statusPatient', ['Cancel'])
             ->get();
 
         $slots = [];
         $uniqueDays = [];
-
         $current = $start->copy();
 
         while ($current->lte($end) && count($uniqueDays) < 5) {
@@ -100,19 +99,17 @@ class AppointmentController extends Controller
             foreach ($workingHours[$weekday] as $block) {
                 $blockStart = Carbon::parse("$fecha {$block['start']}");
                 $blockEnd = Carbon::parse("$fecha {$block['end']}");
-
-                $slotStart = $blockStart->gt($now)
-                    ? $blockStart->copy()
-                    : $now->copy();
+                $slotStart = $blockStart->gt($now) ? $blockStart->copy() : $now->copy();
 
                 while ($slotStart->lt($blockEnd)) {
                     $slotEnd = $slotStart->copy()->addMinutes(50);
 
-                    if ($slotEnd->gt($blockEnd))
+                    if ($slotEnd->gt($blockEnd)) {
                         break;
+                    }
 
-                    $empalme = $appointments->contains(function ($a) use ($slotStart, $slotEnd) {
-                        return $slotStart->lt($a->end) && $slotEnd->gt($a->start);
+                    $empalme = $appointments->contains(function ($appointment) use ($slotStart, $slotEnd) {
+                        return $slotStart->lt($appointment->end) && $slotEnd->gt($appointment->start);
                     });
 
                     if (!$empalme) {
@@ -123,7 +120,7 @@ class AppointmentController extends Controller
                         $slotsFoundToday = true;
                     }
 
-                    $slotStart->addMinutes(60); // siguiente slot real
+                    $slotStart->addMinutes(60);
                 }
             }
 
@@ -137,313 +134,349 @@ class AppointmentController extends Controller
         return response()->json($slots);
     }
 
-
-
-
-
-
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        Log::info("Creando cita con datos: " . json_encode($request->all()));
-        $route = Route::getCurrentRoute();
-        $middlewares = $route->gatherMiddleware();
+        Log::info('Creando cita con datos', $request->all());
+
+        $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $authUser = Auth::user();
-        Log::info("Middleware detectado: " . implode(", ", $middlewares));
 
-        $validated = $request->validate([
+        $request->validate([
             'start' => 'required|date',
-            'end' => 'required|date',
+            'end' => 'required|date|after:start',
             'title' => 'required|string|max:255',
-            'user' => 'required_if:middleware,patient',
-            'patient' => 'required_if:middleware,user',
+            'user' => 'nullable|exists:users,id',
+            'patient' => 'nullable|exists:patients,id',
             'costo' => 'nullable|numeric',
-            'tipoSesion' => 'nullable|string',
-            'formato' => 'nullable|string',
+            'tipoSesion' => 'nullable|string|max:255',
+            'formato' => 'nullable|string|max:255',
             'is_recurrent' => 'nullable|boolean',
-            'frequency' => 'required_if:is_recurrent,true|string',
-            'until' => 'required_if:is_recurrent,true|date',
+            'frequency' => 'nullable|string|in:DAILY,WEEKLY,MONTHLY',
+            'until' => 'nullable|date|after_or_equal:start',
+            'interval' => 'nullable|integer|min:1',
+            'syncWithGoogle' => 'nullable|boolean',
         ]);
-        Log::info("Datos validados correctamente");
 
-        // Determinar usuario según middleware
-        if (in_array('user', $middlewares)) {
-            $request['user'] = $authUser->id;
-        } elseif (in_array('patient', $middlewares)) {
-            $request['patient'] = $authUser->id;
+        if (in_array('user', $middlewares, true)) {
+            $request->merge(['user' => $authUser->id]);
+        } elseif (in_array('patient', $middlewares, true)) {
+            $request->merge(['patient' => $authUser->id]);
         } else {
-            Log::error("Middleware inválido detectado");
             return response()->json([
-                'rasson' => 'Middleware inválido',
-                'message' => "No se pudo crear la cita",
-                'type' => "error"
+                'rasson' => 'Middleware invalido',
+                'message' => 'No se pudo crear la cita',
+                'type' => 'error',
             ], 403);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | RESOLUCIÓN DE LEAD → PACIENTE (opcional)
-        |--------------------------------------------------------------------------
-        */
-        if ($request->filled('lead') && in_array('user', $middlewares)) {
-            $request['patient'] = $this->resolveLeadToPatient($request->input('lead'), $request['user']);
+        if ($request->filled('lead') && in_array('user', $middlewares, true)) {
+            $request->merge([
+                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user')),
+            ]);
         }
 
-        // Relación y sala
-        $relation = $this->service->ensureRelationshipAndRoom(
-            $request['user'],
-            $request['patient']
-        );
-        Log::info("Relación y sala asegurada: " . json_encode($relation));
-        $request->video_call_room = $relation->video_call_room;
+        if (!$request->filled('user') || !$request->filled('patient')) {
+            return response()->json([
+                'rasson' => 'La cita requiere un profesional y un paciente validos.',
+                'message' => 'Datos incompletos',
+                'type' => 'error',
+            ], 422);
+        }
+
+        $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'));
+        $start = Carbon::parse($request->input('start'));
+        $end = Carbon::parse($request->input('end'));
+        $duration = max($start->diffInMinutes($end), 1);
+        $isRecurrent = $request->boolean('is_recurrent');
+        $frequency = strtoupper((string) $request->input('frequency', data_get($request->input('recurrence', []), 'frequency', '')));
+        $until = $request->input('until', data_get($request->input('recurrence', []), 'until'));
+        $interval = (int) $request->input('interval', data_get($request->input('recurrence', []), 'interval', 1));
+        $syncWithGoogle = $request->boolean('syncWithGoogle');
+
+        if ($isRecurrent && (!$frequency || !$until)) {
+            return response()->json([
+                'rasson' => 'Las citas recurrentes requieren frecuencia y fecha limite.',
+                'message' => 'Recurrencia incompleta',
+                'type' => 'error',
+            ], 422);
+        }
 
         $appointments = [];
-        $duration = Carbon::parse($request->start)
-            ->diffInMinutes(Carbon::parse($request->end));
+        $recurrenceId = $isRecurrent ? (string) Str::uuid() : null;
+        $occurrences = $isRecurrent
+            ? $this->buildRecurringOccurrences($start, $end, $frequency, $until, $interval)
+            : [[
+                'start' => $start,
+                'end' => $end,
+                'position' => 1,
+            ]];
 
-        /*
-        |--------------------------------------------------------------------------
-        | CREACIÓN RECURRENTE
-        |--------------------------------------------------------------------------
-        */
-        if ($request->boolean('is_recurrent')) {
-
-            $recurrenceId = Str::uuid();
-
-            $rrule = new RRule([
-                'FREQ' => strtoupper($request->recurrence['frequency']),
-                'INTERVAL' => $request->recurrence['interval'] ?? 1,
-                'DTSTART' => Carbon::parse($request->start)->format('Ymd\THis'),
-                'UNTIL' => Carbon::parse($request->recurrence['until'])->format('Ymd\THis'),
+        foreach ($occurrences as $occurrence) {
+            $appointment = Appointment::create([
+                'user' => $request->input('user'),
+                'patient' => $request->input('patient'),
+                'title' => $request->input('title'),
+                'start' => $occurrence['start'],
+                'end' => $occurrence['end'],
+                'video_call_room' => $relation->video_call_room,
+                'recurrence_id' => $recurrenceId,
+                'recurrence_frequency' => $isRecurrent ? $frequency : null,
+                'recurrence_interval' => $isRecurrent ? $interval : null,
+                'recurrence_until' => $isRecurrent ? Carbon::parse($until)->toDateString() : null,
+                'recurrence_position' => $occurrence['position'],
+                'synced_with_google' => $syncWithGoogle,
+                'extendedProps' => [
+                    'tipoSesion' => $request->input('tipoSesion'),
+                    'formato' => $request->input('formato'),
+                    'telefono' => $request->input('telefono'),
+                ],
+                'notification_meta' => [],
             ]);
 
-            foreach ($rrule as $occurrence) {
-
-                $appointment = Appointment::create([
-                    'user' => $request['user'],
-                    'patient' => $request['patient'],
-                    'title' => $request->title,
-                    'start' => Carbon::parse($occurrence),
-                    'end' => Carbon::parse($occurrence)->addMinutes($duration),
-                    'video_call_room' => $request->video_call_room,
-                    'recurrence_id' => $recurrenceId,
-                ]);
-
-                $appointments[] = $appointment;
-            }
-        } else {
-
-            /*
-            |--------------------------------------------------------------------------
-            | CREACIÓN NORMAL
-            |--------------------------------------------------------------------------
-            */
-
-            $appointment = Appointment::create(
-                $request->except([
-                    'costo',
-                    'formato',
-                    'tipoSesion',
-                    'is_recurrent',
-                    'recurrence'
-                ])
-            );
-
-            if (!$appointment) {
-                return response()->json([
-                    'rasson' => 'No se logró crear la cita',
-                    'message' => "Cita no creada",
-                    'type' => "error"
-                ], 400);
-            }
-
-            $appointments[] = $appointment;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | POST PROCESO (NOTIFICACIONES, CART, GOOGLE)
-        |--------------------------------------------------------------------------
-        */
-
-        foreach ($appointments as $appointment) {
-
-            // Notificación email
-            $this->sendNotificacionCreateAppoimentEmail($appointment);
-
-            // Evento broadcast
-            event(new \App\Events\AppointmentCreated(
-                appointmentId: $appointment->id,
-                psychologistId: $appointment->user,
-                patientId: $appointment->patient
-            ));
-
-            // Crear carrito
-            $cart = AppointmentCart::create([
-                'appointment_id' => $appointment->id,
-                'tipoSesion' => $request->tipoSesion,
-                'formato' => $request->formato ?? 'online',
-                'precio' => $request->costo ?? 0,
-                'status' => 'pending',
-                'patient_id' => $appointment->patient,
-                'user_id' => $appointment->user,
-                'duracion' => "0"
-            ]);
-
+            $cart = $this->createAppointmentCart($appointment, $request, $duration);
             if ($cart) {
                 $appointment->cart_id = $cart->id;
                 $appointment->save();
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | GOOGLE SYNC
-            |--------------------------------------------------------------------------
-            */
+            $appointments[] = $appointment->fresh(['patient', 'user', 'cart']);
+            $this->sendNotificacionCreateAppoimentEmail($appointment);
+            event(new AppointmentCreated($appointment->id, $appointment->user, $appointment->patient));
+        }
 
-            if ($request->boolean('syncWithGoogle')) {
-
-                $user = User::find($appointment->user);
-
-                if ($user->googleAccount && $user->googleAccount->refresh_token) {
-
-                    SyncAppointmentToGoogleCalendar::dispatch(
-                        $appointment,
-                        $user,
-                        'create'
-                    );
-                } else {
-
-                    $statePayload = [
-                        'user_id' => $user->id,
-                        'appointment_id' => $appointment->id,
-                    ];
-
-                    $encryptedState = Crypt::encrypt(json_encode($statePayload));
-
-                    $authUrl = $this->googleCalendarService
-                        ->getAuthUrl($encryptedState);
-
-                    return response()->json([
-                        'action' => 'redirect_to_google_auth',
-                        'url' => $authUrl
-                    ], 202);
-                }
+        if ($syncWithGoogle && count($appointments) > 0) {
+            $googleResponse = $this->handleGoogleSyncRequest($appointments);
+            if ($googleResponse) {
+                return $googleResponse;
             }
         }
 
         return response()->json([
-            'rasson' => 'Se creó la(s) cita(s) correctamente',
-            'message' => "Cita(s) creada(s)",
-            'type' => "success",
-            'appointments' => $appointments
+            'rasson' => 'Se creo la(s) cita(s) correctamente',
+            'message' => 'Cita(s) creada(s)',
+            'type' => 'success',
+            'appointments' => $appointments,
         ], 200);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Appointment $appointment)
+    public function show(Appointment $appointment): JsonResponse
     {
-        $appointment = Appointment::where('id', $appointment->id)->with(['patient', 'payments', 'cart'])->first();
+        $appointment = Appointment::where('id', $appointment->id)
+            ->with(['patient', 'payments', 'cart', 'user'])
+            ->first();
+
         return response()->json(['appointment' => $appointment], 200);
     }
-    public function showABP($id)
-    {
 
+    public function showABP($id): JsonResponse
+    {
         $patient = Auth::user();
-        $appointment = Appointment::where('id', $id)->where('patient', $patient->id)->with(['cart', 'user'])->first();
+        $appointment = Appointment::where('id', $id)
+            ->where('patient', $patient->id)
+            ->with(['cart', 'user'])
+            ->first();
+
         return response()->json($appointment, 200);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Appointment $appointment)
+    public function update(Request $request, Appointment $appointment): JsonResponse
     {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Appointment $appointment)
-    {
-
-        $originalData = Appointment::with('user')->find($appointment->id);
-        $updatedData = $request->except(['patient', 'cart', 'payments']);
+        $originalData = Appointment::with(['user', 'cart', 'patient'])->findOrFail($appointment->id);
+        $updatedData = $request->except(['patient', 'cart', 'payments', 'user']);
         $fieldsToUpdate = [];
-        $user = User::find($originalData->user);
         $arrayOriginal = $originalData->toArray();
 
         foreach ($updatedData as $key => $value) {
-            if (array_key_exists($key, $arrayOriginal) && $arrayOriginal[$key] != $value) {
-                if ($key === 'created_at' || $key === 'updated_at') {
-                    continue;
-                }
+            if (!array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
+                continue;
+            }
+
+            if ((string) $arrayOriginal[$key] !== (string) $value) {
                 $fieldsToUpdate[$key] = $value;
             }
         }
-        if (empty($fieldsToUpdate)) {
+
+        if (empty($fieldsToUpdate) && !$request->hasAny(['costo', 'tipoSesion', 'formato'])) {
             return response()->json([
                 'rasson' => 'No se detectaron cambios en la cita',
-                'message' => "Sin modificaciones",
-                'type' => "info"
+                'message' => 'Sin modificaciones',
+                'type' => 'info',
             ], 200);
         }
+
         try {
-            if ($originalData->google_event_id) { // Esta línea parece ser para depuración
-                $originalData->load('user');
-                if ($user && $user->googleAccount) {
-                    SyncAppointmentToGoogleCalendar::dispatch($originalData, $user, 'update');
+            if (!empty($fieldsToUpdate)) {
+                $appointment->update($fieldsToUpdate);
+            }
+
+            if ($appointment->cart) {
+                $cartPayload = [];
+                if ($request->filled('costo')) {
+                    $cartPayload['precio'] = $request->input('costo');
+                }
+                if ($request->filled('tipoSesion')) {
+                    $cartPayload['tipoSesion'] = $request->input('tipoSesion');
+                }
+                if ($request->filled('formato')) {
+                    $cartPayload['formato'] = $request->input('formato');
+                }
+                if (!empty($cartPayload)) {
+                    $appointment->cart->update($cartPayload);
                 }
             }
-            $appointment->update($fieldsToUpdate);
-            $send = $this->sendNotificacionStatusEmail($originalData);
+
+            $appointment->refresh();
+            $user = User::find($appointment->user);
+
+            if ($appointment->google_event_id && $user && $user->googleAccount) {
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'update');
+            }
+
+            if ($request->hasAny(['statusUser', 'statusPatient'])) {
+                $this->sendNotificacionStatusEmail($appointment);
+            }
 
             return response()->json([
                 'rasson' => 'La cita cambio sus caracteristicas con exito',
-                'message' => "Cita modificada",
-                'type' => "success"
+                'message' => 'Cita modificada',
+                'type' => 'success',
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
-                'rasson' => 'No se logro cambiar la cita con exito' . $th->getMessage(),
-                'message' => "Cita no modificada",
-                'type' => "error"
+                'rasson' => 'No se logro cambiar la cita con exito. ' . $th->getMessage(),
+                'message' => 'Cita no modificada',
+                'type' => 'error',
             ], 400);
-            //throw $th;
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Appointment $appointment)
+    public function destroy(Request $request, Appointment $appointment): JsonResponse
     {
-        //codigo para cancelar cita
-        $professional = $appointment->user;
+        $scope = $request->input('scope', 'single');
+        $targets = $this->resolveCancellationTargets($appointment, $scope);
+        $professional = User::find($appointment->user);
 
-        /*
-        if ($appointment->google_event_id && $professional && $professional->googleAccount) {
-            // --- LÍNEA CLAVE ---
-            // Despachamos el job para eliminar el evento.
-            SyncAppointmentToGoogleCalendar::dispatch($appointment, $professional, 'delete');
+        foreach ($targets as $target) {
+            if ($target->google_event_id && $professional && $professional->googleAccount) {
+                SyncAppointmentToGoogleCalendar::dispatch($target, $professional, 'delete');
+            }
+
+            $target->update([
+                'statusUser' => 'Cancel',
+                'statusPatient' => 'Cancel',
+                'state' => 'Cancelada',
+            ]);
+
+            if ($target->cart) {
+                $target->cart->update(['estado' => 'Cancelado']);
+            }
         }
 
-        $appointment->delete();
+        if ($targets->isNotEmpty()) {
+            $this->sendNotificacionStatusEmail($targets->first());
+        }
 
         return response()->json([
-            'message' => "Cita cancelada correctamente",
-            'type' => "success"
+            'message' => $scope === 'future'
+                ? 'La sesion seleccionada y sus recurrencias futuras fueron canceladas.'
+                : 'La sesion fue cancelada correctamente.',
+            'type' => 'success',
+            'count' => $targets->count(),
         ], 200);
-    }*/
     }
 
-    /**
-     * Dada una consulta (lead) y el id del psicólogo autenticado,
-     * busca o crea el paciente y garantiza la relación antes de crear la cita.
-     * Devuelve el id del paciente resuelto.
-     */
+    private function buildRecurringOccurrences(Carbon $start, Carbon $end, string $frequency, string $until, int $interval): array
+    {
+        $occurrences = [];
+        $currentStart = $start->copy();
+        $duration = max($start->diffInMinutes($end), 1);
+        $untilDate = Carbon::parse($until)->endOfDay();
+        $position = 1;
+
+        while ($currentStart->lte($untilDate)) {
+            $occurrences[] = [
+                'start' => $currentStart->copy(),
+                'end' => $currentStart->copy()->addMinutes($duration),
+                'position' => $position,
+            ];
+
+            $currentStart = match ($frequency) {
+                'DAILY' => $currentStart->copy()->addDays($interval),
+                'MONTHLY' => $currentStart->copy()->addMonthsNoOverflow($interval),
+                default => $currentStart->copy()->addWeeks($interval),
+            };
+
+            $position++;
+        }
+
+        if (empty($occurrences)) {
+            throw new \RuntimeException('La recurrencia no genero ocurrencias validas.');
+        }
+
+        return $occurrences;
+    }
+
+    private function createAppointmentCart(Appointment $appointment, Request $request, int $duration): AppointmentCart
+    {
+        return AppointmentCart::create([
+            'appointment_id' => $appointment->id,
+            'tipoSesion' => $request->input('tipoSesion'),
+            'formato' => $request->input('formato', 'online'),
+            'precio' => $request->input('costo', 0),
+            'estado' => 'Pendiente',
+            'patient_id' => $appointment->patient,
+            'user_id' => $appointment->user,
+            'duracion' => (string) $duration,
+        ]);
+    }
+
+    private function handleGoogleSyncRequest(array $appointments): ?JsonResponse
+    {
+        $owner = User::find($appointments[0]->user);
+
+        if (!$owner) {
+            return null;
+        }
+
+        if ($owner->googleAccount && $owner->googleAccount->refresh_token) {
+            foreach ($appointments as $appointment) {
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $owner, 'create');
+            }
+
+            return null;
+        }
+
+        $statePayload = [
+            'user_id' => $owner->id,
+            'appointment_ids' => collect($appointments)->pluck('id')->all(),
+        ];
+
+        $encryptedState = Crypt::encrypt(json_encode($statePayload));
+        $authUrl = $this->googleCalendarService->getAuthUrl($encryptedState);
+
+        return response()->json([
+            'action' => 'redirect_to_google_auth',
+            'url' => $authUrl,
+        ], 202);
+    }
+
+    private function resolveCancellationTargets(Appointment $appointment, string $scope)
+    {
+        if (!$appointment->recurrence_id || $scope === 'single') {
+            return collect([$appointment->load('cart')]);
+        }
+
+        $query = Appointment::with('cart')
+            ->where('recurrence_id', $appointment->recurrence_id)
+            ->orderBy('start');
+
+        if ($scope === 'future') {
+            $query->where('start', '>=', $appointment->start);
+        }
+
+        return $query->get();
+    }
+
     private function resolveLeadToPatient(int $leadId, int $userId): int
     {
         $consulta = ConsultaContacto::findOrFail($leadId);
@@ -451,8 +484,9 @@ class AppointmentController extends Controller
         $patient = Patient::firstOrCreate(
             ['email' => $consulta->email],
             [
-                'name'     => $consulta->nombre,
+                'name' => $consulta->nombre,
                 'contacto' => ['telefono' => $consulta->telefono],
+                'phone' => preg_replace('/\D+/', '', (string) $consulta->telefono) ?: null,
                 'password' => Hash::make($consulta->telefono ?? Str::random(12)),
             ]
         );
@@ -462,72 +496,65 @@ class AppointmentController extends Controller
             ->exists();
 
         if (!$relacionExiste) {
-            (new PatientUserController())->enlacePacienteProfesional($patient->id);
-            Log::info("Relación creada: psicólogo #{$userId} → paciente #{$patient->id}");
+            PatientUser::create([
+                'user' => $userId,
+                'patient' => $patient->id,
+                'activo' => true,
+                'status' => 'Vinculado',
+                'video_call_room' => 'mindmeet-room-' . Str::uuid(),
+            ]);
+            Log::info("Relacion creada: psicologo #{$userId} -> paciente #{$patient->id}");
         }
-
-        Log::info("Lead resuelto: consulta #{$consulta->id} → paciente #{$patient->id} (" . ($patient->wasRecentlyCreated ? 'nuevo' : 'existente') . ")");
 
         return $patient->id;
     }
 
-    public function sendNotificacionStatusEmail($appointment)
+    public function sendNotificacionStatusEmail($appointment): bool
     {
         try {
-            // Obtener el paciente
-            $patient = Patient::where('id', $appointment->patient)->first();
+            $patient = Patient::find($appointment->patient);
+            if (!$patient) {
+                return false;
+            }
 
-            // Obtener estado desde el status del usuario
             $estado = $appointment->statusUser;
-
-            // Convertir start y end a objetos Carbon
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
-
-            // Extraer la fecha en formato legible
             $fecha = $start->format('d/m/Y');
-
-            // Extraer la hora en formato legible
             $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
 
-            // Enviar notificación
             $patient->notify(new StateAppoinmentMail($patient, $estado, $fecha, $hora));
 
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
+            return false;
         }
     }
-    public function sendNotificacionCreateAppoimentEmail($appointment)
-    {
 
-        // Convertir start y end a objetos Carbon
+    public function sendNotificacionCreateAppoimentEmail($appointment): bool
+    {
         $start = Carbon::parse($appointment->start);
         $end = Carbon::parse($appointment->end);
-        // Obtener el intervalo
         $interval = $start->diff($end);
-        // Extraer la fecha en formato legible
         $fecha = $start->format('d/m/Y');
-
-        // Extraer la hora en formato legible
         $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
 
         try {
-            //code...
-            $patient = Patient::where('id', $appointment->patient)->first();
+            $patient = Patient::find($appointment->patient);
+            if (!$patient) {
+                return false;
+            }
+
             $patient->notify(new CreateAppoinmentMail($appointment, $patient, $hora, $fecha, $interval));
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
-            //throw $th;
+            return false;
         }
     }
 
-    /**
-     * Confirm appointment status from a public link (base64 json hash).
-     * Accessible without authentication.
-     */
-    public function publicConfirm(Request $request)
+    public function publicConfirm(Request $request): JsonResponse
     {
         $hash = $request->input('hash');
         $status = $request->input('status', 'Confirmed');
@@ -539,7 +566,7 @@ class AppointmentController extends Controller
         try {
             $decoded = json_decode(base64_decode($hash), true);
             if (!is_array($decoded) || !isset($decoded['id'])) {
-                return response()->json(['rasson' => 'Hash inválido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
+                return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
             }
 
             $appointment = Appointment::find($decoded['id']);
@@ -549,8 +576,6 @@ class AppointmentController extends Controller
 
             $appointment->statusPatient = $status;
             $appointment->save();
-
-            // Enviar notificación de cambio de estado al paciente
             $this->sendNotificacionStatusEmail($appointment);
 
             return response()->json(['rasson' => 'Cita confirmada', 'message' => 'Appointment confirmed', 'type' => 'success'], 200);
@@ -560,16 +585,12 @@ class AppointmentController extends Controller
         }
     }
 
-    /**
-     * Public show: return readable appointment data for a given base64 hash.
-     * Does not expose the appointment id directly.
-     */
-    public function publicShow($hash)
+    public function publicShow($hash): JsonResponse
     {
         try {
             $decoded = json_decode(base64_decode($hash), true);
             if (!is_array($decoded) || !isset($decoded['id'])) {
-                return response()->json(['rasson' => 'Hash inválido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
+                return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
             }
 
             $appointment = Appointment::where('id', $decoded['id'])->with('user')->first();
@@ -579,17 +600,12 @@ class AppointmentController extends Controller
 
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
-            $fecha = $start->format('d/m/Y');
-            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
-            $duration = $start->diff($end)->format('%h horas %i minutos');
-
             $data = [
-                'professional' => $appointment->user?->name ?? null,
-                'fecha' => $fecha,
-                'hora' => $hora,
-                'duration' => $duration,
-                'statusPatient' => $appointment->statusPatient ?? null,
-                // Do not include the id in response to avoid exposing it directly
+                'professional' => $appointment->user?->name,
+                'fecha' => $start->format('d/m/Y'),
+                'hora' => $start->format('H:i') . ' - ' . $end->format('H:i'),
+                'duration' => $start->diff($end)->format('%h horas %i minutos'),
+                'statusPatient' => $appointment->statusPatient,
             ];
 
             return response()->json($data, 200);

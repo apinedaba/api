@@ -9,3 +9,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
   Route::post('user/push/test/{id}', [TestPushController::class, 'send']); // test manual
   Route::post('user/push/register', [DeviceTokenController::class, 'register']);
 });
+
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->group(function () {
+  Route::post('patient/me/device-tokens', [DeviceTokenController::class, 'store']);
+});

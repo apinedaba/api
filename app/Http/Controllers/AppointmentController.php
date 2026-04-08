@@ -160,8 +160,8 @@ class AppointmentController extends Controller
             'tipoSesion' => 'nullable|string',
             'formato' => 'nullable|string',
             'is_recurrent' => 'nullable|boolean',
-            'recurrence.frequency' => 'required_if:is_recurrent,true|string',
-            'recurrence.until' => 'required_if:is_recurrent,true|date',
+            'frequency' => 'required_if:is_recurrent,true|string',
+            'until' => 'required_if:is_recurrent,true|date',
         ]);
         Log::info("Datos validados correctamente");
 

@@ -21,7 +21,7 @@ class NuevoPacienteBienvenida extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $notifiable->email ? ['mail', 'database'] : ['database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -36,5 +36,15 @@ class NuevoPacienteBienvenida extends Notification
             ->subject('¡Bienvenido(a) a MindMeet!')
             ->line('Gracias por registrarte en nuestra plataforma.')
             ->line('Estamos aquí para apoyarte en tu camino hacia el bienestar.');
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Bienvenido a MindMeet',
+            'body' => 'Tu cuenta ya esta lista para comenzar tu proceso dentro de la plataforma.',
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+            'action_label' => 'Ir al inicio',
+            'kind' => 'welcome',
+        ];
     }
 }

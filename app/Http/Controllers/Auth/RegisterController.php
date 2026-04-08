@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Models\User;
 use App\Models\Patient;
+use App\Models\Subscription;
+use App\Models\User;
+use App\Notifications\NuevoPacienteBienvenida;
 use App\Notifications\NuevoPsicologoRegistrado;
+use App\Support\PatientIdentity;
+use Carbon\Carbon;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Auth\Events\Registered;
-use App\Notifications\NuevoPacienteBienvenida;
-use App\Models\Subscription;
-use Carbon\Carbon;
 
 class RegisterController extends Controller
 {
-
     private $registerValidationRules = [
         'name' => 'required',
         'email' => 'required|email|unique:users,email',
@@ -31,7 +31,7 @@ class RegisterController extends Controller
 
         if ($validateUser->fails()) {
             return response()->json([
-                'message' => 'Ha ocurrido un error de validación',
+                'message' => 'Ha ocurrido un error de validacion',
                 'errors' => $validateUser->errors()
             ], 400);
         }
@@ -52,24 +52,19 @@ class RegisterController extends Controller
 
         if ($user) {
             try {
-                //code...
                 $user->notify(new NuevoPsicologoRegistrado($user, true));
-                // TODO: Descomentar si se quiere usar verificación por URL en lugar de código
                 // event(new Registered($user));
             } catch (\Throwable $th) {
                 Log::error($th->getMessage());
-                //throw $th;
             }
         }
         return response()->json([
-            'rasson' => "Perfecto, te registraste con exito",
-            'message' => "¡Te haz registrado!",
-            'type' => "success",
+            'rasson' => 'Perfecto, te registraste con exito',
+            'message' => 'Te has registrado',
+            'type' => 'success',
         ], 200);
     }
-    /**
-     * Verifica el código de registro.
-     */
+
     public function verifyCode(Request $request)
     {
         $request->validate([
@@ -84,21 +79,18 @@ class RegisterController extends Controller
         }
 
         if ($user->verification_code !== $request->code || now()->isAfter($user->code_expires_at)) {
-            return response()->json(['message' => 'Código inválido o expirado.'], 422);
+            return response()->json(['message' => 'Codigo invalido o expirado.'], 422);
         }
         $user->markEmailAsVerified();
         $user->forceFill(['verification_code' => null, 'code_expires_at' => null])->save();
 
         return response()->json([
-            'message' => '¡Correo verificado con éxito!',
+            'message' => 'Correo verificado con exito',
             'type' => 'success',
-            'token' => $user->createToken("user_token")->plainTextToken
+            'token' => $user->createToken('user_token')->plainTextToken
         ]);
     }
 
-    /**
-     * Reenvía un nuevo código de verificación.
-     */
     public function resendCode(Request $request)
     {
         $request->validate(['email' => 'required|email|exists:users,email']);
@@ -115,65 +107,86 @@ class RegisterController extends Controller
 
         $user->notify(new NuevoPsicologoRegistrado($user, false));
 
-        return response()->json(['message' => 'Se ha enviado un nuevo código de verificación.']);
+        return response()->json(['message' => 'Se ha enviado un nuevo codigo de verificacion.']);
     }
 
-    private $registerValidationRulesPatient = [
-        'name' => 'required',
-        'email' => 'required|email|unique:patients,email',
-        [
-            'email.unique' => 'Este correo ya está registrado. Si tu minder creoo tu cuenta revisa tu correo para obtener la contraseña.',
-            'email.required' => 'El correo electrónico es obligatorio.',
-            'name.required' => 'El nombre es obligatorio.',
-            'password.required' => 'La contraseña es obligatoria.'
-        ],
-        'password' => 'required'
-    ];
     public function registerPatient(Request $request)
     {
-        $validateUser = Validator::make($request->all(), $this->registerValidationRulesPatient);
+        $data = $request->all();
+        $attributes = PatientIdentity::buildPatientAttributes($data);
+        $email = $attributes['email'];
+        $phone = $attributes['phone'];
+
+        $validateUser = Validator::make($data, [
+            'name' => 'required|string|max:255',
+            'email' => 'nullable|email',
+            'contacto.telefono' => 'nullable|string|max:20',
+            'password' => 'required|string|min:6'
+        ], [
+            'name.required' => 'El nombre es obligatorio.',
+            'password.required' => 'La contrasena es obligatoria.'
+        ]);
 
         if ($validateUser->fails()) {
             return response()->json([
-                'message' => 'Ha ocurrido un error de validación',
+                'message' => 'Ha ocurrido un error de validacion',
                 'errors' => $validateUser->errors()
             ], 400);
         }
 
+        if (!$email && !$phone) {
+            return response()->json([
+                'message' => 'Ha ocurrido un error de validacion',
+                'errors' => [
+                    'identifier' => ['Debes ingresar un correo o un telefono.'],
+                ]
+            ], 400);
+        }
+
+        if ($phone && strlen($phone) < 10) {
+            return response()->json([
+                'message' => 'Ha ocurrido un error de validacion',
+                'errors' => [
+                    'contacto.telefono' => ['El telefono debe tener al menos 10 digitos.'],
+                ]
+            ], 400);
+        }
+
+        if (PatientIdentity::findByEmailOrPhone($email, $phone)) {
+            return response()->json([
+                'message' => 'Ha ocurrido un error de validacion',
+                'errors' => [
+                    'identifier' => ['Ya existe una cuenta con ese correo o telefono.'],
+                ]
+            ], 400);
+        }
+
         $patient = Patient::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'contacto' => $request->contacto,
+            'name' => $attributes['name'],
+            'email' => $email,
+            'phone' => $phone,
+            'contacto' => $attributes['contacto'],
             'password' => Hash::make($request->password)
         ]);
         try {
             $patient->notify(new NuevoPacienteBienvenida($patient));
         } catch (\Throwable $th) {
-            Log::error("Error al notificar nuevo paciente auto-registrado: " . $th->getMessage());
+            Log::error('Error al notificar nuevo paciente auto-registrado: ' . $th->getMessage());
         }
         return response()->json([
             'message' => 'El usuario se ha creado',
-            'token' => $patient->createToken("patient_token")->plainTextToken
+            'token' => $patient->createToken('patient_token')->plainTextToken
         ], 200);
     }
+
     public function checkPatientEmail(Request $request)
     {
-        // 1. Validamos que la petición contenga un email válido.
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-        ]);
+        $data = $request->all();
+        $email = PatientIdentity::normalizeEmail($request->input('email'));
+        $phone = PatientIdentity::normalizePhone($request->input('phone', data_get($data, 'contacto.telefono')));
 
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        // 2. Buscamos en la tabla de 'patients' si el email existe.
-        // El método ->exists() es muy eficiente porque devuelve true/false y detiene la búsqueda al encontrar el primer resultado.
-        $patientExists = Patient::where('email', $request->email)->exists();
-
-        // 3. Devolvemos la respuesta que el frontend espera.
         return response()->json([
-            'exists' => $patientExists,
+            'exists' => PatientIdentity::findByEmailOrPhone($email, $phone) !== null,
         ]);
     }
 }

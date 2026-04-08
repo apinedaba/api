@@ -10,10 +10,15 @@ class DeviceTokenController extends Controller
 {
   public function store(Request $r)
   {
-    $r->validate(['platform' => 'required|in:web', 'token' => 'required|string']);
+    $r->validate(['platform' => 'required|string|max:20', 'token' => 'required|string']);
     DeviceToken::updateOrCreate(
       ['token' => $r->token],
-      ['user_id' => $r->user()->id, 'platform' => $r->platform]
+      [
+        'user_id' => $r->user() instanceof User ? $r->user()->id : null,
+        'platform' => $r->platform,
+        'notifiable_type' => $r->user()::class,
+        'notifiable_id' => $r->user()->id,
+      ]
     );
     return response()->json(['ok' => true]);
   }

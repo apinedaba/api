@@ -7,22 +7,32 @@ use Illuminate\Broadcasting\PrivateChannel;
 
 class NewNotification implements ShouldBroadcastNow
 {
-    public $userId;
+    public $channel;
     public $message;
+    public $notification;
 
-    public function __construct($userId, $message)
+    public function __construct(string $channel, string $message, ?array $notification = null)
     {
-        $this->userId = $userId;
+        $this->channel = $channel;
         $this->message = $message;
+        $this->notification = $notification;
     }
 
     public function broadcastOn()
     {
-        return new PrivateChannel("user.{$this->userId}");
+        return new PrivateChannel($this->channel);
     }
 
     public function broadcastAs()
     {
         return "new-notification";
+    }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'message' => $this->message,
+            'notification' => $this->notification,
+        ];
     }
 }

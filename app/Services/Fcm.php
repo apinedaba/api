@@ -27,6 +27,10 @@ class Fcm
             ->post($url, [
                 "message" => [
                     "token" => $deviceToken,
+                    "notification" => [
+                        "title" => $title,
+                        "body" => $body,
+                    ],
                     "data" => [
                         "title" => $title,
                         "body" => $body,
@@ -34,6 +38,11 @@ class Fcm
                         "icon" => $data['icon'] ?? '',
                         "type" => $data['type'] ?? '',
                         "id" => $data['id'] ?? '',
+                    ],
+                    "webpush" => [
+                        "fcm_options" => [
+                            "link" => $data['link'] ?? '',
+                        ],
                     ],
                 ]
             ]);

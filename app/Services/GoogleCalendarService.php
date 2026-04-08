@@ -155,7 +155,7 @@ class GoogleCalendarService
         $appointment->save();
         logger($appointment->user);
         logger("Se mando el evento y la sesion a google");
-        event(new NewNotification($appointment->user, "Cita, Sincronizada con google, ¡Link de meet disponible!"));
+        event(new NewNotification("user.{$appointment->user}", "Cita, Sincronizada con google, ¡Link de meet disponible!"));
         // Enviar email al paciente con el enlace de la sesión
         $patient = Patient::find($appointment->patient);
         if ($appointment->link && $patient) {
@@ -236,7 +236,7 @@ class GoogleCalendarService
             }
             logger($user->id);
             logger("Se actualizo el evento y la sesion a google");
-            event(new NewNotification($appointment->user, "Link disponible en la sesion"));
+            event(new NewNotification("user.{$appointment->user}", "Link disponible en la sesion"));
             // Enviar email al paciente informando de la actualización
             $patient = Patient::find($appointment->patient);
             if ($patient && $appointment->link) {

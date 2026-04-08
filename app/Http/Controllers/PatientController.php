@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Notifications\PatientAssignedEmailNotification;
 use App\Notifications\SendEmail;
+use App\Support\PatientIdentity;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +17,6 @@ use Illuminate\Support\Facades\Validator;
 use Cloudinary\Configuration\Configuration;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Illuminate\Validation\Rule;
 
 class PatientController extends Controller
 {
@@ -46,7 +46,23 @@ class PatientController extends Controller
     function verifyPatient(Request $request)
     {
         $user = Auth::user();
-        $patient = Patient::where('email', $request->email)->first();
+        $data = $request->all();
+        $email = PatientIdentity::normalizeEmail($request->input('email'));
+        $phone = PatientIdentity::normalizePhone(
+            $request->input('phone', data_get($data, 'contacto.telefono'))
+        );
+
+        if (!$email && !$phone) {
+            return response()->json([
+                'enlace' => false,
+                'type' => 'info',
+                'status' => 'missing identifier',
+                'data' => ['patient' => null],
+            ], 200);
+        }
+
+        $patient = PatientIdentity::findByEmailOrPhone($email, $phone);
+
         if ($patient) {
             $existingLink = PatientUser::where('user', $user->id)
                 ->where('patient', $patient->id)
@@ -102,28 +118,38 @@ class PatientController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    private $registerValidationRules = [
-        'name' => 'required',
-        'email' => 'required|email|unique:patients,email',
-        'contacto.telefono' => 'required|regex:/^[0-9]{10}$/',  // Assuming a 10-digit phone number
-        'password' => 'required'
-    ];
-
     public function store(Request $request)
     {
         $data = $request->all();
-        $email = $request->input('email');
-        $telefono = data_get($data, 'contacto.telefono');
-        $patient = Patient::where('email', $email)->first();
+        $attributes = PatientIdentity::buildPatientAttributes($data);
+        $email = $attributes['email'];
+        $telefono = $attributes['phone'];
+        $patient = PatientIdentity::findByEmailOrPhone($email, $telefono);
         $isNewPatient = $patient === null;
+
         $validationRules = [
-            'email' => ['required', 'email'],
-            'contacto.telefono' => ['required', 'regex:/^[0-9]{10}$/'],
+            'email' => ['nullable', 'email'],
+            'contacto.telefono' => ['nullable', 'string', 'max:20'],
         ];
+
+        if (!$email && !$telefono) {
+            return response()->json([
+                'rasson' => 'Debes ingresar al menos un correo o un telefono para identificar al paciente.',
+                'message' => 'Error al agregar paciente',
+                'type' => 'error'
+            ], 400);
+        }
+
+        if ($telefono && strlen($telefono) < 10) {
+            return response()->json([
+                'rasson' => 'El telefono debe tener al menos 10 digitos.',
+                'message' => 'Error al agregar paciente',
+                'type' => 'error'
+            ], 400);
+        }
 
         if ($isNewPatient) {
             $validationRules['name'] = 'required|string|max:255';
-            $validationRules['email'] = array_merge($validationRules['email'], ['unique:patients,email']);
         }
 
         $validateUser = Validator::make($data, $validationRules);
@@ -137,19 +163,36 @@ class PatientController extends Controller
         }
 
         if ($isNewPatient) {
-            if (!$telefono) {
-                return response()->json([
-                    'rasson' => 'El telefono es requerido',
-                    'message' => 'Error al agregar paciente',
-                    'type' => 'error'
-                ], 400);
-            }
-
-            $data['password'] = Hash::make($request->input('password', $telefono));
+            $passwordSeed = $request->input('password') ?: $telefono ?: $email;
+            $data = array_merge($data, $attributes, [
+                'password' => Hash::make($passwordSeed),
+            ]);
 
             $patient = new Patient();
             $patient->fill($data);
             $patient->save();
+        } else {
+            $dirty = false;
+
+            if (!$patient->email && $email) {
+                $patient->email = $email;
+                $dirty = true;
+            }
+
+            if (!$patient->phone && $telefono) {
+                $patient->phone = $telefono;
+                $dirty = true;
+            }
+
+            $contacto = array_merge($patient->contacto ?? [], ['telefono' => $telefono ?: data_get($patient->contacto, 'telefono')]);
+            if (($patient->contacto ?? []) !== $contacto) {
+                $patient->contacto = $contacto;
+                $dirty = true;
+            }
+
+            if ($dirty) {
+                $patient->save();
+            }
         }
 
         $user = Auth::user();
@@ -389,7 +432,7 @@ class PatientController extends Controller
             $result = (new UploadApi)->upload($tempFilePath, ['folder' => 'ProfilePhotos']);
             unlink($tempFilePath);
 
-            $patient = Patient::where('email', $request->user()->email)->firstOrFail();
+            $patient = $request->user();
             $patient->update(['image' => $result['secure_url']]);
 
             return response()->json(['url' => $result['secure_url']]);
@@ -402,9 +445,7 @@ class PatientController extends Controller
 
     public function updateFromUser(Request $request)
     {
-        $user = $request->user();
-
-        $patient = Patient::where('email', $user->email)->firstOrFail();
+        $patient = $request->user();
 
         $validated = $request->validate([
             // contacto
@@ -429,8 +470,14 @@ class PatientController extends Controller
         $contacto   = array_merge($patient->contacto   ?? [], $request->input('contacto',   []) ?? []);
         $relevantes = array_merge($patient->relevantes ?? [], $request->input('relevantes', []) ?? []);
         $address    = array_merge($patient->address    ?? [], $request->input('address',    []) ?? []);
+        $phone = PatientIdentity::normalizePhone(data_get($contacto, 'telefono'));
+
+        if ($phone) {
+            $contacto['telefono'] = $phone;
+        }
 
         $patient->update([
+            'phone' => $phone ?: $patient->phone,
             'contacto'   => $contacto,
             'relevantes' => $relevantes,
             'address'    => $address,

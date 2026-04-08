@@ -3,21 +3,23 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use App\Models\Patient;
+use App\Support\PatientIdentity;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class PatientAuthController extends Controller
 {
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'required|string',
             'password' => 'required',
         ]);
 
-        $patient = Patient::where('email', $request->email)->first();
+        ['email' => $email, 'phone' => $phone] = PatientIdentity::resolveIdentifier($request->identifier);
+
+        $patient = PatientIdentity::findByEmailOrPhone($email, $phone);
 
         if (!$patient) {
             return response()->json([
@@ -37,7 +39,10 @@ class PatientAuthController extends Controller
 
         $token = $patient->createToken('patient_token')->plainTextToken;
 
-        return response()->json(['token' => $token], 200);
+        return response()->json([
+            'token' => $token,
+            'user' => $patient,
+        ], 200);
     }
 
     public function logout(Request $request)

@@ -31,6 +31,6 @@ class TestNotificacionJob implements ShouldQueue
         $user = Auth::user();
         logger($user);
         \Log::info("Broadcast test nuevo");
-        broadcast(new NewNotification($user, "Prueba de mensaje desde job"));
+        broadcast(new NewNotification("user.{$user}", "Prueba de mensaje desde job"));
     }
 }

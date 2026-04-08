@@ -39,7 +39,7 @@ class CreateAppoinmentMail extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $notifiable->email ? ['mail', 'database'] : ['database'];
     }
 
     /**
@@ -72,7 +72,11 @@ class CreateAppoinmentMail extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            //
+            'title' => 'Nueva cita agendada',
+            'body' => "Tu cita con {$this->user->name} fue programada para {$this->fecha} a las {$this->hora}.",
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/appointments/status/' . rawurlencode(base64_encode(json_encode(['id' => $this->appointment->id]))) . '/Confirmed',
+            'action_label' => 'Confirmar cita',
+            'kind' => 'appointment-created',
         ];
     }
 }

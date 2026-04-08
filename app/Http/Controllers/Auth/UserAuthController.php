@@ -34,7 +34,7 @@ class UserAuthController extends Controller
                 'type' => "error",
             ], 401);
         }
-        event(new NewNotification($user->id, "Login correcto"));
+        event(new NewNotification("user.{$user->id}", "Login correcto"));
         $token = $user->createToken('user_token')->plainTextToken;
         \Log::alert($token);
         return response()->json(['token' => $token], 200);

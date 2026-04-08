@@ -34,7 +34,7 @@ class PatientAssignedEmailNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $notifiable->email ? ['mail', 'database'] : ['database'];
     }
 
     /**
@@ -52,5 +52,15 @@ class PatientAssignedEmailNotification extends Notification
         return (new MailMessage)
             ->subject($this->user->name . " esta esperando tu confirmación")
             ->view('email.acceptInvitation', ['usuario' => $this->user, 'paciente' => $this->patient, 'url' => $url]);
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Tu psicologo te envio una invitacion',
+            'body' => "{$this->user->name} esta esperando que confirmes el enlace de tu cuenta.",
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/ajustes-paciente',
+            'action_label' => 'Ver perfil',
+            'kind' => 'patient-link',
+        ];
     }
 }

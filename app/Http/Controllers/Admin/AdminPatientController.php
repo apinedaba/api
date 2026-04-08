@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
+use App\Support\PatientIdentity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -47,10 +48,15 @@ class AdminPatientController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $data = $request->all();
+        $attributes = PatientIdentity::buildPatientAttributes($data);
+        $email = $attributes['email'];
+        $phone = $attributes['phone'];
+
+        $validator = Validator::make($data, [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:patients,email',
-            'contacto.telefono' => 'required|regex:/^[0-9]{10}$/',
+            'email' => 'nullable|email',
+            'contacto.telefono' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:6',
             'address' => 'nullable|array',
             'psychologist_id' => 'nullable|exists:users,id',
@@ -65,14 +71,35 @@ class AdminPatientController extends Controller
             ], 422);
         }
 
+        if (!$email && !$phone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes registrar al menos un correo o un telefono.'
+            ], 422);
+        }
+
+        if ($phone && strlen($phone) < 10) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El telefono debe tener al menos 10 digitos.'
+            ], 422);
+        }
+
+        if (PatientIdentity::findByEmailOrPhone($email, $phone)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un paciente con ese correo o telefono.'
+            ], 422);
+        }
+
         DB::beginTransaction();
 
         try {
-            $data = $request->all();
-            $telefono = data_get($data, 'contacto.telefono');
+            $telefono = $phone;
 
             // Crear contraseña: usar la proporcionada o el teléfono
-            $data['password'] = Hash::make($request->input('password', $telefono));
+            $data = array_merge($data, $attributes);
+            $data['password'] = Hash::make($request->input('password', $telefono ?: $email));
             $data['activo'] = $request->input('activo', true);
             $data['status'] = 'Registrado';
 
@@ -158,10 +185,17 @@ class AdminPatientController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
+        $data = $request->all();
+        $attributes = PatientIdentity::buildPatientAttributes($data);
+        $email = array_key_exists('email', $data) ? $attributes['email'] : null;
+        $phone = array_key_exists('phone', $data) || data_get($data, 'contacto.telefono') !== null
+            ? $attributes['phone']
+            : null;
+
+        $validator = Validator::make($data, [
             'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|unique:patients,email,' . $id,
-            'contacto.telefono' => 'sometimes|required|regex:/^[0-9]{10}$/',
+            'email' => 'sometimes|nullable|email',
+            'contacto.telefono' => 'sometimes|nullable|string|max:20',
             'address' => 'nullable|array',
             'activo' => 'boolean'
         ]);
@@ -176,7 +210,36 @@ class AdminPatientController extends Controller
 
         try {
             $patient = Patient::findOrFail($id);
-            $patient->update($request->all());
+            if ($phone && strlen($phone) < 10) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El telefono debe tener al menos 10 digitos.'
+                ], 422);
+            }
+
+            $existingPatient = PatientIdentity::queryByEmailOrPhone($email, $phone)
+                ->where('id', '!=', $patient->id)
+                ->first();
+
+            if ($existingPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un paciente con ese correo o telefono.'
+                ], 422);
+            }
+
+            $payload = $request->all();
+
+            if (array_key_exists('email', $data)) {
+                $payload['email'] = $email;
+            }
+
+            if ($phone || data_get($data, 'contacto.telefono') !== null) {
+                $payload['phone'] = $phone;
+                $payload['contacto'] = $attributes['contacto'];
+            }
+
+            $patient->update($payload);
             $patient->load('connections.user');
 
             return response()->json([

@@ -34,7 +34,7 @@ class PsychologistAssignedByAdmin extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     /**
@@ -58,5 +58,15 @@ class PsychologistAssignedByAdmin extends Notification
                 'isActive' => $this->isActive,
                 'url' => $url
             ]);
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Tienes un nuevo paciente asignado',
+            'body' => "Se asigno a {$this->patient->name} a tu cuenta profesional.",
+            'action_url' => rtrim(config('app.front_url'), '/') . '/paciente/' . $this->patient->id,
+            'action_label' => 'Ver paciente',
+            'kind' => 'patient-assigned',
+        ];
     }
 }

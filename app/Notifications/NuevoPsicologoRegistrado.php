@@ -38,7 +38,7 @@ class NuevoPsicologoRegistrado extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     /**
@@ -85,5 +85,17 @@ class NuevoPsicologoRegistrado extends Notification
                 'usuario' => $this->user,
                 'verificationUrl' => $verificationUrl
             ]);
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Bienvenido a MindMeet',
+            'body' => $notifiable->hasVerifiedEmail()
+                ? 'Tu cuenta profesional ya esta activa y lista para usarse.'
+                : 'Tu cuenta fue creada. Verifica tu correo para terminar la activacion.',
+            'action_url' => rtrim(config('app.front_url'), '/') . '/dashboard',
+            'action_label' => 'Abrir dashboard',
+            'kind' => 'welcome',
+        ];
     }
 }

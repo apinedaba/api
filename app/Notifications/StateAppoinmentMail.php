@@ -26,7 +26,7 @@ class StateAppoinmentMail extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $notifiable->email ? ['mail', 'database'] : ['database'];
     }
 
     public function toMail(object $notifiable)
@@ -39,5 +39,15 @@ class StateAppoinmentMail extends Notification implements ShouldQueue
                 'fecha' => $this->fecha,
                 'hora' => $this->hora,
             ]);
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Cambio en el estado de tu cita',
+            'body' => "Tu cita del {$this->fecha} a las {$this->hora} ahora esta {$this->estado}.",
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+            'action_label' => 'Ver dashboard',
+            'kind' => 'appointment-status',
+        ];
     }
 }

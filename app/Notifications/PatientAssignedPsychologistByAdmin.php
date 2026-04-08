@@ -34,7 +34,7 @@ class PatientAssignedPsychologistByAdmin extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $notifiable->email ? ['mail', 'database'] : ['database'];
     }
 
     /**
@@ -58,5 +58,15 @@ class PatientAssignedPsychologistByAdmin extends Notification
                 'isActive' => $this->isActive,
                 'url' => $url
             ]);
+    }
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Te asignamos un psicologo',
+            'body' => "{$this->psychologist->name} ya esta disponible como tu profesional asignado.",
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+            'action_label' => 'Ir al inicio',
+            'kind' => 'psychologist-assigned',
+        ];
     }
 }

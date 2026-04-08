@@ -41,7 +41,7 @@ class LoginController extends Controller
         }
 
         $user = User::where('email', $request->email)->first();
-        event(new NewNotification($user->id, "Login correcto"));
+        event(new NewNotification("user.{$user->id}", "Login correcto"));
         return response()->json([
             'message' => 'Login correcto',
             'token' => explode("|", $user->createToken("API ACCESS TOKEN")->plainTextToken)[1]

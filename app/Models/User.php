@@ -10,6 +10,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -106,5 +107,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function activeOffice(): HasOne
     {
         return $this->hasOne(Office::class)->where('is_active', true);
+    }
+
+    public function deviceTokens(): MorphMany
+    {
+        return $this->morphMany(DeviceToken::class, 'notifiable');
+    }
+
+    public function notificationBroadcastChannel(): string
+    {
+        return "user.{$this->id}";
     }
 }

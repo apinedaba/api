@@ -66,6 +66,12 @@ class HandleStripeEventJob implements ShouldQueue
                     'ends_at' => null,
                 ]
             );
+            Subscription::where('user_id', $user->id)
+                ->where('stripe_id', '!=', $stripeSubscription->id)
+                ->update([
+                    'stripe_status' => 'canceled',
+                    'ends_at' => now(),
+                ]);
             logger("JOB EJECUTADO");
             broadcast(new SubscriptionActivated($user->id));
             logger("EVENTO DISPARADO");

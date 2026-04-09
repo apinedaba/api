@@ -148,6 +148,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
     Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
+    Route::post('user/subscription/change-plan', [StripeController::class, 'changeSubscriptionPlan']);
     Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
     Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
     Route::resource('user/payments', PaymentsController::class);

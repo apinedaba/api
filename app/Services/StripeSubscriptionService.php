@@ -26,11 +26,9 @@ class StripeSubscriptionService
         $subscription = \Stripe\Subscription::retrieve($session->subscription);
 
         Subscription::updateOrCreate(
-
-            ['stripe_id' => $subscription->id],
-
+            ['user_id' => $user->id],
             [
-                'user_id' => $user->id,
+                'stripe_id' => $subscription->id,
                 'stripe_plan' => $subscription->items->data[0]->price->id,
                 'stripe_status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_end
@@ -38,8 +36,14 @@ class StripeSubscriptionService
                     : null,
                 'ends_at' => null
             ]
-
         );
+
+        Subscription::where('user_id', $user->id)
+            ->where('stripe_id', '!=', $subscription->id)
+            ->update([
+                'stripe_status' => 'canceled',
+                'ends_at' => now(),
+            ]);
 
     }
 

@@ -13,6 +13,7 @@ use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use Stripe\Checkout\Session;
 use Stripe\Webhook;
+use Stripe\Subscription as StripeSubscription;
 
 use App\Models\AppointmentCart;
 use App\Models\Appointment;
@@ -418,6 +419,42 @@ class StripeController extends Controller
             $user->save();
         }
 
+        $existingSubscription = $this->findReusableStripeSubscription($user->stripe_id);
+
+        if ($existingSubscription) {
+            if ($this->canReactivateStripeSubscription($existingSubscription)) {
+                $reactivatedSubscription = StripeSubscription::update($existingSubscription->id, [
+                    'cancel_at_period_end' => false,
+                ]);
+
+                Subscription::updateOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'stripe_id' => $reactivatedSubscription->id,
+                        'stripe_plan' => data_get($reactivatedSubscription, 'items.data.0.price.id'),
+                        'stripe_status' => $reactivatedSubscription->status,
+                        'trial_ends_at' => $reactivatedSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($reactivatedSubscription->trial_end) : null,
+                        'ends_at' => null,
+                    ]
+                );
+
+                return response()->json([
+                    'url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=reactivated',
+                ]);
+            }
+
+            if ($this->shouldRedirectToPortal($existingSubscription)) {
+                $portalSession = BillingPortalSession::create([
+                    'customer' => $user->stripe_id,
+                    'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
+                ]);
+
+                return response()->json([
+                    'url' => $portalSession->url,
+                ]);
+            }
+        }
+
 
         $sessionData = [
             'mode' => 'subscription',
@@ -457,6 +494,54 @@ class StripeController extends Controller
         ]);
 
         return response()->json(['url' => $portalSession->url]);
+    }
+    public function changeSubscriptionPlan(Request $request)
+    {
+        Stripe::setApiKey($this->stripe_secretkey);
+        $request->validate(['plan_id' => 'required|string']);
+
+        $user = $request->user();
+        if (!$user->stripe_id) {
+            return response()->json(['message' => 'El usuario no tiene cliente de Stripe.'], 422);
+        }
+
+        $existingSubscription = $this->findReusableStripeSubscription($user->stripe_id);
+        if (!$existingSubscription) {
+            return response()->json(['message' => 'No encontramos una suscripcion activa para actualizar.'], 404);
+        }
+
+        $currentItem = data_get($existingSubscription, 'items.data.0');
+        $currentPriceId = data_get($currentItem, 'price.id') ?: data_get($currentItem, 'plan.id');
+        if ($currentPriceId === $request->plan_id) {
+            return response()->json(['message' => 'Tu suscripcion ya usa este plan.'], 200);
+        }
+
+        $updatedSubscription = StripeSubscription::update($existingSubscription->id, [
+            'cancel_at_period_end' => false,
+            'proration_behavior' => 'create_prorations',
+            'items' => [
+                [
+                    'id' => data_get($currentItem, 'id'),
+                    'price' => $request->plan_id,
+                ],
+            ],
+        ]);
+
+        Subscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_id' => $updatedSubscription->id,
+                'stripe_plan' => data_get($updatedSubscription, 'items.data.0.price.id'),
+                'stripe_status' => $updatedSubscription->status,
+                'trial_ends_at' => $updatedSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($updatedSubscription->trial_end) : null,
+                'ends_at' => null,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Tu plan se actualizo correctamente.',
+            'subscription_id' => $updatedSubscription->id,
+        ]);
     }
     public function handleWebhook(Request $request)
     {
@@ -527,5 +612,33 @@ class StripeController extends Controller
 
             return response()->json(['error' => 'Invalid webhook'], 400);
         }
+    }
+
+    protected function findReusableStripeSubscription(string $customerId): mixed
+    {
+        $subscriptions = StripeSubscription::all([
+            'customer' => $customerId,
+            'status' => 'all',
+            'limit' => 20,
+        ])->data;
+
+        foreach ($subscriptions as $subscription) {
+            if (in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true)) {
+                return $subscription;
+            }
+        }
+
+        return null;
+    }
+
+    protected function canReactivateStripeSubscription($subscription): bool
+    {
+        return (bool) ($subscription->cancel_at_period_end ?? false)
+            && in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid'], true);
+    }
+
+    protected function shouldRedirectToPortal($subscription): bool
+    {
+        return in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true);
     }
 }

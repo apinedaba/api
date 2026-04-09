@@ -82,6 +82,7 @@ class SubscriptionStatusService
             'cancel_at' => $cancelAt?->toIso8601String(),
             'cancel_at_period_end' => $cancelAtPeriodEnd,
             'raw_status' => $status,
+            'details' => $this->buildSubscriptionDetails($user, $subscription, $remoteSubscription, $uiStatus, $periodEnd),
         ];
     }
 
@@ -93,7 +94,12 @@ class SubscriptionStatusService
 
         try {
             return \Stripe\Subscription::retrieve($stripeId, [
-                'expand' => ['items.data.price.product'],
+                'expand' => [
+                    'items.data.price.product',
+                    'default_payment_method',
+                    'latest_invoice.payment_intent.payment_method',
+                    'customer',
+                ],
             ]);
         } catch (ApiErrorException $exception) {
             Log::warning('No se pudo obtener la suscripción desde Stripe', [
@@ -186,7 +192,7 @@ class SubscriptionStatusService
 
     protected function descriptionFor(string $status, ?Carbon $periodEnd): string
     {
-        $formattedEnd = $periodEnd?->locale('es_MX')->translatedFormat('d \\d\\e F \\d\\e Y');
+        $formattedEnd = $this->formatCarbonLabel($periodEnd);
 
         return match ($status) {
             'trialing' => $formattedEnd
@@ -248,5 +254,153 @@ class SubscriptionStatusService
     protected function carbonFromTimestamp(?int $timestamp): ?Carbon
     {
         return $timestamp ? Carbon::createFromTimestamp($timestamp) : null;
+    }
+
+    protected function buildSubscriptionDetails(
+        User $user,
+        Subscription $subscription,
+        mixed $remoteSubscription,
+        string $uiStatus,
+        ?Carbon $periodEnd
+    ): array {
+        $price = data_get($remoteSubscription, 'items.data.0.price');
+        $product = data_get($price, 'product');
+        $paymentMethod = $this->resolvePaymentMethod($remoteSubscription);
+        $startedAt = $this->resolveStartedAt($remoteSubscription, $subscription);
+        $nextPaymentDate = $this->resolveNextPaymentDate($uiStatus, $remoteSubscription, $subscription, $periodEnd);
+        $amount = $this->resolveAmount($price);
+        $currency = strtoupper((string) ($price->currency ?? 'MXN'));
+        $interval = data_get($price, 'recurring.interval');
+        $intervalCount = (int) data_get($price, 'recurring.interval_count', 1);
+        $planMetadata = $this->safeJsonDecode(data_get($price, 'metadata.data', data_get($product, 'metadata.data')));
+        $planTitle = data_get($planMetadata, 'title')
+            ?: data_get($product, 'name')
+            ?: ($uiStatus === 'trialing' ? 'Prueba MindMeet' : 'Plan MindMeet');
+
+        return [
+            'plan_title' => $planTitle,
+            'plan_subtitle' => data_get($planMetadata, 'subtitle'),
+            'started_at' => $startedAt?->toIso8601String(),
+            'started_at_label' => $this->formatCarbonLabel($startedAt),
+            'next_payment_at' => $nextPaymentDate?->toIso8601String(),
+            'next_payment_at_label' => $this->formatCarbonLabel($nextPaymentDate),
+            'amount' => $amount,
+            'amount_decimal' => $amount !== null ? $amount / 100 : null,
+            'currency' => $currency,
+            'recurrence' => $this->formatRecurrenceLabel($interval, $intervalCount),
+            'recurrence_interval' => $interval,
+            'recurrence_count' => $intervalCount,
+            'payment_method' => $paymentMethod,
+            'trial_ends_at_label' => $this->formatCarbonLabel($subscription->trial_ends_at),
+            'raw_price_id' => data_get($price, 'id'),
+        ];
+    }
+
+    protected function resolveStartedAt(mixed $remoteSubscription, Subscription $subscription): ?Carbon
+    {
+        if ($remoteSubscription?->start_date) {
+            return $this->carbonFromTimestamp($remoteSubscription->start_date);
+        }
+
+        return $subscription->created_at;
+    }
+
+    protected function resolveNextPaymentDate(
+        string $uiStatus,
+        mixed $remoteSubscription,
+        Subscription $subscription,
+        ?Carbon $periodEnd
+    ): ?Carbon {
+        if ($uiStatus === 'trialing' && $subscription->trial_ends_at) {
+            return $subscription->trial_ends_at instanceof Carbon
+                ? $subscription->trial_ends_at
+                : Carbon::parse($subscription->trial_ends_at);
+        }
+
+        if ($periodEnd) {
+            return $periodEnd;
+        }
+
+        if ($remoteSubscription?->current_period_end) {
+            return $this->carbonFromTimestamp($remoteSubscription->current_period_end);
+        }
+
+        return null;
+    }
+
+    protected function resolveAmount(mixed $price): ?int
+    {
+        if (!$price) {
+            return null;
+        }
+
+        return data_get($price, 'unit_amount');
+    }
+
+    protected function resolvePaymentMethod(mixed $remoteSubscription): ?string
+    {
+        $method = data_get($remoteSubscription, 'default_payment_method')
+            ?: data_get($remoteSubscription, 'latest_invoice.payment_intent.payment_method')
+            ?: data_get($remoteSubscription, 'customer.invoice_settings.default_payment_method');
+
+        if (!$method) {
+            return null;
+        }
+
+        $type = $method->type ?? null;
+        if ($type === 'card') {
+            $brand = strtoupper((string) data_get($method, 'card.brand'));
+            $last4 = data_get($method, 'card.last4');
+            return trim("Tarjeta {$brand} terminacion {$last4}");
+        }
+
+        if ($type === 'oxxo') {
+            return 'OXXO';
+        }
+
+        return $type ? strtoupper((string) $type) : null;
+    }
+
+    protected function formatRecurrenceLabel(?string $interval, int $intervalCount): ?string
+    {
+        if (!$interval) {
+            return null;
+        }
+
+        $base = match ($interval) {
+            'day' => 'diaria',
+            'week' => 'semanal',
+            'month' => 'mensual',
+            'year' => 'anual',
+            default => $interval,
+        };
+
+        if ($intervalCount <= 1) {
+            return $base;
+        }
+
+        return "cada {$intervalCount} {$base}";
+    }
+
+    protected function safeJsonDecode(mixed $value): array
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    protected function formatCarbonLabel(mixed $value): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $carbon = $value instanceof Carbon ? $value : Carbon::parse($value);
+
+        return $carbon->locale('es_MX')->translatedFormat('d \\d\\e F \\d\\e Y');
     }
 }

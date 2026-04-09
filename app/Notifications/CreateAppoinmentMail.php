@@ -19,9 +19,9 @@ class CreateAppoinmentMail extends Notification
 
     public function __construct($appointment, $patient, $hora, $fecha, $interval)
     {
-        $this->appointment = $appointment;
+        $this->appointment = $appointment->loadMissing(['user', 'patient', 'cart']);
         $this->patient = $patient;
-        $this->user = auth()->user();
+        $this->user = $this->appointment->user()->first() ?? auth()->user();
         $this->hora = $hora;
         $this->fecha = $fecha;
         $this->interval = $interval;
@@ -60,12 +60,15 @@ class CreateAppoinmentMail extends Notification
 
     public function toArray(object $notifiable): array
     {
+        $professionalName = $this->user?->name ?: 'tu profesional';
+
         return [
             'title' => 'Nueva cita agendada',
-            'body' => "Tu cita con {$this->user->name} fue programada para {$this->fecha} a las {$this->hora}.",
+            'body' => "Tu cita con {$professionalName} fue programada para {$this->fecha} a las {$this->hora}.",
             'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
             'action_label' => 'Ver sesion',
             'kind' => 'appointment-created',
+            'appointment_id' => $this->appointment->id,
         ];
     }
 }

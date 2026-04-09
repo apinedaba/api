@@ -7,6 +7,7 @@ use App\Events\SubscriptionActivated;
 use App\Models\User;
 use App\Models\Subscription;
 use App\Services\EmailService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -80,8 +81,8 @@ class HandleStripeEventJob implements ShouldQueue
             $subscription->update([
                 'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
                 'stripe_status' => $stripeSubscription->status,
-                'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                'ends_at' => $stripeSubscription->cancel_at ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
+                'trial_ends_at' => $stripeSubscription->trial_end ? Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
+                'ends_at' => $this->resolveSubscriptionEndsAt($stripeSubscription),
             ]);
             Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
         }
@@ -106,10 +107,11 @@ class HandleStripeEventJob implements ShouldQueue
         // 📧 Enviar correo (cola)
         EmailService::send(
             $user->email,
-            'Tu intento de pago no pudo completarse – MindMeet',
-            'emails.payment-failed',
+            'MindMeet | No pudimos procesar tu renovación',
+            'email.payment-failed',
             [
-                'name' => $user->name
+                'name' => $user->name,
+                'url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url'), '/') . '/perfil/suscripcion',
             ]
         );
 
@@ -120,5 +122,22 @@ class HandleStripeEventJob implements ShouldQueue
 
             Log::warning("Fallo en pago de suscripción: {$invoice->subscription}");
         }
+    }
+
+    protected function resolveSubscriptionEndsAt($stripeSubscription): ?Carbon
+    {
+        if (!empty($stripeSubscription->ended_at)) {
+            return Carbon::createFromTimestamp($stripeSubscription->ended_at);
+        }
+
+        if (!empty($stripeSubscription->cancel_at_period_end) && !empty($stripeSubscription->current_period_end)) {
+            return Carbon::createFromTimestamp($stripeSubscription->current_period_end);
+        }
+
+        if (!empty($stripeSubscription->cancel_at)) {
+            return Carbon::createFromTimestamp($stripeSubscription->cancel_at);
+        }
+
+        return null;
     }
 }

@@ -19,7 +19,7 @@ class NuevoPosiblePaciente extends Notification
 
     public function via($notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail($notifiable): MailMessage
@@ -66,5 +66,18 @@ class NuevoPosiblePaciente extends Notification
                 'especialidad' => $especialidadTraducida,
                 'user' => $notifiable
             ]);
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'Nuevo lead recibido',
+            'body' => "{$this->lead->nombre} mostro interes en {$this->lead->tipo_sesion}.",
+            'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads',
+            'action_label' => 'Ver lead',
+            'kind' => 'lead-created',
+            'lead_email' => $this->lead->email,
+            'lead_phone' => $this->lead->telefono,
+        ];
     }
 }

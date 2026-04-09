@@ -182,8 +182,14 @@ class CatalogosController extends Controller
 
     public function cancelSubscription(Request $request)
     {
-        $subscription = $request->all();
-        $subscription = $subscription[0];
+        $subscription = $request->input('stripe_id')
+            ?: $request->input('subscription_id')
+            ?: data_get($request->all(), '0');
+
+        if (!filled($subscription)) {
+            return response()->json(['message' => 'Suscripción inválida.'], 422);
+        }
+
         Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
         $subscription = \Stripe\Subscription::update($subscription, [
             'cancel_at_period_end' => true,

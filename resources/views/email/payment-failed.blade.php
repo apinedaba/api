@@ -1,58 +1,52 @@
-@extends('emails.layouts.mindmeet')
+@extends('email.layouts.base')
 
 @section('content')
 
-    <h1 style="
-        font-size:22px;
-        color:#000000;
-        margin-bottom:20px;
-        font-weight:600;
-    ">
-        Hubo un problema con tu pago
+    <h1 style="font-size:22px; color:#0f172a; margin-bottom:20px; font-weight:700;">
+        No pudimos procesar tu renovación
     </h1>
 
-    <p style="font-size:14px; color:#444444; line-height:1.6;">
+    <p style="font-size:14px; color:#334155; line-height:1.7;">
         Hola {{ $name ?? '' }},
     </p>
 
-    <p style="font-size:14px; color:#444444; line-height:1.6;">
-        Detectamos que el <strong>intento de cobro de tu membresía en MindMeet no pudo completarse</strong>.
-        Esto puede deberse a un problema con el método de pago o con la autorización del banco.
+    <p style="font-size:14px; color:#334155; line-height:1.7;">
+        Detectamos un problema al intentar cobrar tu suscripción de <strong>MindMeet</strong>.
+        Esto suele pasar cuando el banco rechaza el cargo o cuando el método de pago necesita actualización.
     </p>
 
-    <p style="font-size:14px; color:#444444; line-height:1.6;">
-        Para evitar interrupciones en tu acceso a la plataforma, te recomendamos
-        gestionar tu membresía o realizar el pago manualmente.
+    <p style="font-size:14px; color:#334155; line-height:1.7;">
+        Tu espacio sigue siendo importante para nosotros. Si actualizas tu forma de pago a tiempo,
+        podrás continuar con tu agenda, tu perfil visible y tus herramientas sin interrupciones.
     </p>
 
-    <!-- CTA -->
     <table cellpadding="0" cellspacing="0" style="margin-top:30px;">
         <tr>
             <td>
-                <a href="https://minder.mindmeet.com.mx/perfil/suscripcion" style="
-                   display:inline-block;
-                   padding:12px 24px;
-                   background:#f97316;
-                   color:#ffffff;
-                   text-decoration:none;
-                   border-radius:6px;
-                   font-size:14px;
-                   font-weight:600;">
-                    Gestionar mi membresía
+                <a href="{{ $url ?? '#' }}" style="
+                    display:inline-block;
+                    padding:12px 24px;
+                    background:#0077b6;
+                    color:#ffffff;
+                    text-decoration:none;
+                    border-radius:6px;
+                    font-size:14px;
+                    font-weight:600;">
+                    Revisar mi suscripción
                 </a>
             </td>
         </tr>
     </table>
 
-    <p style="font-size:13px; color:#555555; margin-top:30px;">
-        Si el pago no se regulariza, tu membresía podría verse afectada.
+    <p style="font-size:13px; color:#64748b; margin-top:30px;">
+        Si el cobro sigue sin completarse, tu suscripción puede pasar a estado pendiente o vencido.
     </p>
 
-    <p style="font-size:14px; color:#444444; margin-top:25px;">
-        Estamos aquí para ayudarte si tienes alguna duda o necesitas apoyo.
+    <p style="font-size:14px; color:#334155; margin-top:25px;">
+        Si necesitas ayuda, estamos para acompañarte.
     </p>
 
-    <p style="font-size:14px; color:#444444; margin-top:20px;">
+    <p style="font-size:14px; color:#334155; margin-top:20px;">
         <strong>Equipo MindMeet</strong>
     </p>
 

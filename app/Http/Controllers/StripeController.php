@@ -18,6 +18,7 @@ use App\Models\AppointmentCart;
 use App\Models\Appointment;
 use App\Models\PatientUser;
 use App\Services\AppointmentService;
+use App\Services\SubscriptionStatusService;
 use App\Models\User;
 use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
@@ -28,12 +29,14 @@ class StripeController extends Controller
 {
     protected $stripe_secretkey;
     protected $service;
+    protected $subscriptionStatusService;
 
-    public function __construct(AppointmentService $service)
+    public function __construct(AppointmentService $service, SubscriptionStatusService $subscriptionStatusService)
     {
         // Usa tu secret actual (puede ser el mismo en local y prod, tú ya lo tenías así)
         $this->stripe_secretkey = config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY');
         $this->service = $service;
+        $this->subscriptionStatusService = $subscriptionStatusService;
     }
 
     public function createPaymentIntent()
@@ -398,7 +401,9 @@ class StripeController extends Controller
 
     public function getSubscriptionStatus(Request $request)
     {
-        return response()->json($request->user()->subscription);
+        return response()->json(
+            $this->subscriptionStatusService->summarize($request->user())
+        );
     }
 
     public function createSubscriptionCheckoutSession(Request $request)
@@ -423,13 +428,12 @@ class StripeController extends Controller
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
-        $hasHadRealStripeSubscription = false;
-        if (isset($subscription->stripe_status)) {
-            $hasHadRealStripeSubscription = $subscription->stripe_status === 'trialing' || $subscription->stripe_status === 'trial_expired' || $subscription->stripe_status === 'trial';
-        }
+        $hasHadAnySubscription = isset($subscription->id)
+            && filled($subscription->stripe_status)
+            && $subscription->stripe_status !== 'pending';
 
-        Log::info('Has had real stripe subscription: ' . $hasHadRealStripeSubscription);
-        if (!$hasHadRealStripeSubscription) {
+        Log::info('Has had any subscription before: ' . ($hasHadAnySubscription ? 'true' : 'false'));
+        if (!$hasHadAnySubscription) {
             $sessionData['subscription_data'] = [
                 'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
             ];
@@ -449,7 +453,7 @@ class StripeController extends Controller
 
         $portalSession = BillingPortalSession::create([
             'customer' => $user->stripe_id,
-            'return_url' => config('app.front_url') . '/perfil/suscripcion',
+            'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
         ]);
 
         return response()->json(['url' => $portalSession->url]);

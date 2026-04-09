@@ -11,6 +11,8 @@ use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\ProfessionalAppointmentCreatedNotification;
+use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\RecurringAppointmentSeriesNotification;
 use App\Notifications\StateAppoinmentMail;
 use App\Services\AppointmentService;
@@ -343,8 +345,8 @@ class AppointmentController extends Controller
                 SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'update');
             }
 
-            if ($request->hasAny(['statusUser', 'statusPatient'])) {
-                $this->sendNotificacionStatusEmail($appointment);
+            if ($request->hasAny(['statusUser', 'statusPatient', 'state'])) {
+                $this->sendNotificacionStatusEmail($appointment, $originalData);
             }
 
             return response()->json([
@@ -520,21 +522,44 @@ class AppointmentController extends Controller
         return $patient->id;
     }
 
-    public function sendNotificacionStatusEmail($appointment): bool
+    public function sendNotificacionStatusEmail($appointment, ?Appointment $originalAppointment = null): bool
     {
         try {
             $patient = Patient::find($appointment->patient);
-            if (!$patient) {
+            $professional = User::find($appointment->user);
+            if (!$patient && !$professional) {
                 return false;
             }
 
-            $estado = $appointment->statusUser;
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
             $fecha = $start->format('d/m/Y');
             $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+            $patientStatus = $this->resolveAppointmentStatusValue(
+                $appointment->statusUser,
+                $appointment->state
+            );
+            $professionalStatus = $this->resolveAppointmentStatusValue(
+                $appointment->statusPatient,
+                $appointment->state
+            );
+            $patientStatusChanged = $originalAppointment
+                ? $this->didAppointmentStatusChange($originalAppointment, $appointment, ['statusUser', 'state'])
+                : filled($patientStatus);
+            $professionalStatusChanged = $originalAppointment
+                ? $this->didAppointmentStatusChange($originalAppointment, $appointment, ['statusPatient', 'state'])
+                : filled($professionalStatus);
 
-            $patient->notify(new StateAppoinmentMail($patient, $estado, $fecha, $hora));
+            if ($patient && $patientStatusChanged && filled($patientStatus)) {
+                $patient->notify(new StateAppoinmentMail($patient, $patientStatus, $fecha, $hora));
+            }
+
+            if ($professional && $professionalStatusChanged && filled($professionalStatus)) {
+                $professional->notify(new ProfessionalAppointmentStatusNotification(
+                    $appointment->loadMissing(['patient', 'user']),
+                    $professionalStatus
+                ));
+            }
 
             return true;
         } catch (\Throwable $th) {
@@ -553,16 +578,40 @@ class AppointmentController extends Controller
 
         try {
             $patient = Patient::find($appointment->patient);
+            $professional = User::find($appointment->user);
             if (!$patient) {
                 return false;
             }
 
             $patient->notify(new CreateAppoinmentMail($appointment, $patient, $hora, $fecha, $interval));
+            if ($professional) {
+                $professional->notify(new ProfessionalAppointmentCreatedNotification(
+                    $appointment->loadMissing(['patient', 'user'])
+                ));
+            }
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
             return false;
         }
+    }
+
+    private function resolveAppointmentStatusValue(?string $primaryStatus, ?string $fallbackState = null): ?string
+    {
+        $status = $primaryStatus ?: $fallbackState;
+
+        return filled($status) ? $status : null;
+    }
+
+    private function didAppointmentStatusChange(Appointment $originalAppointment, Appointment $currentAppointment, array $fields): bool
+    {
+        foreach ($fields as $field) {
+            if ((string) data_get($originalAppointment, $field) !== (string) data_get($currentAppointment, $field)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function sendRecurringSeriesNotification(array $appointments, string $frequency, string $until): bool

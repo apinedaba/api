@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Subscription;
+use Carbon\Carbon;
 use Stripe\Stripe;
 
 class StripeSubscriptionService
@@ -47,7 +48,12 @@ class StripeSubscriptionService
 
         Subscription::where('stripe_id', $subscription->id)
             ->update([
-                'stripe_status' => $subscription->status
+                'stripe_plan' => $subscription->items->data[0]->price->id ?? null,
+                'stripe_status' => $subscription->status,
+                'trial_ends_at' => $subscription->trial_end
+                    ? Carbon::createFromTimestamp($subscription->trial_end)
+                    : null,
+                'ends_at' => $this->resolveEndsAt($subscription),
             ]);
 
     }
@@ -65,12 +71,42 @@ class StripeSubscriptionService
 
     public function paymentFailed($invoice)
     {
+        $user = User::where('stripe_id', $invoice->customer ?? null)->first();
+
+        if ($user?->email) {
+            EmailService::send(
+                $user->email,
+                'MindMeet | No pudimos procesar tu renovación',
+                'email.payment-failed',
+                [
+                    'name' => $user->name,
+                    'url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url'), '/') . '/perfil/suscripcion',
+                ]
+            );
+        }
 
         Subscription::where('stripe_id', $invoice->subscription)
             ->update([
                 'stripe_status' => 'past_due'
             ]);
 
+    }
+
+    protected function resolveEndsAt($subscription): ?Carbon
+    {
+        if (!empty($subscription->ended_at)) {
+            return Carbon::createFromTimestamp($subscription->ended_at);
+        }
+
+        if (!empty($subscription->cancel_at_period_end) && !empty($subscription->current_period_end)) {
+            return Carbon::createFromTimestamp($subscription->current_period_end);
+        }
+
+        if (!empty($subscription->cancel_at)) {
+            return Carbon::createFromTimestamp($subscription->cancel_at);
+        }
+
+        return null;
     }
 
 }

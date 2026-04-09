@@ -7,6 +7,10 @@ use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\Availabiliti;
+use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\ProfessionalAppointmentCreatedNotification;
+use App\Notifications\ProfessionalAppointmentStatusNotification;
+use App\Notifications\StateAppoinmentMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -124,6 +128,7 @@ class AdminAppointmentController extends Controller
             DB::commit();
 
             $appointment->load('user', 'patient');
+            $this->notifyAppointmentCreated($appointment);
 
             return response()->json([
                 'success' => true,
@@ -207,6 +212,7 @@ class AdminAppointmentController extends Controller
 
         try {
             $appointment = Appointment::findOrFail($id);
+            $originalAppointment = clone $appointment;
 
             // Si se cambian las fechas, verificar disponibilidad
             if ($request->has('fecha_inicio') || $request->has('fecha_fin')) {
@@ -271,6 +277,9 @@ class AdminAppointmentController extends Controller
             DB::commit();
 
             $appointment->load('user', 'patient');
+            if ($request->has('state')) {
+                $this->notifyAppointmentStatusUpdated($appointment, $originalAppointment);
+            }
 
             return response()->json([
                 'success' => true,
@@ -295,11 +304,15 @@ class AdminAppointmentController extends Controller
     {
         try {
             $appointment = Appointment::findOrFail($id);
+            $originalAppointment = clone $appointment;
             $appointment->update([
                 'state' => 'Cancelado',
                 'statusUser' => 'Cancelado',
                 'statusPatient' => 'Cancelado'
             ]);
+
+            $appointment->load('user', 'patient');
+            $this->notifyAppointmentStatusUpdated($appointment, $originalAppointment);
 
             return response()->json([
                 'success' => true,
@@ -313,6 +326,77 @@ class AdminAppointmentController extends Controller
                 'message' => 'Error al cancelar la cita'
             ], 500);
         }
+    }
+
+    protected function notifyAppointmentCreated(Appointment $appointment): void
+    {
+        $patient = $appointment->patient()->first();
+        $professional = $appointment->user()->first();
+
+        if (!$patient) {
+            return;
+        }
+
+        $start = Carbon::parse($appointment->start);
+        $end = Carbon::parse($appointment->end);
+        $interval = $start->diff($end);
+        $fecha = $start->format('d/m/Y');
+        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+
+        $patient->notify(new CreateAppoinmentMail($appointment->loadMissing(['user', 'patient']), $patient, $hora, $fecha, $interval));
+
+        if ($professional) {
+            $professional->notify(new ProfessionalAppointmentCreatedNotification(
+                $appointment->loadMissing(['user', 'patient'])
+            ));
+        }
+    }
+
+    protected function notifyAppointmentStatusUpdated(Appointment $appointment, ?Appointment $originalAppointment = null): void
+    {
+        $patient = $appointment->patient()->first();
+        $professional = $appointment->user()->first();
+        $start = Carbon::parse($appointment->start);
+        $end = Carbon::parse($appointment->end);
+        $fecha = $start->format('d/m/Y');
+        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+        $patientStatus = $this->resolveAppointmentStatusValue($appointment->statusUser, $appointment->state);
+        $professionalStatus = $this->resolveAppointmentStatusValue($appointment->statusPatient, $appointment->state);
+        $patientStatusChanged = $originalAppointment
+            ? $this->didAppointmentStatusChange($originalAppointment, $appointment, ['statusUser', 'state'])
+            : filled($patientStatus);
+        $professionalStatusChanged = $originalAppointment
+            ? $this->didAppointmentStatusChange($originalAppointment, $appointment, ['statusPatient', 'state'])
+            : filled($professionalStatus);
+
+        if ($patient && $patientStatusChanged && filled($patientStatus)) {
+            $patient->notify(new StateAppoinmentMail($patient, $patientStatus, $fecha, $hora));
+        }
+
+        if ($professional && $professionalStatusChanged && filled($professionalStatus)) {
+            $professional->notify(new ProfessionalAppointmentStatusNotification(
+                $appointment->loadMissing(['user', 'patient']),
+                $professionalStatus
+            ));
+        }
+    }
+
+    protected function resolveAppointmentStatusValue(?string $primaryStatus, ?string $fallbackState = null): ?string
+    {
+        $status = $primaryStatus ?: $fallbackState;
+
+        return filled($status) ? $status : null;
+    }
+
+    protected function didAppointmentStatusChange(Appointment $originalAppointment, Appointment $currentAppointment, array $fields): bool
+    {
+        foreach ($fields as $field) {
+            if ((string) data_get($originalAppointment, $field) !== (string) data_get($currentAppointment, $field)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

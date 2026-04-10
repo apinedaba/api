@@ -9,8 +9,7 @@ class SitemapController extends Controller
 {
     public function index()
     {
-        $psychologists = User::where('activo', true)
-            ->where('identity_verification_status', 'approved')
+        $psychologists = User::publiclyVisible()
             ->get();
 
         $baseUrl = 'https://mindmeet.com.mx'; // URL del sitio frontend

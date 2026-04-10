@@ -51,24 +51,12 @@ class ProfessionalController extends Controller
          * 2. Estados válidos de una suscripción
          * ---------------------------------------------------------
          */
-        $suscripcionesValidas = ['active', 'trial', 'trialing'];
-
         /*
          * ---------------------------------------------------------
          * 3. Query base: filtros esenciales
          * ---------------------------------------------------------
          */
-        $q = User::query()
-            ->where('isProfileComplete', true)
-            ->where('activo', true)
-            ->where('identity_verification_status', 'approved')
-            ->where(function ($q2) use ($suscripcionesValidas) {
-                $q2
-                    ->whereHas('subscription', function ($s) use ($suscripcionesValidas) {
-                        $s->whereIn('stripe_status', $suscripcionesValidas);
-                    })
-                    ->orWhere('has_lifetime_access', true);
-            });
+        $q = User::query()->publiclyVisible();
 
         /*
          * ---------------------------------------------------------
@@ -169,9 +157,7 @@ class ProfessionalController extends Controller
      */
     public function filters(Request $request)
     {
-        $base = User::query()
-            ->where('isProfileComplete', true)
-            ->where('activo', true);
+        $base = User::query()->publiclyVisible();
 
         // Distintos de campos string en JSON
         $generos = (clone $base)

@@ -11,6 +11,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -118,5 +119,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";
+    }
+
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return $query
+            ->where('activo', true)
+            ->where('isProfileComplete', true)
+            ->where('identity_verification_status', 'approved')
+            ->whereNotNull('email_verified_at')
+            ->where(function (Builder $visibilityQuery) {
+                $visibilityQuery
+                    ->where('has_lifetime_access', true)
+                    ->orWhereHas('subscription', function (Builder $subscriptionQuery) {
+                        $subscriptionQuery->whereIn('stripe_status', ['active', 'trialing']);
+                    });
+            });
     }
 }

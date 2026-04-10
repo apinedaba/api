@@ -43,9 +43,7 @@ class HomeController extends Controller
     private function getProfessionalsByFilter($filterType = null, $filterValues = [], $limit = 6)
     {
         $query = User::query()
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
-            ->where('identity_verification_status', 'approved')
+            ->publiclyVisible()
             ->whereRaw("JSON_VALID(educacion)");
 
         if (!empty($filterType) && !empty($filterValues)) {

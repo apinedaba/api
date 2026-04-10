@@ -89,8 +89,19 @@
                                                 $consulta->telefono }}</p>
                                             <p style="margin: 8px 0;"><strong>🧠 Especialidad:</strong> {{ $especialidad
                                                 ?? 'Sin especificar' }}</p>
+                                            @if(($consulta->lead_type ?? null) === 'package')
+                                            <p style="margin: 8px 0;"><strong>📦 Paquete:</strong> {{ $consulta->package_name
+                                                ?? 'Paquete de sesiones' }}</p>
+                                            <p style="margin: 8px 0;"><strong>🧾 Sesiones:</strong> {{ $consulta->package_session_count
+                                                ?? 'Sin especificar' }}</p>
+                                            <p style="margin: 8px 0;"><strong>💰 Total paquete:</strong> ${{ $consulta->package_total_price
+                                                ?? 'Sin especificar' }} MXN</p>
+                                            <p style="margin: 8px 0;"><strong>💳 Por sesión:</strong> ${{ $consulta->package_session_price
+                                                ?? 'Sin especificar' }} MXN</p>
+                                            @else
                                             <p style="margin: 8px 0;"><strong>💰 Precio:</strong> {{ $consulta->precio
                                                 ?? 'Sin especificar' }}</p>
+                                            @endif
                                             <p style="margin: 8px 0;"><strong>📅 Fecha:</strong> {{ $consulta->fecha
                                                 ?? 'Sin especificar' }}</p>
                                             <p style="margin: 8px 0;"><strong>⏰ Hora:</strong> {{ $consulta->hora

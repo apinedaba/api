@@ -20,11 +20,23 @@ class ConsultaContactoController extends Controller
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'telefono' => 'required|string|max:20',
-            'tipo_sesion' => 'required|string',
-            'motivo' => 'required|string',
+            'lead_type' => 'nullable|in:session,package',
+            'tipo_sesion' => 'nullable|string',
+            'motivo' => 'nullable|string',
             'fecha' => 'required|string',
             'hora' => 'required|string',
             'user_id' => 'required|exists:users,id',
+            'session_package_id' => 'nullable|exists:session_packages,id',
+            'package_name' => 'nullable|string|max:255',
+            'package_total_price' => 'nullable|numeric|min:0',
+            'package_session_price' => 'nullable|numeric|min:0',
+            'package_session_count' => 'nullable|integer|min:1',
+            'precio' => 'nullable',
+            'formato' => 'nullable|string',
+            'categoria' => 'nullable',
+            'discount' => 'nullable',
+            'discount_type' => 'nullable',
+            'codigo_descuento' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -34,7 +46,15 @@ class ConsultaContactoController extends Controller
             ], 422);
         }
 
-        $consulta = ConsultaContacto::create($request->all());
+        $payload = $validator->validated();
+        $payload['lead_type'] = $payload['lead_type'] ?? 'session';
+        $payload['tipo_sesion'] = $payload['tipo_sesion'] ?? 'Paquete de sesiones';
+
+        if (empty($payload['motivo']) && $payload['lead_type'] === 'package') {
+            $payload['motivo'] = 'Estoy interesado/a en contratar el paquete "' . ($payload['package_name'] ?? 'Paquete de sesiones') . '".';
+        }
+
+        $consulta = ConsultaContacto::create($payload);
         try {
             $consulta->notify(new ConfirmacionPaciente());
             $psicologo = \App\Models\User::find($request->user_id);

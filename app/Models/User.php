@@ -116,6 +116,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->morphMany(DeviceToken::class, 'notifiable');
     }
 
+    public function sessionPackages(): HasMany
+    {
+        return $this->hasMany(SessionPackage::class);
+    }
+
+    public function activeSessionPackages(): HasMany
+    {
+        return $this->sessionPackages()->where('is_active', true);
+    }
+
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";

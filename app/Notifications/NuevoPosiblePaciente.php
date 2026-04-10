@@ -57,7 +57,9 @@ class NuevoPosiblePaciente extends Notification
         ];
 
         // Obtenemos la traducción o el valor original si no existe en el mapa
-        $especialidadTraducida = $especialidades[$this->lead->tipo_sesion] ?? 'Consulta General';
+        $especialidadTraducida = $this->lead->lead_type === 'package'
+            ? 'Paquete de sesiones: ' . ($this->lead->package_name ?? 'Paquete MindMeet')
+            : ($especialidades[$this->lead->tipo_sesion] ?? 'Consulta General');
 
         return (new MailMessage)
             ->subject('🔔 Tienes un nuevo posible paciente en MindMeet')        
@@ -70,14 +72,20 @@ class NuevoPosiblePaciente extends Notification
 
     public function toArray(object $notifiable): array
     {
+        $leadLabel = $this->lead->lead_type === 'package'
+            ? 'el paquete ' . ($this->lead->package_name ?? 'de sesiones')
+            : $this->lead->tipo_sesion;
+
         return [
             'title' => 'Nuevo lead recibido',
-            'body' => "{$this->lead->nombre} mostro interes en {$this->lead->tipo_sesion}.",
+            'body' => "{$this->lead->nombre} mostro interes en {$leadLabel}.",
             'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads',
             'action_label' => 'Ver lead',
             'kind' => 'lead-created',
             'lead_email' => $this->lead->email,
             'lead_phone' => $this->lead->telefono,
+            'lead_type' => $this->lead->lead_type,
+            'package_name' => $this->lead->package_name,
         ];
     }
 }

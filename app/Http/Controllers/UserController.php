@@ -64,7 +64,12 @@ class UserController extends Controller
 
     public function getProfessionalById($id)
     {
-        $allUser = User::where('id', $id)->with('escuelas')->first();
+        $allUser = User::query()
+            ->publiclyVisible()
+            ->where('id', $id)
+            ->with(['escuelas', 'activeSessionPackages'])
+            ->firstOrFail();
+
         return response()->json($allUser, 200);
     }
 

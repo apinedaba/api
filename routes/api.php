@@ -39,6 +39,7 @@ use App\Http\Controllers\StripeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\DocumentacionController;
+use App\Http\Controllers\SessionPackageController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
 use App\Models\User;
@@ -152,6 +153,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
     Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
     Route::resource('user/payments', PaymentsController::class);
+    Route::get('user/session-packages', [SessionPackageController::class, 'index']);
+    Route::post('user/session-packages', [SessionPackageController::class, 'store']);
+    Route::put('user/session-packages/{sessionPackage}', [SessionPackageController::class, 'update']);
+    Route::delete('user/session-packages/{sessionPackage}', [SessionPackageController::class, 'destroy']);
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
     Route::resource('user/catalog/patients', PatientUserController::class);
@@ -261,6 +266,7 @@ Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'stor
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
+Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 
 
 require __DIR__ . '/api/catalogos.php';

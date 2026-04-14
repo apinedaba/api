@@ -56,7 +56,9 @@ class ProfessionalController extends Controller
          * 3. Query base: filtros esenciales
          * ---------------------------------------------------------
          */
-        $q = User::query()->publiclyVisible();
+        $q = User::query()
+            ->with('activeSessionPackages')
+            ->publiclyVisible();
 
         /*
          * ---------------------------------------------------------
@@ -108,23 +110,29 @@ class ProfessionalController extends Controller
         if ($precioMax) {
             $precioMax = (int) $precioMax;
 
-            $q->whereIn('users.id', function ($sq) use ($precioMax) {
-                $sq
-                    ->select('u.id')
-                    ->from('users as u')
-                    ->join(
-                        DB::raw("
-                        JSON_TABLE(
-                            u.configurations,
-                            '\$.sesiones[*]'
-                            COLUMNS (precio VARCHAR(20) PATH '\$.precio')
-                        ) jt
-                    "),
-                        DB::raw('1'),
-                        DB::raw('1=1')
-                    )
-                    ->groupBy('u.id')
-                    ->havingRaw('MIN(CAST(jt.precio AS UNSIGNED)) <= ?', [$precioMax]);
+            $q->where(function ($priceQuery) use ($precioMax) {
+                $priceQuery
+                    ->whereIn('users.id', function ($sq) use ($precioMax) {
+                        $sq
+                            ->select('u.id')
+                            ->from('users as u')
+                            ->join(
+                                DB::raw("
+                                JSON_TABLE(
+                                    u.configurations,
+                                    '\$.sesiones[*]'
+                                    COLUMNS (precio VARCHAR(20) PATH '\$.precio')
+                                ) jt
+                            "),
+                                DB::raw('1'),
+                                DB::raw('1=1')
+                            )
+                            ->groupBy('u.id')
+                            ->havingRaw('MIN(CAST(jt.precio AS UNSIGNED)) <= ?', [$precioMax]);
+                    })
+                    ->orWhereHas('activeSessionPackages', function ($packageQuery) use ($precioMax) {
+                        $packageQuery->where('package_session_price', '<=', $precioMax);
+                    });
             });
         }
 

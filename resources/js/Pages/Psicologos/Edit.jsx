@@ -6,8 +6,9 @@ import ActiveUserForm from './Partials/ActiveUserForm';
 import { Head } from '@inertiajs/react';
 import ValidatePsicologo from './Partials/ValidatePsicologo';
 import EducacionUser from './Partials/EducacionUser';
+import AdminPsychologistOverview from './Partials/AdminPsychologistOverview';
 
-export default function Edit({ auth, psicologo }) {
+export default function Edit({ auth, psicologo, publicVisibility }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -20,6 +21,12 @@ export default function Edit({ auth, psicologo }) {
                     <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
                         <ResumePsicologo
                             psicologo={psicologo}
+                        />
+                    </div>
+                    <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+                        <AdminPsychologistOverview
+                            psicologo={psicologo}
+                            publicVisibility={publicVisibility}
                         />
                     </div>
                     <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">

@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\Mailer\Messenger\SendEmailMessage;
@@ -172,10 +173,16 @@ class UserController extends Controller
     public function show(string $id)
     {
         try {
-            $user = User::findOrFail($id)->load('escuelas', 'subscription');
+            $user = User::findOrFail($id)->load([
+                'escuelas',
+                'subscription',
+                'sessionPackages',
+                'googleAccount',
+            ]);
             if ($user) {
                 return Inertia::render('Psicologos/Edit', [
-                    'psicologo' => $user
+                    'psicologo' => $user,
+                    'publicVisibility' => $this->publicVisibilitySummary($user),
                 ]);
             }
         } catch (\Throwable $th) {
@@ -220,6 +227,83 @@ class UserController extends Controller
             ]
         );
         return response()->json(['ok' => true], 200);
+    }
+
+    public function ensurePublicVisibility(Request $request, string $id)
+    {
+        $request->validate([
+            'grant_lifetime_access' => ['nullable', 'boolean'],
+        ]);
+
+        $user = User::with('subscription')->findOrFail($id);
+        $hasBillableAccess = $user->has_lifetime_access
+            || in_array(optional($user->subscription)->stripe_status, ['active', 'trialing'], true);
+
+        if (!$hasBillableAccess && !$request->boolean('grant_lifetime_access')) {
+            throw ValidationException::withMessages([
+                'grant_lifetime_access' => 'Este psicologo no tiene suscripcion activa/prueba activa. Autoriza acceso permanente para hacerlo visible sin Stripe.',
+            ]);
+        }
+
+        $user->forceFill([
+            'activo' => true,
+            'isProfileComplete' => true,
+            'identity_verification_status' => 'approved',
+            'email_verified_at' => $user->email_verified_at ?: now(),
+            'has_lifetime_access' => $user->has_lifetime_access || $request->boolean('grant_lifetime_access'),
+        ])->save();
+
+        return redirect()
+            ->route('psicologoShow', $user->id)
+            ->with('status', 'Psicologo listo para visibilidad publica.');
+    }
+
+    private function publicVisibilitySummary(User $user): array
+    {
+        $subscriptionStatus = optional($user->subscription)->stripe_status;
+        $hasBillableAccess = $user->has_lifetime_access
+            || in_array($subscriptionStatus, ['active', 'trialing'], true);
+
+        $checks = [
+            [
+                'key' => 'activo',
+                'label' => 'Cuenta activa',
+                'ok' => (bool) $user->activo,
+                'detail' => $user->activo ? 'Activo' : 'Inactivo',
+            ],
+            [
+                'key' => 'isProfileComplete',
+                'label' => 'Perfil completo',
+                'ok' => (bool) $user->isProfileComplete,
+                'detail' => $user->isProfileComplete ? 'Completo' : 'Incompleto',
+            ],
+            [
+                'key' => 'identity',
+                'label' => 'Identidad aprobada',
+                'ok' => $user->identity_verification_status === 'approved',
+                'detail' => $user->identity_verification_status ?: 'Sin estado',
+            ],
+            [
+                'key' => 'email_verified',
+                'label' => 'Correo verificado',
+                'ok' => !is_null($user->email_verified_at),
+                'detail' => $user->email_verified_at ? $user->email_verified_at->format('Y-m-d H:i') : 'Sin verificar',
+            ],
+            [
+                'key' => 'billable_access',
+                'label' => 'Suscripcion o acceso permanente',
+                'ok' => $hasBillableAccess,
+                'detail' => $user->has_lifetime_access ? 'Acceso permanente' : ($subscriptionStatus ?: 'Sin suscripcion'),
+            ],
+        ];
+
+        return [
+            'visible' => collect($checks)->every(fn($check) => $check['ok']),
+            'checks' => $checks,
+            'subscription_status' => $subscriptionStatus,
+            'has_billable_access' => $hasBillableAccess,
+            'catalog_url' => url('/share/profesional/' . $user->id),
+        ];
     }
 
     /**

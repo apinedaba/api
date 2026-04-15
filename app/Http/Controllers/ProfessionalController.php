@@ -138,11 +138,16 @@ class ProfessionalController extends Controller
 
         /*
          * ---------------------------------------------------------
-         * 6. Orden aleatorio estable (por seed)
+         * 6. Rotacion justa del catalogo
          * ---------------------------------------------------------
+         * Evita sesgo por tipo de licencia/suscripcion. Usamos una
+         * semilla estable por dia para que no cambie en cada refresh,
+         * pero si rote la exposicion con el tiempo.
          */
-        // $seed = $params['seed'] ?? random_int(1, 999999);
-        // $q->orderByRaw('RAND(?)', [$seed]);
+        $seedSource = $params['seed'] ?? now()->format('Y-m-d');
+        $seed = sprintf('%u', crc32('mindmeet-catalog-' . $seedSource));
+        $q->orderByRaw('RAND(?)', [$seed])
+            ->orderBy('users.id');
 
         /*
          * ---------------------------------------------------------

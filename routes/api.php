@@ -30,6 +30,7 @@ use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PhotoUploadController;
+use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\QuestionnaireController;
@@ -142,6 +143,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('user/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::patch('user/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::get('user/professional-analytics/summary', [ProfessionalAnalyticsController::class, 'summary']);
     Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
     Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
     Route::post('user/identity/upload', [IdentityController::class, 'store']);
@@ -256,6 +258,7 @@ Route::get('patient/psychologists/{id}/reviews', [PsychologistReviewController::
 Route::get('patient/availability', [AvailabilitiController::class, 'index']);
 Route::post('patient/register', [RegisterController::class, 'registerPatient']);
 Route::post('patient/check-email', [RegisterController::class, 'checkPatientEmail']);
+Route::post('patient/professional-analytics/events', [ProfessionalAnalyticsController::class, 'track']);
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
 Route::get('patient/auth/{provider}/redirect/patient', [SocialiteController::class, 'redirectPatient']);

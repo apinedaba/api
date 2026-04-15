@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\LeadsEvent;
 use App\Models\ConsultaContacto;
 use App\Models\DeviceToken;
+use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -37,6 +38,17 @@ class ConsultaContactoController extends Controller
             'discount' => 'nullable',
             'discount_type' => 'nullable',
             'codigo_descuento' => 'nullable|string',
+            'lead_source' => 'nullable|string|max:80',
+            'lead_medium' => 'nullable|string|max:80',
+            'lead_campaign' => 'nullable|string|max:160',
+            'landing_page' => 'nullable|string|max:160',
+            'utm_source' => 'nullable|string|max:80',
+            'utm_medium' => 'nullable|string|max:80',
+            'utm_campaign' => 'nullable|string|max:160',
+            'utm_content' => 'nullable|string|max:160',
+            'utm_term' => 'nullable|string|max:160',
+            'referrer' => 'nullable|string|max:255',
+            'session_id' => 'nullable|string|max:120',
         ]);
 
         if ($validator->fails()) {
@@ -55,6 +67,24 @@ class ConsultaContactoController extends Controller
         }
 
         $consulta = ConsultaContacto::create($payload);
+        ProfessionalAnalyticsEvent::create([
+            'user_id' => $consulta->user_id,
+            'consulta_contacto_id' => $consulta->id,
+            'event_type' => 'lead_submitted',
+            'source' => $payload['lead_source'] ?? $payload['utm_source'] ?? null,
+            'medium' => $payload['lead_medium'] ?? $payload['utm_medium'] ?? null,
+            'campaign' => $payload['lead_campaign'] ?? $payload['utm_campaign'] ?? null,
+            'landing_page' => $payload['landing_page'] ?? null,
+            'referrer' => $payload['referrer'] ?? null,
+            'session_id' => $payload['session_id'] ?? null,
+            'ip_hash' => $request->ip()
+                ? hash('sha256', $request->ip() . '|' . config('app.key'))
+                : null,
+            'metadata' => [
+                'lead_type' => $consulta->lead_type,
+                'session_package_id' => $consulta->session_package_id,
+            ],
+        ]);
         try {
             $consulta->notify(new ConfirmacionPaciente());
             $psicologo = \App\Models\User::find($request->user_id);

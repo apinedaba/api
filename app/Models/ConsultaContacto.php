@@ -25,6 +25,16 @@ class ConsultaContacto extends Model
         'package_total_price',
         'package_session_price',
         'package_session_count',
+        'lead_source',
+        'lead_medium',
+        'lead_campaign',
+        'landing_page',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_content',
+        'utm_term',
+        'referrer',
     ];
 
     public function user()

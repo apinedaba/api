@@ -35,7 +35,7 @@ class ProfessionalAppointmentStatusNotification extends Notification
             ->line('Nuevo estado: ' . $this->statusLabel())
             ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
             ->line('Hora: ' . $start->format('H:i'))
-            ->action('Ver agenda', rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda');
+            ->action('Ver agenda', $this->professionalAgendaUrl());
     }
 
     public function toArray(object $notifiable): array
@@ -45,7 +45,7 @@ class ProfessionalAppointmentStatusNotification extends Notification
         return [
             'title' => 'Actualizacion en una sesion',
             'body' => ($patient?->name ?: 'Tu paciente') . ' cambio el estado de la sesion a ' . $this->statusLabel() . '.',
-            'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda',
+            'action_url' => $this->professionalAgendaUrl(),
             'action_label' => 'Ver agenda',
             'kind' => 'appointment-status-professional',
             'appointment_id' => $this->appointment->id,
@@ -60,5 +60,10 @@ class ProfessionalAppointmentStatusNotification extends Notification
             'cancel', 'cancelado', 'cancelada' => 'cancelada',
             default => $this->status,
         };
+    }
+
+    protected function professionalAgendaUrl(): string
+    {
+        return rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
     }
 }

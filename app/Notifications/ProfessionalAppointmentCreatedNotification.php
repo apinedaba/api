@@ -32,7 +32,7 @@ class ProfessionalAppointmentCreatedNotification extends Notification
             ->line("Se programo una nueva sesion con " . ($patient?->name ?: 'tu paciente') . '.')
             ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
             ->line('Hora: ' . $start->format('H:i'))
-            ->action('Ver agenda', rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda');
+            ->action('Ver agenda', $this->professionalAgendaUrl());
     }
 
     public function toArray(object $notifiable): array
@@ -43,10 +43,15 @@ class ProfessionalAppointmentCreatedNotification extends Notification
         return [
             'title' => 'Nueva sesion programada',
             'body' => "Tienes una nueva sesion con " . ($patient?->name ?: 'tu paciente') . " el {$start->format('d/m/Y')} a las {$start->format('H:i')}.",
-            'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda',
+            'action_url' => $this->professionalAgendaUrl(),
             'action_label' => 'Abrir agenda',
             'kind' => 'appointment-created-professional',
             'appointment_id' => $this->appointment->id,
         ];
+    }
+
+    protected function professionalAgendaUrl(): string
+    {
+        return rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
     }
 }

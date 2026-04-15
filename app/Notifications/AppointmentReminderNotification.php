@@ -89,7 +89,7 @@ class AppointmentReminderNotification extends Notification
     protected function actionUrl(object $notifiable): string
     {
         if ($notifiable instanceof User) {
-            return rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
+            return rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
         }
 
         return rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard';

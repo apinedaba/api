@@ -51,7 +51,7 @@ class RecurringAppointmentSeriesNotification extends Notification
             ->action(
                 $isProfessional ? 'Ver agenda' : 'Ver dashboard',
                 $isProfessional
-                    ? rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda'
+                    ? $this->professionalAgendaUrl()
                     : rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard'
             );
     }
@@ -70,7 +70,7 @@ class RecurringAppointmentSeriesNotification extends Notification
             'body' => ($isProfessional ? "Se genero" : "Se programo")
                 . " una reunion {$this->frequencyLabel()} con {$counterpart} con vigencia hasta el {$this->formattedUntil()}.",
             'action_url' => $isProfessional
-                ? rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda'
+                ? $this->professionalAgendaUrl()
                 : rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
             'action_label' => $isProfessional ? 'Abrir agenda' : 'Ver sesiones',
             'kind' => 'appointment-series-created',
@@ -93,5 +93,10 @@ class RecurringAppointmentSeriesNotification extends Notification
     protected function formattedUntil(): string
     {
         return Carbon::parse($this->until)->translatedFormat('d/m/Y');
+    }
+
+    protected function professionalAgendaUrl(): string
+    {
+        return rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
     }
 }

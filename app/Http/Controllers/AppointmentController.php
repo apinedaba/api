@@ -15,6 +15,7 @@ use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\RecurringAppointmentSeriesNotification;
 use App\Notifications\StateAppoinmentMail;
+use App\Services\AppointmentDeletionService;
 use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
 use Carbon\Carbon;
@@ -31,11 +32,17 @@ class AppointmentController extends Controller
 {
     protected AppointmentService $service;
     protected GoogleCalendarService $googleCalendarService;
+    protected AppointmentDeletionService $appointmentDeletionService;
 
-    public function __construct(AppointmentService $service, GoogleCalendarService $googleCalendarService)
+    public function __construct(
+        AppointmentService $service,
+        GoogleCalendarService $googleCalendarService,
+        AppointmentDeletionService $appointmentDeletionService
+    )
     {
         $this->service = $service;
         $this->googleCalendarService = $googleCalendarService;
+        $this->appointmentDeletionService = $appointmentDeletionService;
     }
 
     public function index(Request $request): JsonResponse
@@ -299,6 +306,10 @@ class AppointmentController extends Controller
         $fieldsToUpdate = [];
         $arrayOriginal = $originalData->toArray();
 
+        if ($this->isCancellationRequest($request)) {
+            return $this->destroy($request, $appointment);
+        }
+
         foreach ($updatedData as $key => $value) {
             if (!array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
                 continue;
@@ -367,34 +378,31 @@ class AppointmentController extends Controller
     {
         $scope = $request->input('scope', 'single');
         $targets = $this->resolveCancellationTargets($appointment, $scope);
-        $professional = User::find($appointment->user);
 
-        foreach ($targets as $target) {
-            if ($target->google_event_id && $professional && $professional->googleAccount) {
-                SyncAppointmentToGoogleCalendar::dispatch($target, $professional, 'delete');
-            }
-
-            $target->update([
-                'statusUser' => 'Cancel',
-                'statusPatient' => 'Cancel',
-                'state' => 'Cancelada',
-            ]);
-
-            if ($target->cart) {
-                $target->cart->update(['estado' => 'Cancelado']);
-            }
+        if ($targets->isEmpty()) {
+            return response()->json([
+                'message' => 'No se encontraron sesiones para eliminar.',
+                'type' => 'info',
+                'count' => 0,
+            ], 200);
         }
 
-        if ($targets->isNotEmpty()) {
-            $this->sendNotificacionStatusEmail($targets->first());
-        }
+        $firstTarget = $targets->first()->loadMissing(['patient', 'user']);
+        $originalFirstTarget = clone $firstTarget;
+        $firstTarget->statusUser = 'Cancel';
+        $firstTarget->statusPatient = 'Cancel';
+        $firstTarget->state = 'Cancelada';
+
+        $this->sendNotificacionStatusEmail($firstTarget, $originalFirstTarget);
+
+        $deletedCount = $this->appointmentDeletionService->deleteMany($targets);
 
         return response()->json([
             'message' => $scope === 'future'
-                ? 'La sesion seleccionada y sus recurrencias futuras fueron canceladas.'
-                : 'La sesion fue cancelada correctamente.',
+                ? 'La sesion seleccionada y sus recurrencias futuras fueron eliminadas.'
+                : 'La sesion fue eliminada correctamente.',
             'type' => 'success',
-            'count' => $targets->count(),
+            'count' => $deletedCount,
         ], 200);
     }
 
@@ -488,6 +496,18 @@ class AppointmentController extends Controller
         }
 
         return $query->get();
+    }
+
+    private function isCancellationRequest(Request $request): bool
+    {
+        $status = strtolower((string) (
+            $request->input('statusUser')
+            ?: $request->input('statusPatient')
+            ?: $request->input('state')
+            ?: ''
+        ));
+
+        return in_array($status, ['cancel', 'cancelado', 'cancelada'], true);
     }
 
     private function resolveLeadToPatient(int $leadId, int $userId): int

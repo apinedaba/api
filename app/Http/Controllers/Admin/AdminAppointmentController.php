@@ -11,6 +11,7 @@ use App\Notifications\CreateAppoinmentMail;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\StateAppoinmentMail;
+use App\Services\AppointmentDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -214,6 +215,10 @@ class AdminAppointmentController extends Controller
             $appointment = Appointment::findOrFail($id);
             $originalAppointment = clone $appointment;
 
+            if ($this->isCancellationRequest($request)) {
+                return $this->destroy($id);
+            }
+
             // Si se cambian las fechas, verificar disponibilidad
             if ($request->has('fecha_inicio') || $request->has('fecha_fin')) {
                 $start = $request->fecha_inicio ?? $appointment->start;
@@ -303,20 +308,19 @@ class AdminAppointmentController extends Controller
     public function destroy($id)
     {
         try {
-            $appointment = Appointment::findOrFail($id);
+            $appointment = Appointment::with(['cart', 'user', 'patient'])->findOrFail($id);
             $originalAppointment = clone $appointment;
-            $appointment->update([
-                'state' => 'Cancelado',
-                'statusUser' => 'Cancelado',
-                'statusPatient' => 'Cancelado'
-            ]);
+            $appointment->state = 'Cancelado';
+            $appointment->statusUser = 'Cancel';
+            $appointment->statusPatient = 'Cancel';
 
-            $appointment->load('user', 'patient');
             $this->notifyAppointmentStatusUpdated($appointment, $originalAppointment);
+
+            app(AppointmentDeletionService::class)->deleteMany(collect([$appointment]));
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cita cancelada exitosamente'
+                'message' => 'Cita eliminada exitosamente'
             ], 200);
         } catch (\Exception $e) {
             Log::error('Error canceling appointment: ' . $e->getMessage());
@@ -397,6 +401,13 @@ class AdminAppointmentController extends Controller
         }
 
         return false;
+    }
+
+    protected function isCancellationRequest(Request $request): bool
+    {
+        $status = strtolower((string) $request->input('state', ''));
+
+        return in_array($status, ['cancel', 'cancelado', 'cancelada'], true);
     }
 
     /**

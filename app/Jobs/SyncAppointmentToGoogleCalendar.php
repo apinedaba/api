@@ -32,14 +32,17 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
      */
     public function __construct(Appointment $appointment, User $user, string $action)
     {
-        $this->appointment = $appointment;
         $this->user = $user;
         $this->action = $action;
 
         // Si la acción es 'delete', guardamos el ID de Google antes de que la cita se elimine.
         if ($this->action === 'delete') {
             $this->googleEventIdToDelete = $appointment->google_event_id;
+            $this->appointment = null;
+            return;
         }
+
+        $this->appointment = $appointment;
     }
 
     /**

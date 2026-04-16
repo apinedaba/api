@@ -27,6 +27,9 @@ export default function Authenticated({ user, header, children }) {
                                 <NavLink href={route('psicologos')} active={route().current('psicologos')}>
                                     Psicologos
                                 </NavLink>
+                                <NavLink href={route('analytics')} active={route().current('analytics')}>
+                                    Analytics
+                                </NavLink>
                                 <NavLink href={route('carts')} active={route().current('carts')}>
                                     Carritos
                                 </NavLink>
@@ -109,6 +112,9 @@ export default function Authenticated({ user, header, children }) {
                         </ResponsiveNavLink>
                         <ResponsiveNavLink href={route('psicologos')} active={route().current('psicologos')}>
                             Psicologos
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink href={route('analytics')} active={route().current('analytics')}>
+                            Analytics
                         </ResponsiveNavLink>
                         <ResponsiveNavLink href={route('carts')} active={route().current('carts')}>
                             Carritos

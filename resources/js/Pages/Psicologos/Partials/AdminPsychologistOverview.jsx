@@ -30,6 +30,7 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
 
     const sessions = psicologo?.configurations?.sesiones || [];
     const packages = psicologo?.session_packages || [];
+    const coupons = psicologo?.discount_coupons || [];
     const horarios = psicologo?.horarios || {};
     const subscription = psicologo?.subscription;
     const hasActiveAccess = publicVisibility?.has_billable_access;
@@ -126,7 +127,7 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
                 <InfoCard title="Suscripcion">
                     <p><strong>Estado:</strong> {subscription?.stripe_status || 'Sin suscripcion'}</p>
                     <p><strong>Stripe ID:</strong> {subscription?.stripe_id || 'No disponible'}</p>
@@ -146,6 +147,12 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                     <p><strong>Total creados:</strong> {packages.length}</p>
                     <p><strong>Activos:</strong> {packages.filter((item) => item.is_active).length}</p>
                     <p><strong>Destacados:</strong> {packages.filter((item) => item.is_featured).length}</p>
+                </InfoCard>
+
+                <InfoCard title="Cupones">
+                    <p><strong>Total creados:</strong> {coupons.length}</p>
+                    <p><strong>Activos:</strong> {coupons.filter((item) => item.is_active).length}</p>
+                    <p><strong>Disponibles hoy:</strong> {coupons.filter((item) => item.is_currently_available).length}</p>
                 </InfoCard>
             </div>
 
@@ -187,15 +194,31 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
 
             <ReadOnlyTable title="Paquetes de sesiones">
                 {packages.length ? packages.map((sessionPackage) => (
-                    <div key={sessionPackage.id} className="grid gap-2 border-b border-gray-100 py-3 md:grid-cols-5">
+                    <div key={sessionPackage.id} className="grid gap-2 border-b border-gray-100 py-3 md:grid-cols-6">
                         <p><strong>Nombre:</strong> {sessionPackage.name}</p>
                         <p><strong>Sesiones:</strong> {sessionPackage.session_count}</p>
                         <p><strong>Total:</strong> {money(sessionPackage.package_total_price)}</p>
                         <p><strong>Por sesion:</strong> {money(sessionPackage.package_session_price)}</p>
+                        <p><strong>Promo:</strong> {sessionPackage.has_active_promotion ? money(sessionPackage.promotional_total_price) : 'Sin promo activa'}</p>
                         <p><strong>Estado:</strong> {sessionPackage.is_active ? 'Activo' : 'Oculto'}</p>
                     </div>
                 )) : (
                     <p className="text-sm text-gray-500">No tiene paquetes configurados.</p>
+                )}
+            </ReadOnlyTable>
+
+            <ReadOnlyTable title="Cupones de descuento">
+                {coupons.length ? coupons.map((coupon) => (
+                    <div key={coupon.id} className="grid gap-2 border-b border-gray-100 py-3 md:grid-cols-6">
+                        <p><strong>Codigo:</strong> {coupon.code}</p>
+                        <p><strong>Nombre:</strong> {coupon.name}</p>
+                        <p><strong>Descuento:</strong> {coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : money(coupon.discount_value)}</p>
+                        <p><strong>Aplica:</strong> {coupon.applies_to}</p>
+                        <p><strong>Vigencia:</strong> {coupon.starts_at || 'Ahora'} - {coupon.ends_at || 'Sin fin'}</p>
+                        <p><strong>Estado:</strong> {coupon.is_currently_available ? 'Disponible' : 'Inactivo'}</p>
+                    </div>
+                )) : (
+                    <p className="text-sm text-gray-500">No tiene cupones configurados.</p>
                 )}
             </ReadOnlyTable>
         </section>

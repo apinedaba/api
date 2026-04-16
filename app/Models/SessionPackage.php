@@ -18,6 +18,10 @@ class SessionPackage extends Model
         'base_session_price',
         'package_session_price',
         'package_total_price',
+        'promotion_discount_type',
+        'promotion_discount_value',
+        'promotion_starts_at',
+        'promotion_ends_at',
         'currency',
         'formato',
         'tipo_sesion',
@@ -32,6 +36,9 @@ class SessionPackage extends Model
         'base_session_price' => 'decimal:2',
         'package_session_price' => 'decimal:2',
         'package_total_price' => 'decimal:2',
+        'promotion_discount_value' => 'decimal:2',
+        'promotion_starts_at' => 'datetime',
+        'promotion_ends_at' => 'datetime',
         'duracion' => 'integer',
         'categoria' => 'array',
         'is_active' => 'boolean',
@@ -42,6 +49,9 @@ class SessionPackage extends Model
         'base_total_price',
         'total_savings',
         'savings_percentage',
+        'has_active_promotion',
+        'promotional_session_price',
+        'promotional_total_price',
     ];
 
     public function user()
@@ -52,6 +62,46 @@ class SessionPackage extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function getHasActivePromotionAttribute(): bool
+    {
+        if (!$this->promotion_discount_type || !$this->promotion_discount_value) {
+            return false;
+        }
+
+        $now = now();
+
+        if ($this->promotion_starts_at && $this->promotion_starts_at->gt($now)) {
+            return false;
+        }
+
+        if ($this->promotion_ends_at && $this->promotion_ends_at->lt($now)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function getPromotionalSessionPriceAttribute(): float
+    {
+        $price = (float) $this->package_session_price;
+
+        if (!$this->has_active_promotion) {
+            return $price;
+        }
+
+        $discount = (float) $this->promotion_discount_value;
+        $promotionalPrice = $this->promotion_discount_type === 'percent'
+            ? $price - ($price * ($discount / 100))
+            : $price - $discount;
+
+        return round(max($promotionalPrice, 0), 2);
+    }
+
+    public function getPromotionalTotalPriceAttribute(): float
+    {
+        return round($this->promotional_session_price * ((int) $this->session_count), 2);
     }
 
     public function getBaseTotalPriceAttribute(): float

@@ -126,6 +126,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->sessionPackages()->where('is_active', true);
     }
 
+    public function discountCoupons(): HasMany
+    {
+        return $this->hasMany(DiscountCoupon::class);
+    }
+
+    public function activeDiscountCoupons(): HasMany
+    {
+        return $this->discountCoupons()->currentlyAvailable();
+    }
+
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";

@@ -68,7 +68,7 @@ class UserController extends Controller
         $allUser = User::query()
             ->publiclyVisible()
             ->where('id', $id)
-            ->with(['escuelas', 'activeSessionPackages'])
+            ->with(['escuelas', 'activeSessionPackages', 'activeDiscountCoupons'])
             ->firstOrFail();
 
         return response()->json($allUser, 200);
@@ -177,6 +177,7 @@ class UserController extends Controller
                 'escuelas',
                 'subscription',
                 'sessionPackages',
+                'discountCoupons',
                 'googleAccount',
             ]);
             if ($user) {

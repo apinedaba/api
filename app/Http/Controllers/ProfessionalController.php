@@ -57,7 +57,7 @@ class ProfessionalController extends Controller
          * ---------------------------------------------------------
          */
         $q = User::query()
-            ->with('activeSessionPackages')
+            ->with(['activeSessionPackages', 'activeDiscountCoupons'])
             ->publiclyVisible();
 
         /*

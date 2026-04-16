@@ -40,6 +40,7 @@ use App\Http\Controllers\StripeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\DocumentacionController;
+use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\SessionPackageController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
@@ -159,6 +160,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/session-packages', [SessionPackageController::class, 'store']);
     Route::put('user/session-packages/{sessionPackage}', [SessionPackageController::class, 'update']);
     Route::delete('user/session-packages/{sessionPackage}', [SessionPackageController::class, 'destroy']);
+    Route::get('user/coupons', [DiscountCouponController::class, 'index']);
+    Route::post('user/coupons', [DiscountCouponController::class, 'store']);
+    Route::put('user/coupons/{coupon}', [DiscountCouponController::class, 'update']);
+    Route::delete('user/coupons/{coupon}', [DiscountCouponController::class, 'destroy']);
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
     Route::resource('user/catalog/patients', PatientUserController::class);

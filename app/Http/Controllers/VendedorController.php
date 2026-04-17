@@ -270,7 +270,7 @@ class VendedorController extends Controller
 
     private function registrationUrl(Vendedor $vendedor): string
     {
-        $baseUrl = rtrim(config('app.front_url_user') ?: config('app.front_url_psicologo') ?: config('app.url'), '/');
+        $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
 
         return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
     }

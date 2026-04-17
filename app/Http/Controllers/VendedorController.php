@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Vendedor;
 use App\Http\Controllers\Controller;
+use App\Services\SellerCommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
-use Str;
+use Illuminate\Support\Str;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 
@@ -19,7 +20,20 @@ class VendedorController extends Controller
      */
     public function index()
     {
-        $vendedores = Vendedor::all();
+        app(SellerCommissionService::class)->syncAll();
+
+        $vendedores = Vendedor::query()
+            ->withCount([
+                'referrals',
+                'referrals as active_referrals_count' => fn ($query) => $query->where('status', 'active'),
+                'referrals as unpaid_referrals_count' => fn ($query) => $query->where('status', '!=', 'active'),
+            ])
+            ->withSum(['commissionItems as pending_commissions_sum' => fn ($query) => $query->where('status', 'pending')], 'amount')
+            ->with(['referrals.user.subscription', 'commissionItems' => fn ($query) => $query->latest()->limit(8)])
+            ->latest()
+            ->get()
+            ->map(fn (Vendedor $vendedor) => $this->transformVendedor($vendedor));
+
         return Inertia::render('Vendedores', [
             'vendedores' => $vendedores,
         ]);
@@ -148,13 +162,14 @@ class VendedorController extends Controller
             ]);
         }
 
-        $url = route('registro.publico', [
-            'v' => $vendedor->qr_token,
-        ]);
+        $result = Builder::create()
+            ->writer(new PngWriter())
+            ->data($this->registrationUrl($vendedor))
+            ->size(300)
+            ->margin(10)
+            ->build();
 
-        $qr = QrCode::size(300)->generate($url);
-
-        return response($qr);
+        return response($result->getString())->header('Content-Type', 'image/png');
     }
 
 
@@ -176,7 +191,7 @@ class VendedorController extends Controller
             ]);
         }
 
-        $url = route('registro.publico', ['v' => $vendedor->qr_token]);
+        $url = $this->registrationUrl($vendedor);
 
         // 1. Generar QR (GD)
         $result = Builder::create()
@@ -251,6 +266,60 @@ class VendedorController extends Controller
                 'Content-Disposition',
                 'attachment; filename="qr-vendedor-' . $vendedor->id . '.png"'
             );
+    }
+
+    private function registrationUrl(Vendedor $vendedor): string
+    {
+        $baseUrl = rtrim(config('app.front_url_user') ?: config('app.front_url_psicologo') ?: config('app.url'), '/');
+
+        return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
+    }
+
+    private function transformVendedor(Vendedor $vendedor): array
+    {
+        return [
+            'id' => $vendedor->id,
+            'nombre' => $vendedor->nombre,
+            'email' => $vendedor->email,
+            'telefono' => $vendedor->telefono,
+            'direccion' => $vendedor->direccion,
+            'ciudad' => $vendedor->ciudad,
+            'estado' => $vendedor->estado,
+            'codigo_postal' => $vendedor->codigo_postal,
+            'pais' => $vendedor->pais,
+            'rol' => $vendedor->rol,
+            'status' => $vendedor->status,
+            'imagen' => $vendedor->imagen,
+            'qr_token' => $vendedor->qr_token,
+            'registration_url' => $this->registrationUrl($vendedor),
+            'referrals_count' => (int) $vendedor->referrals_count,
+            'active_referrals_count' => (int) $vendedor->active_referrals_count,
+            'unpaid_referrals_count' => (int) $vendedor->unpaid_referrals_count,
+            'pending_commissions_sum' => (float) ($vendedor->pending_commissions_sum ?? 0),
+            'referrals' => $vendedor->referrals->map(fn ($referral) => [
+                'id' => $referral->id,
+                'status' => $referral->status,
+                'registered_at' => optional($referral->registered_at)->toDateString(),
+                'trial_ends_at' => optional($referral->trial_ends_at)->toDateString(),
+                'first_activated_at' => optional($referral->first_activated_at)->toDateString(),
+                'psychologist' => [
+                    'id' => $referral->user?->id,
+                    'name' => $referral->user?->name,
+                    'email' => $referral->user?->email,
+                    'subscription_status' => optional($referral->user?->subscription)->stripe_status,
+                    'trial_ends_at' => optional($referral->user?->subscription?->trial_ends_at)->toDateString(),
+                    'has_lifetime_access' => (bool) $referral->user?->has_lifetime_access,
+                ],
+            ]),
+            'commission_items' => $vendedor->commissionItems->map(fn ($item) => [
+                'id' => $item->id,
+                'milestone' => $item->milestone,
+                'amount' => (float) $item->amount,
+                'status' => $item->status,
+                'eligible_at' => optional($item->eligible_at)->toDateString(),
+                'cut_date' => optional($item->cut_date)->toDateString(),
+            ]),
+        ];
     }
 
 }

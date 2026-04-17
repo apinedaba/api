@@ -82,4 +82,30 @@ class DiscountCoupon extends Model
 
         return true;
     }
+
+    public function appliesToLeadType(string $leadType): bool
+    {
+        if ($this->applies_to === 'all') {
+            return true;
+        }
+
+        return match ($leadType) {
+            'package' => $this->applies_to === 'packages',
+            default => $this->applies_to === 'sessions',
+        };
+    }
+
+    public function calculateDiscountForAmount(float $amount): float
+    {
+        if ($amount <= 0) {
+            return 0;
+        }
+
+        $discount = (float) $this->discount_value;
+        $discountAmount = $this->discount_type === 'percent'
+            ? $amount * ($discount / 100)
+            : $discount;
+
+        return round(min($amount, max($discountAmount, 0)), 2);
+    }
 }

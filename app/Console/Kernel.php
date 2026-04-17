@@ -21,6 +21,9 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->timezone('America/Mexico_City');
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
+        $schedule->command('sellers:generate-commission-cut')
+            ->monthlyOn(25, '02:30')
+            ->timezone('America/Mexico_City');
         //$schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00')->timezone('America/Mexico_City');
     }
 

@@ -10,12 +10,14 @@ use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SellerCommissionController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendedorController;
 use App\Jobs\TestNotificacionJob;
 use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -50,6 +52,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/coupons', [DiscountCouponController::class, 'adminStore'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
     Route::delete('/coupons/{coupon}', [DiscountCouponController::class, 'adminDestroy'])->name('coupons.destroy');
+    Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
+    Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
+    Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
@@ -65,6 +70,15 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/pacientes', [PatientController::class, 'getAllPatients'])->name('pacientes');
     Route::get('/paciente/{id}', [PatientController::class, 'getPatientById'])->name('paciente');
+
+    Route::get('/vendedores', [VendedorController::class, 'index'])->name('vendedores');
+    Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
+    Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
+    Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
+    Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
+    Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'preview'])->name('vendedores.qr.image');
+    Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
+    Route::get('/vendedores/{vendedor}/qr-download', [VendedorController::class, 'download'])->name('vendedores.qr.download');
 
     // Rutas administrativas para pacientes
     Route::prefix('admin')->group(function () {
@@ -98,16 +112,6 @@ Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professi
     ->name('share.professional');
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 require __DIR__ . '/auth.php';
-
-Route::get('/vendedores', [VendedorController::class, 'index'])->name('vendedores');
-Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
-Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
-Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
-Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
-Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'generateQrImage'])->name('vendedores.qr.image');
-Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
-Route::get('/vendedores/{vendedor}/qr-download', [VendedorController::class, 'download'])->name('vendedores.qr.download');
-
 
 Route::get('/registro', function (Request $request) {
     $vendedor = Vendedor::where('qr_token', $request->v)->firstOrFail();

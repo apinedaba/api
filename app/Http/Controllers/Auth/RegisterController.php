@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Models\Patient;
+use App\Models\Vendedor;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\NuevoPacienteBienvenida;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
+use App\Services\SellerCommissionService;
 
 class RegisterController extends Controller
 {
@@ -25,7 +27,7 @@ class RegisterController extends Controller
         'password' => 'required'
     ];
 
-    public function registerUser(Request $request)
+    public function registerUser(Request $request, SellerCommissionService $sellerCommissionService)
     {
         $validateUser = Validator::make($request->all(), $this->registerValidationRules);
 
@@ -36,6 +38,13 @@ class RegisterController extends Controller
             ], 400);
         }
 
+        $sellerCode = $request->input('vendedor_qr_token')
+            ?: $request->input('referral_code')
+            ?: $request->input('v');
+        $vendedor = $sellerCode
+            ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
+            : null;
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
@@ -44,11 +53,21 @@ class RegisterController extends Controller
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
         ]);
-        /* Subscription::create([
-            'user_id' => $user->id,
-            'stripe_status' => 'trial',
-            'trial_ends_at' => Carbon::now()->addDays(15),
-        ]); */
+
+        if ($vendedor) {
+            Subscription::firstOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'stripe_id' => null,
+                    'stripe_plan' => null,
+                    'stripe_status' => 'trialing',
+                    'trial_ends_at' => Carbon::now()->addDays(15),
+                    'ends_at' => null,
+                ]
+            );
+
+            $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
+        }
 
         if ($user) {
             try {

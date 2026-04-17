@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\LeadsEvent;
 use App\Models\ConsultaContacto;
 use App\Models\DeviceToken;
+use App\Models\DiscountCoupon;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
 use App\Notifications\NuevoPosiblePaciente;
 use App\Notifications\ConfirmacionPaciente;
+use Illuminate\Validation\ValidationException;
 
 class ConsultaContactoController extends Controller
 {
@@ -32,12 +34,13 @@ class ConsultaContactoController extends Controller
             'package_total_price' => 'nullable|numeric|min:0',
             'package_session_price' => 'nullable|numeric|min:0',
             'package_session_count' => 'nullable|integer|min:1',
-            'precio' => 'nullable',
+            'precio' => 'nullable|numeric|min:0',
             'formato' => 'nullable|string',
             'categoria' => 'nullable',
             'discount' => 'nullable',
             'discount_type' => 'nullable',
             'codigo_descuento' => 'nullable|string',
+            'coupon_code' => 'nullable|string',
             'lead_source' => 'nullable|string|max:80',
             'lead_medium' => 'nullable|string|max:80',
             'lead_campaign' => 'nullable|string|max:160',
@@ -61,10 +64,14 @@ class ConsultaContactoController extends Controller
         $payload = $validator->validated();
         $payload['lead_type'] = $payload['lead_type'] ?? 'session';
         $payload['tipo_sesion'] = $payload['tipo_sesion'] ?? 'Paquete de sesiones';
+        $couponCode = strtoupper(trim($payload['codigo_descuento'] ?? $payload['coupon_code'] ?? ''));
+        unset($payload['codigo_descuento'], $payload['coupon_code']);
 
         if (empty($payload['motivo']) && $payload['lead_type'] === 'package') {
             $payload['motivo'] = 'Estoy interesado/a en contratar el paquete "' . ($payload['package_name'] ?? 'Paquete de sesiones') . '".';
         }
+
+        $payload = $this->applyCouponContext($payload, $couponCode);
 
         $consulta = ConsultaContacto::create($payload);
         ProfessionalAnalyticsEvent::create([
@@ -83,6 +90,9 @@ class ConsultaContactoController extends Controller
             'metadata' => [
                 'lead_type' => $consulta->lead_type,
                 'session_package_id' => $consulta->session_package_id,
+                'coupon_code' => $consulta->coupon_code,
+                'coupon_discount_amount' => $consulta->coupon_discount_amount,
+                'final_amount' => $consulta->final_amount,
             ],
         ]);
         try {
@@ -108,6 +118,49 @@ class ConsultaContactoController extends Controller
             'message' => '¡Consulta enviada con éxito!',
             'data' => $consulta
         ], 201);
+    }
+
+    protected function applyCouponContext(array $payload, string $couponCode): array
+    {
+        $subtotal = $this->resolveSubtotal($payload);
+        $payload['subtotal_amount'] = $subtotal > 0 ? $subtotal : null;
+        $payload['coupon_discount_amount'] = null;
+        $payload['final_amount'] = $subtotal > 0 ? $subtotal : null;
+
+        if ($couponCode === '') {
+            return $payload;
+        }
+
+        $coupon = DiscountCoupon::query()
+            ->where('user_id', $payload['user_id'])
+            ->where('code', $couponCode)
+            ->first();
+
+        if (!$coupon || !$coupon->is_currently_available || !$coupon->appliesToLeadType($payload['lead_type'])) {
+            throw ValidationException::withMessages([
+                'codigo_descuento' => ['El cupon no esta disponible para esta solicitud.'],
+            ]);
+        }
+
+        $discountAmount = $coupon->calculateDiscountForAmount($subtotal);
+
+        $payload['discount_coupon_id'] = $coupon->id;
+        $payload['coupon_code'] = $coupon->code;
+        $payload['coupon_discount_type'] = $coupon->discount_type;
+        $payload['coupon_discount_value'] = (float) $coupon->discount_value;
+        $payload['coupon_discount_amount'] = $discountAmount;
+        $payload['final_amount'] = round(max($subtotal - $discountAmount, 0), 2);
+
+        return $payload;
+    }
+
+    protected function resolveSubtotal(array $payload): float
+    {
+        if (($payload['lead_type'] ?? 'session') === 'package') {
+            return (float) ($payload['package_total_price'] ?? 0);
+        }
+
+        return (float) ($payload['precio'] ?? 0);
     }
     public function getData()
     {

@@ -4,7 +4,7 @@ import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import DeleteVendedorModal from './Vendedores/DeleteVendedorModal';
@@ -23,6 +23,12 @@ export default function Vendedores({ auth, vendedores }) {
     }
 
     const [showModal, setShowModal] = useState(false);
+    const money = (value) =>
+        new Intl.NumberFormat('es-MX', {
+            style: 'currency',
+            currency: 'MXN',
+        }).format(Number(value || 0));
+
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -33,8 +39,22 @@ export default function Vendedores({ auth, vendedores }) {
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-4">
-                        <div className='flex justify-end'>
-                            <PrimaryButton onClick={() => setShowModal(true)}>Agregar vendedor</PrimaryButton>
+                        <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Red de vendedores</h3>
+                                <p className="text-sm text-gray-500">
+                                    Cada vendedor tiene un QR unico. Los psicologos que se registran con ese enlace quedan relacionados al vendedor.
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <Link
+                                    href={route('seller-commissions')}
+                                    className="rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
+                                >
+                                    Ver pagos
+                                </Link>
+                                <PrimaryButton onClick={() => setShowModal(true)}>Agregar vendedor</PrimaryButton>
+                            </div>
                         </div>
                         <Modal show={showModal} onClose={() => setShowModal(false)}>
                             <FormCreateEditVendedor
@@ -56,20 +76,39 @@ export default function Vendedores({ auth, vendedores }) {
                                 />
                             )}
                         </Modal>
-                        <div className="p-6 text-gray-900 grid grid-cols-3">
+                        <div className="p-6 text-gray-900 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                             {
                                 vendedores?.length === 0 ? (
                                     <p>No hay vendedores registrados aun</p>
                                 ) : (
                                     vendedores.map((vendedor) => (
-                                        <div key={vendedor.id} className='border border-gray-200 rounded-lg p-4'>
+                                        <div key={vendedor.id} className='border border-gray-200 rounded-2xl p-4 shadow-sm'>
 
-                                            <h1 className='text-lg font-semibold'>{vendedor.nombre}</h1>
-                                            <p className='text-sm text-gray-600'>{vendedor.email}</p>
-                                            <p className='text-sm text-gray-600'>{vendedor.telefono}</p>
-                                            <div className="grid grid-cols-3 gap-3 mt-2">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h1 className='text-lg font-semibold'>{vendedor.nombre}</h1>
+                                                    <p className='text-sm text-gray-600'>{vendedor.email}</p>
+                                                    <p className='text-sm text-gray-600'>{vendedor.telefono}</p>
+                                                </div>
+                                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                                                    {money(vendedor.pending_commissions_sum)} pendiente
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                                                <MiniStat label="Referidos" value={vendedor.referrals_count || 0} />
+                                                <MiniStat label="Activos" value={vendedor.active_referrals_count || 0} />
+                                                <MiniStat label="Sin pago" value={vendedor.unpaid_referrals_count || 0} />
+                                            </div>
+
+                                            <div className="mt-4 rounded-xl bg-gray-50 p-3">
+                                                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Link del QR</p>
+                                                <p className="mt-1 break-all text-xs text-gray-600">{vendedor.registration_url}</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-3 mt-4">
                                                 <a
-                                                    href={route('vendedores.qr.image', vendedor.id)}
+                                                    href={route('vendedores.qr.download', vendedor.id)}
                                                     className="text-sm text-green-600 underline"
                                                 >
                                                     Descargar QR
@@ -93,6 +132,33 @@ export default function Vendedores({ auth, vendedores }) {
                                                     Eliminar
                                                 </PrimaryButton>
                                             </div>
+
+                                            <div className="mt-4 border-t border-gray-100 pt-4">
+                                                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Psicologos registrados</p>
+                                                <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                                                    {vendedor.referrals?.length ? vendedor.referrals.map((referral) => (
+                                                        <div key={referral.id} className="rounded-lg border border-gray-100 p-3 text-sm">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div>
+                                                                    <p className="font-semibold text-gray-900">{referral.psychologist?.name || 'Psicologo sin nombre'}</p>
+                                                                    <p className="text-xs text-gray-500">{referral.psychologist?.email}</p>
+                                                                </div>
+                                                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${referral.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                                    {referral.status === 'active' ? 'Pago activo' : 'No ha pagado'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                                                                <span>Registro: {referral.registered_at || 'N/A'}</span>
+                                                                <span>Trial fin: {referral.trial_ends_at || referral.psychologist?.trial_ends_at || 'N/A'}</span>
+                                                                <span>Suscripcion: {referral.psychologist?.subscription_status || 'Sin pago'}</span>
+                                                                <span>Activacion: {referral.first_activated_at || 'Pendiente'}</span>
+                                                            </div>
+                                                        </div>
+                                                    )) : (
+                                                        <p className="text-sm text-gray-500">Aun no hay psicologos registrados con este QR.</p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))
                                 )
@@ -102,6 +168,15 @@ export default function Vendedores({ auth, vendedores }) {
                 </div>
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+function MiniStat({ label, value }) {
+    return (
+        <div className="rounded-lg bg-blue-50 p-2">
+            <p className="font-bold text-blue-900">{value}</p>
+            <p className="text-blue-700">{label}</p>
+        </div>
     );
 }
 

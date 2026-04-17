@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vendedor extends Model
@@ -32,4 +33,14 @@ class Vendedor extends Model
         'password',
         'remember_token',
     ];
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(SellerReferral::class);
+    }
+
+    public function commissionItems(): HasMany
+    {
+        return $this->hasMany(SellerCommissionItem::class);
+    }
 }

@@ -136,6 +136,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->discountCoupons()->currentlyAvailable();
     }
 
+    public function sellerReferral(): HasOne
+    {
+        return $this->hasOne(SellerReferral::class);
+    }
+
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";

@@ -42,6 +42,9 @@ export default function Authenticated({ user, header, children }) {
                                 <NavLink href={route('vendedores')} active={route().current('vendedores')}>
                                     Vendedores
                                 </NavLink>
+                                <NavLink href={route('seller-commissions')} active={route().current('seller-commissions')}>
+                                    Pagos vendedores
+                                </NavLink>
                             </div>
                         </div>
 
@@ -130,6 +133,9 @@ export default function Authenticated({ user, header, children }) {
                         </ResponsiveNavLink>
                         <ResponsiveNavLink href={route('vendedores')} active={route().current('vendedores')}>
                             Vendedores
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink href={route('seller-commissions')} active={route().current('seller-commissions')}>
+                            Pagos vendedores
                         </ResponsiveNavLink>
                     </div>
 

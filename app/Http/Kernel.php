@@ -75,5 +75,6 @@ class Kernel extends HttpKernel
         'user' => \App\Http\Middleware\EnsureUser::class,
         'patient' => \App\Http\Middleware\EnsurePatient::class,
         'subscribed' => \App\Http\Middleware\CheckSubscriptionStatus::class,
+        'vendedor_web' => \App\Http\Middleware\EnsureVendedor::class,
     ];
 }

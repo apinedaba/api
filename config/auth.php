@@ -46,6 +46,11 @@ return [
             'provider' => 'vendedores',
         ],
 
+        'vendedor_web' => [
+            'driver' => 'session',
+            'provider' => 'vendedores',
+        ],
+
         'user' => [
             'driver' => 'sanctum',
             'provider' => 'users',

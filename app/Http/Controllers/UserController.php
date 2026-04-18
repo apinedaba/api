@@ -237,8 +237,10 @@ class UserController extends Controller
         ]);
 
         $user = User::with('subscription')->findOrFail($id);
+        $subscription = $user->subscription;
         $hasBillableAccess = $user->has_lifetime_access
-            || in_array(optional($user->subscription)->stripe_status, ['active', 'trialing'], true);
+            || optional($subscription)->stripe_status === 'active'
+            || (optional($subscription)->stripe_status === 'trialing' && filled(optional($subscription)->stripe_id));
 
         if (!$hasBillableAccess && !$request->boolean('grant_lifetime_access')) {
             throw ValidationException::withMessages([
@@ -262,8 +264,10 @@ class UserController extends Controller
     private function publicVisibilitySummary(User $user): array
     {
         $subscriptionStatus = optional($user->subscription)->stripe_status;
+        $subscriptionStripeId = optional($user->subscription)->stripe_id;
         $hasBillableAccess = $user->has_lifetime_access
-            || in_array($subscriptionStatus, ['active', 'trialing'], true);
+            || $subscriptionStatus === 'active'
+            || ($subscriptionStatus === 'trialing' && filled($subscriptionStripeId));
 
         $checks = [
             [

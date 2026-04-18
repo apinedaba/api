@@ -59,8 +59,8 @@ class SocialiteController extends Controller
                 ]);
                 Subscription::create([
                     'user_id' => $user->id,
-                    'stripe_status' => 'trial',
-                    'trial_ends_at' => now()->addDays(15),
+                    'stripe_status' => 'init',
+                    'trial_ends_at' => null,
                 ]);
                 $user->notify(new NuevoPsicologoRegistrado($user, true));
             }

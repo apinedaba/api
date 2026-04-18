@@ -157,7 +157,13 @@ class User extends Authenticatable implements MustVerifyEmail
                 $visibilityQuery
                     ->where('has_lifetime_access', true)
                     ->orWhereHas('subscription', function (Builder $subscriptionQuery) {
-                        $subscriptionQuery->whereIn('stripe_status', ['active', 'trialing']);
+                        $subscriptionQuery
+                            ->where('stripe_status', 'active')
+                            ->orWhere(function (Builder $trialQuery) {
+                                $trialQuery
+                                    ->where('stripe_status', 'trialing')
+                                    ->whereNotNull('stripe_id');
+                            });
                     });
             });
     }

@@ -71,7 +71,7 @@ class SubscriptionStatusService
             'description' => $this->descriptionFor($uiStatus, $periodEnd),
             'can_access' => in_array($uiStatus, ['active', 'trialing', 'canceling'], true),
             'can_manage' => filled($user->stripe_id),
-            'show_available_plans' => in_array($uiStatus, ['not_subscribed', 'canceled', 'trial_disabled', 'incomplete_expired'], true),
+            'show_available_plans' => in_array($uiStatus, ['not_subscribed', 'init', 'canceled', 'trial_disabled', 'incomplete_expired'], true),
             'requires_payment_update' => in_array($uiStatus, ['past_due', 'unpaid', 'incomplete'], true),
             'subscription' => $subscription,
             'stripe_subscription' => $remoteSubscription?->toArray(),
@@ -142,6 +142,7 @@ class SubscriptionStatusService
         return match ($status) {
             'trialing' => 'trialing',
             'active' => 'active',
+            'init' => 'init',
             'past_due' => 'past_due',
             'unpaid' => 'unpaid',
             'paused' => 'paused',
@@ -158,6 +159,7 @@ class SubscriptionStatusService
         return match ($status) {
             'trialing' => 'Prueba activa',
             'active' => 'Activa',
+            'init' => 'Registro iniciado',
             'canceling' => 'Cancelada al final del periodo',
             'past_due' => 'Pago pendiente',
             'unpaid' => 'Pago vencido',
@@ -177,6 +179,7 @@ class SubscriptionStatusService
         return match ($status) {
             'trialing' => 'Tu prueba está activa.',
             'active' => 'Tu suscripción está activa.',
+            'init' => 'Activa tu plan para comenzar tu prueba.',
             'canceling' => 'Tu suscripción seguirá activa hasta el final del periodo.',
             'past_due' => 'No pudimos cobrar tu renovación.',
             'unpaid' => 'Tu suscripción tiene un saldo pendiente.',
@@ -201,6 +204,7 @@ class SubscriptionStatusService
             'active' => $formattedEnd
                 ? "Tu membresía está al corriente. El próximo corte estimado es el {$formattedEnd}."
                 : 'Tu membresía está al corriente y tu perfil sigue visible en MindMeet.',
+            'init' => 'Tu registro ya está creado. Elige un plan para iniciar el proceso real de suscripción.',
             'canceling' => $formattedEnd
                 ? "Ya programaste la cancelación. Mantendrás tu acceso hasta el {$formattedEnd}."
                 : 'Ya programaste la cancelación, pero conservas acceso hasta el cierre del periodo actual.',

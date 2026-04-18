@@ -22,7 +22,7 @@ class ExpireTrialSubscriptions extends Command
 
         $now = now();
 
-        $query = Subscription::whereIn('stripe_status', ['trial', 'trialing'])
+        $query = Subscription::where('stripe_status', 'trial')
             ->whereNotNull('trial_ends_at')
             ->where('trial_ends_at', '<', $now)
             ->with('user');

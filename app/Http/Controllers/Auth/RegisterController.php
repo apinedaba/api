@@ -60,8 +60,8 @@ class RegisterController extends Controller
                 [
                     'stripe_id' => null,
                     'stripe_plan' => null,
-                    'stripe_status' => 'trialing',
-                    'trial_ends_at' => Carbon::now()->addDays(15),
+                    'stripe_status' => 'init',
+                    'trial_ends_at' => null,
                     'ends_at' => null,
                 ]
             );

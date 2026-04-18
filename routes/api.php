@@ -111,7 +111,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
         $user = $request->user()->load('subscription');
 
         return [
-            'active' => $user->subscription->stripe_status === 'active'
+            'active' => optional($user->subscription)->stripe_status === 'active'
         ];
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);

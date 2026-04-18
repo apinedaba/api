@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Vendedor;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\VendedorController;
 use App\Services\SellerCommissionService;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -75,11 +76,14 @@ class VendedorDashboardController extends Controller
 
         return Inertia::render('Vendedor/Dashboard', [
             'vendedor' => [
-                'id'     => $vendedor->id,
-                'nombre' => $vendedor->nombre,
-                'email'  => $vendedor->email,
-                'rol'    => $vendedor->rol,
-                'imagen' => $vendedor->imagen,
+                'id'               => $vendedor->id,
+                'nombre'           => $vendedor->nombre,
+                'email'            => $vendedor->email,
+                'rol'              => $vendedor->rol,
+                'imagen'           => $vendedor->imagen,
+                'registration_url' => $this->registrationUrl($vendedor),
+                'qr_preview_url'   => route('vendedor.qr.preview'),
+                'qr_download_url'  => route('vendedor.qr'),
             ],
             'metrics' => [
                 'pending_balance'  => (float) $pendingBalance,
@@ -92,5 +96,28 @@ class VendedorDashboardController extends Controller
             'referrals'        => $referrals,
             'commission_items' => $commissionItems,
         ]);
+    }
+
+    public function downloadQr()
+    {
+        /** @var \App\Models\Vendedor $vendedor */
+        $vendedor = Auth::guard('vendedor_web')->user();
+
+        return app(VendedorController::class)->download($vendedor);
+    }
+
+    public function previewQr()
+    {
+        /** @var \App\Models\Vendedor $vendedor */
+        $vendedor = Auth::guard('vendedor_web')->user();
+
+        return app(VendedorController::class)->qr($vendedor);
+    }
+
+    private function registrationUrl(\App\Models\Vendedor $vendedor): string
+    {
+        $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
+
+        return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
     }
 }

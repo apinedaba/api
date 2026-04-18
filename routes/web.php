@@ -128,6 +128,8 @@ Route::prefix('vendedor')->name('vendedor.')->group(function () {
     // Rutas protegidas
     Route::middleware('vendedor_web')->group(function () {
         Route::get('/dashboard', [VendedorDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/qr', [VendedorDashboardController::class, 'downloadQr'])->name('qr');
+        Route::get('/qr-preview', [VendedorDashboardController::class, 'previewQr'])->name('qr.preview');
         Route::post('/logout', [VendedorAuthController::class, 'logout'])->name('logout');
     });
 });

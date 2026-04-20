@@ -14,6 +14,8 @@ use App\Http\Controllers\SellerCommissionController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendedorController;
+use App\Http\Controllers\Vendedor\VendedorAuthController;
+use App\Http\Controllers\Vendedor\VendedorDashboardController;
 use App\Jobs\TestNotificacionJob;
 use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
@@ -112,6 +114,25 @@ Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professi
     ->name('share.professional');
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
 require __DIR__ . '/auth.php';
+
+// ──────────────────────────────────────────────
+// Panel de Vendedores
+// ──────────────────────────────────────────────
+Route::prefix('vendedor')->name('vendedor.')->group(function () {
+    // Rutas públicas (solo accesibles si NO está autenticado como vendedor)
+    Route::middleware('guest:vendedor_web')->group(function () {
+        Route::get('/login', [VendedorAuthController::class, 'showLogin'])->name('login');
+        Route::post('/login', [VendedorAuthController::class, 'login'])->name('login.submit');
+    });
+
+    // Rutas protegidas
+    Route::middleware('vendedor_web')->group(function () {
+        Route::get('/dashboard', [VendedorDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/qr', [VendedorDashboardController::class, 'downloadQr'])->name('qr');
+        Route::get('/qr-preview', [VendedorDashboardController::class, 'previewQr'])->name('qr.preview');
+        Route::post('/logout', [VendedorAuthController::class, 'logout'])->name('logout');
+    });
+});
 
 Route::get('/registro', function (Request $request) {
     $vendedor = Vendedor::where('qr_token', $request->v)->firstOrFail();

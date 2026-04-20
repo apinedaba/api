@@ -125,29 +125,60 @@ class CatalogosController extends Controller
     }
     public function estado()
     {
-        $pais = User::whereNotNull('address')
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
+        $base = User::query()->publiclyVisible();
+
+        $addressStates = (clone $base)
+            ->whereNotNull('address')
             ->pluck('address')
-            ->map(
-                fn($p) => (
-                    [
-                        "pais" => $p['pais'] ?? null,
-                        "estado" => $p['state'] ?? null
-                    ]
-                )
-            )
+            ->map(fn($p) => $p['state'] ?? $p['estado'] ?? null);
+
+        $officeStates = \App\Models\Office::query()
+            ->where('is_active', true)
+            ->whereHas('user', fn($query) => $query->publiclyVisible())
+            ->pluck('state');
+
+        $states = $addressStates
+            ->merge($officeStates)
+            ->filter()
             ->unique()
-            ->values();
+            ->sort()
+            ->values()
+            ->map(fn($state) => [
+                'label' => $state,
+                'value' => $state,
+            ]);
 
         $response = [
             "type" => "autocomplete",
-            "values" => $pais,
+            "values" => $states,
             "label" => "Estado",
             "key" => "estado"
         ];
 
         return $response;
+    }
+
+    public function ciudad()
+    {
+        $cities = \App\Models\Office::query()
+            ->where('is_active', true)
+            ->whereHas('user', fn($query) => $query->publiclyVisible())
+            ->pluck('city')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn($city) => [
+                'label' => $city,
+                'value' => $city,
+            ]);
+
+        return [
+            "type" => "autocomplete",
+            "values" => $cities,
+            "label" => "Ciudad",
+            "key" => "city"
+        ];
     }
 
     public function getCatalogs(): JsonResponse
@@ -157,7 +188,8 @@ class CatalogosController extends Controller
             $this->enfoque(),
             $this->especialidades(),
             $this->pais(),
-            $this->estado()
+            $this->estado(),
+            $this->ciudad()
 
         ];
         return response()->json($data, 200);

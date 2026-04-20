@@ -29,22 +29,24 @@ class ProfessionalController extends Controller
         $perPage = (int) ($params['perPage'] ?? 10);
         $search = trim($params['search'] ?? '');
         $precioMax = $params['precioMax'] ?? null;
-        $pais = $params['pais'] ?? null;
-        $idioma = $params['idioma'] ?? null;
-        $especial = $params['especialidades'] ?? null;
+        $pais = $this->firstQueryValue($params['pais'] ?? null);
+        $idioma = $this->firstQueryValue($params['idioma'] ?? null);
+        $especialidades = $this->queryValues($params['especialidades'] ?? $params['especialidad'] ?? null);
+        $cities = $this->queryValues($params['city'] ?? $params['ciudad'] ?? null);
+        $lat = $this->normalizeCoordinate($params['lat'] ?? $params['latitude'] ?? null, -90, 90);
+        $lng = $this->normalizeCoordinate($params['lng'] ?? $params['longitude'] ?? null, -180, 180);
+        $radius = $this->normalizeRadius($params['radius'] ?? null);
+        $hasGeoFilter = $lat !== null && $lng !== null;
         $estados = (array) $request->query('estado', []);
         $estados = implode(',', $estados);
         $estados = array_filter(explode(',', $estados), fn($estado) => $estado !== "");
 
 
 
-        $generos = !empty($params['generos'])
-            ? array_filter(array_map('trim', explode(',', $params['generos'])))
-            : [];
+        $generos = $this->queryValues($params['generos'] ?? null);
 
-        $enfoques = !empty($params['enfoques'])
-            ? array_filter(array_map('trim', explode(',', $params['enfoques'])))
-            : [];
+        $enfoquesParam = $params['enfoques'] ?? $params['enfoque'] ?? null;
+        $enfoques = $this->queryValues($enfoquesParam);
 
         /*
          * ---------------------------------------------------------
@@ -57,8 +59,25 @@ class ProfessionalController extends Controller
          * ---------------------------------------------------------
          */
         $q = User::query()
-            ->with(['activeSessionPackages', 'activeDiscountCoupons'])
+            ->with(['activeSessionPackages', 'activeDiscountCoupons', 'activeOffice'])
+            ->select('users.*')
             ->publiclyVisible();
+
+        if ($hasGeoFilter || !empty($cities) || !empty($estados)) {
+            $q->leftJoin('offices as active_offices', function ($join) {
+                $join->on('active_offices.user_id', '=', 'users.id')
+                    ->where('active_offices.is_active', true);
+            });
+        }
+
+        if ($hasGeoFilter) {
+            $distanceSql = $this->distanceSql();
+
+            $q->whereNotNull('active_offices.latitude')
+                ->whereNotNull('active_offices.longitude')
+                ->selectRaw("{$distanceSql} as distance_km", [$lat, $lng, $lat])
+                ->whereRaw("{$distanceSql} <= ?", [$lat, $lng, $lat, $radius]);
+        }
 
         /*
          * ---------------------------------------------------------
@@ -77,12 +96,28 @@ class ProfessionalController extends Controller
             $q->whereJsonContains('personales->idiomas', $idioma);
         }
 
-        if ($especial) {
-            $q->whereJsonContains('educacion->especialidades', $especial);
+        if (!empty($especialidades)) {
+            $q->where(function ($specialtyQuery) use ($especialidades) {
+                foreach ($especialidades as $especialidad) {
+                    $specialtyQuery->orWhereJsonContains('educacion->especialidades', $especialidad);
+                }
+            });
         }
 
         if (!empty($estados)) {
-            $q->whereIn('address->state', $estados);
+            $q->where(function ($stateQuery) use ($estados) {
+                $stateQuery->whereIn('address->state', $estados)
+                    ->orWhereIn('address->estado', $estados)
+                    ->orWhereIn('active_offices.state', $estados);
+            });
+        }
+
+        if (!empty($cities)) {
+            $q->where(function ($cityQuery) use ($cities) {
+                foreach ($cities as $city) {
+                    $cityQuery->orWhere('active_offices.city', 'like', "%{$city}%");
+                }
+            });
         }
 
         if ($generos) {
@@ -144,10 +179,15 @@ class ProfessionalController extends Controller
          * semilla estable por dia para que no cambie en cada refresh,
          * pero si rote la exposicion con el tiempo.
          */
-        $seedSource = $params['seed'] ?? now()->format('Y-m-d');
-        $seed = sprintf('%u', crc32('mindmeet-catalog-' . $seedSource));
-        $q->orderByRaw('RAND(?)', [$seed])
-            ->orderBy('users.id');
+        if ($hasGeoFilter) {
+            $q->orderBy('distance_km')
+                ->orderBy('users.id');
+        } else {
+            $seedSource = $params['seed'] ?? now()->format('Y-m-d');
+            $seed = sprintf('%u', crc32('mindmeet-catalog-' . $seedSource));
+            $q->orderByRaw('RAND(?)', [$seed])
+                ->orderBy('users.id');
+        }
 
         /*
          * ---------------------------------------------------------
@@ -272,5 +312,62 @@ class ProfessionalController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function firstQueryValue(mixed $value): ?string
+    {
+        return $this->queryValues($value)[0] ?? null;
+    }
+
+    private function queryValues(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        $values = is_array($value) ? $value : explode(',', (string) $value);
+
+        return collect($values)
+            ->flatten()
+            ->map(fn($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function normalizeCoordinate(mixed $value, float $min, float $max): ?float
+    {
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        $coordinate = (float) $value;
+
+        if ($coordinate < $min || $coordinate > $max) {
+            return null;
+        }
+
+        return $coordinate;
+    }
+
+    private function normalizeRadius(mixed $value): int
+    {
+        if (!is_numeric($value)) {
+            return 25;
+        }
+
+        return max(1, min((int) $value, 250));
+    }
+
+    private function distanceSql(): string
+    {
+        return '(6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians(?))
+            * cos(radians(active_offices.latitude))
+            * cos(radians(active_offices.longitude) - radians(?))
+            + sin(radians(?))
+            * sin(radians(active_offices.latitude))
+        ))))';
     }
 }

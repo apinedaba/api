@@ -33,10 +33,16 @@ class MinderSupportController extends Controller
             'body' => 'required|string|max:4000',
         ]);
 
+        // Si el hilo está cerrado, reabrirlo en vez de crear uno nuevo
+        // (la tabla tiene unique constraint en user_id)
         $thread = MinderSupportThread::firstOrCreate(
             ['user_id' => $user->id],
-            ['status' => 'open']
+            ['status'  => 'open']
         );
+
+        if ($thread->status === 'closed') {
+            $thread->update(['status' => 'open']);
+        }
 
         $message = MinderSupportMessage::create([
             'thread_id'   => $thread->id,
@@ -50,6 +56,6 @@ class MinderSupportController extends Controller
 
         broadcast(new MinderSupportMessageSent($message->load('thread')))->toOthers();
 
-        return response()->json(['data' => $message], 201);
+        return response()->json(['data' => $message, 'thread' => $thread], 201);
     }
 }

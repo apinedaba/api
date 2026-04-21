@@ -283,3 +283,5 @@ require __DIR__ . '/api/professional.php';
 require __DIR__ . '/api/deviceToken.php';
 require __DIR__ . '/api/timeline.php';
 require __DIR__ . '/api/attachments.php';
+require __DIR__ . '/api/minder.php';
+require __DIR__ . '/api/red.php';

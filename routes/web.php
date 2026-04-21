@@ -3,6 +3,10 @@
 use App\Events\NewNotification;
 use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminPatientController;
+use App\Http\Controllers\Admin\AdminMinderGroupController;
+use App\Http\Controllers\Admin\AdminMinderReportController;
+use App\Http\Controllers\Admin\AdminMinderMetricsController;
+use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
@@ -148,4 +152,36 @@ Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::get('enviar-prueba', function () {
     TestNotificacionJob::dispatch();
     return response()->json(['status' => 'Job Dispatched']);
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  Comunidad Minder — Panel de administración (Inertia)
+// ─────────────────────────────────────────────────────────────────
+Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () {
+    // Grupos
+    Route::get('/groups', [AdminMinderGroupController::class, 'index'])->name('groups.index');
+    Route::post('/groups', [AdminMinderGroupController::class, 'store'])->name('groups.store');
+    Route::put('/groups/{minderGroup}', [AdminMinderGroupController::class, 'update'])->name('groups.update');
+    Route::delete('/groups/{minderGroup}', [AdminMinderGroupController::class, 'destroy'])->name('groups.destroy');
+    Route::get('/groups/{minderGroup}', [AdminMinderGroupController::class, 'show'])->name('groups.show');
+
+    // Miembros y moderadores
+    Route::post('/groups/{minderGroup}/members', [AdminMinderGroupController::class, 'addMember'])->name('groups.members.add');
+    Route::delete('/groups/{minderGroup}/members/{user}', [AdminMinderGroupController::class, 'removeMember'])->name('groups.members.remove');
+    Route::patch('/groups/{minderGroup}/members/{user}/role', [AdminMinderGroupController::class, 'updateMemberRole'])->name('groups.members.role');
+    Route::post('/groups/{minderGroup}/members/{user}/ban', [AdminMinderGroupController::class, 'banMember'])->name('groups.members.ban');
+    Route::delete('/groups/{minderGroup}/members/{user}/ban', [AdminMinderGroupController::class, 'unbanMember'])->name('groups.members.unban');
+
+    // Reportes
+    Route::get('/reports', [AdminMinderReportController::class, 'index'])->name('reports.index');
+    Route::patch('/reports/{report}/resolve', [AdminMinderReportController::class, 'resolve'])->name('reports.resolve');
+
+    // Métricas
+    Route::get('/metrics', [AdminMinderMetricsController::class, 'index'])->name('metrics.index');
+
+    // Soporte
+    Route::get('/support', [AdminMinderSupportController::class, 'index'])->name('support.index');
+    Route::get('/support/{thread}', [AdminMinderSupportController::class, 'show'])->name('support.show');
+    Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
+    Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
 });

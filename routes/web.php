@@ -11,6 +11,7 @@ use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
@@ -61,6 +62,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
     Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
     Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
+    Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
+    Route::post('/help-center', [HelpCenterAdminController::class, 'store'])->name('help-center.store');
+    Route::put('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'update'])->name('help-center.update');
+    Route::delete('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'destroy'])->name('help-center.destroy');
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');

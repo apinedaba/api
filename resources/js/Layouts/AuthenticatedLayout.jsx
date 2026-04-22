@@ -45,6 +45,9 @@ export default function Authenticated({ user, header, children }) {
                                 <NavLink href={route('seller-commissions')} active={route().current('seller-commissions')}>
                                     Pagos vendedores
                                 </NavLink>
+                                <NavLink href={route('help-center.index')} active={route().current('help-center.*')}>
+                                    Centro de ayuda
+                                </NavLink>
                                 <NavLink href={route('minder.groups.index')} active={route().current('minder.*')}>
                                     Comunidad Minder
                                 </NavLink>
@@ -139,6 +142,9 @@ export default function Authenticated({ user, header, children }) {
                         </ResponsiveNavLink>
                         <ResponsiveNavLink href={route('seller-commissions')} active={route().current('seller-commissions')}>
                             Pagos vendedores
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink href={route('help-center.index')} active={route().current('help-center.*')}>
+                            Centro de ayuda
                         </ResponsiveNavLink>
                     </div>
 

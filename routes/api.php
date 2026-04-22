@@ -41,6 +41,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\SessionPackageController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
@@ -215,6 +216,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
     Route::get('user/documentacion/{driveId}/download', [DocumentacionController::class, 'download']);
     Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
+    Route::get('user/help-center', [HelpCenterController::class, 'index']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

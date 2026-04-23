@@ -15,6 +15,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'minder_acces
         Route::get('preguntas', [RedPreguntaController::class, 'index']);
         Route::post('preguntas', [RedPreguntaController::class, 'store'])
             ->middleware('throttle:red-preguntas');
+        Route::get('preguntas/mis-preguntas/sin-leer', [RedPreguntaController::class, 'misPreguntasSinLeer']);
         Route::get('preguntas/{pregunta}', [RedPreguntaController::class, 'show']);
         Route::delete('preguntas/{pregunta}', [RedPreguntaController::class, 'destroy']);
         Route::post(

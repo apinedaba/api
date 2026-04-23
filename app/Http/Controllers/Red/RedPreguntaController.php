@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Red;
 use App\Http\Controllers\Controller;
 use App\Models\RedPregunta;
 use App\Models\RedRespuesta;
+use App\Models\User;
+use App\Notifications\NuevaPreguntaEnRed;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class RedPreguntaController extends Controller
 {
@@ -20,11 +23,17 @@ class RedPreguntaController extends Controller
         $q      = $request->string('q')->trim()->toString();
         $tag    = $request->string('tag')->trim()->toString();
         $orden  = $request->string('orden', 'reciente')->toString();
+        $solo_mias = $request->boolean('solo_mias', false); // Nuevo filtro
         $perPage = min((int) $request->integer('per_page', 20), 50);
 
         $query = RedPregunta::where('is_active', true)
             ->with(['autor:id,name,image,personales'])
             ->withCount(['respuestas']);
+
+        // Filtro: solo mis preguntas
+        if ($solo_mias) {
+            $query->where('user_id', $user->id);
+        }
 
         // Búsqueda por texto
         if ($q !== '') {
@@ -95,6 +104,14 @@ class RedPreguntaController extends Controller
 
         $pregunta->load('autor:id,name,image,personales');
         $pregunta->loadCount('respuestas');
+
+        // Notificar a todos los psicólogos verificados (excepto al autor)
+        $psicologosVerificados = User::where('identity_verification_status', 'approved')
+            ->where('activo', true)
+            ->where('id', '!=', $request->user()->id)
+            ->get();
+
+        Notification::send($psicologosVerificados, new NuevaPreguntaEnRed($pregunta));
 
         return response()->json([
             'data'    => $this->formatPregunta($pregunta, $request->user()->id),
@@ -235,5 +252,37 @@ class RedPreguntaController extends Controller
                 'especialidad' => $personales['especialidad'] ?? null,
             ] : null,
         ];
+    }
+
+    /**
+     * GET /user/red/mis-preguntas/sin-leer
+     * Devuelve contador de respuestas nuevas por pregunta
+     */
+    public function misPreguntasSinLeer(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Obtener preguntas del usuario con conteo de respuestas
+        $preguntas = RedPregunta::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->with('respuestas:id,pregunta_id,created_at')
+            ->get(['id', 'user_id', 'ultima_respuesta_vista_at'])
+            ->map(function (RedPregunta $p) {
+                $respuestas_nuevas = $p->respuestas->filter(function (RedRespuesta $r) use ($p) {
+                    return !$p->ultima_respuesta_vista_at ||
+                        $r->created_at > $p->ultima_respuesta_vista_at;
+                })->count();
+
+                return [
+                    'id' => $p->id,
+                    'respuestas_nuevas' => $respuestas_nuevas,
+                ];
+            })
+            ->filter(fn($p) => $p['respuestas_nuevas'] > 0);
+
+        return response()->json([
+            'data' => $preguntas,
+            'total_con_respuestas_nuevas' => $preguntas->count(),
+        ]);
     }
 }

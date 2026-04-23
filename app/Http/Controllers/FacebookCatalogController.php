@@ -294,7 +294,13 @@ class FacebookCatalogController extends Controller
 
     private function resolvePublicUrl(User $user): string
     {
-        $baseUrl = rtrim(config('app.front_url') ?: config('app.frontend_url'), '/');
+        $baseUrl = rtrim(
+            config('app.front_url_user')
+            ?: config('app.front_url')
+            ?: config('app.frontend_url')
+            ?: 'https://mindmeet.com.mx',
+            '/'
+        );
         $slug = Str::slug($this->resolveDisplayName($user), '-', 'es');
 
         return "{$baseUrl}/psicologos/{$user->id}/{$slug}";

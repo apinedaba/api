@@ -104,6 +104,24 @@ export default function FacebookCatalog({ auth, entries = [], summary = {}, feed
             cell: row => <span className="text-sm text-slate-600">{row.effective.schedule_summary}</span>,
         },
         {
+            name: 'Link publico',
+            grow: 1.8,
+            selector: row => row.public_url,
+            cell: row => row.public_url ? (
+                <a
+                    href={row.public_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="max-w-[240px] truncate text-sm font-medium text-blue-700 hover:text-blue-800"
+                    title={row.public_url}
+                >
+                    {row.public_url}
+                </a>
+            ) : (
+                <span className="text-sm text-slate-400">Sin enlace</span>
+            ),
+        },
+        {
             name: 'Acciones',
             cell: row => (
                 <div className="flex gap-3">

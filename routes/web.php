@@ -11,6 +11,7 @@ use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\FacebookCatalogController;
 use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
@@ -55,6 +56,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/analytics', [ProfessionalAnalyticsController::class, 'adminIndex'])->name('analytics');
+    Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
+    Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/coupons', [DiscountCouponController::class, 'adminIndex'])->name('coupons');
     Route::post('/coupons', [DiscountCouponController::class, 'adminStore'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
@@ -118,6 +121,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/pacientes/{patientId}/citas/stats', [AdminAppointmentController::class, 'getStats'])->name('admin.citas.stats');
     });
 });
+Route::get('/feeds/facebook-psychologists.csv', [FacebookCatalogController::class, 'feed'])->name('facebook-catalog.feed');
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
     ->whereNumber('id')
     ->name('share.professional');

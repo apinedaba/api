@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProfessionalController extends Controller
 {
@@ -32,14 +33,13 @@ class ProfessionalController extends Controller
         $pais = $this->firstQueryValue($params['pais'] ?? null);
         $idioma = $this->firstQueryValue($params['idioma'] ?? null);
         $especialidades = $this->queryValues($params['especialidades'] ?? $params['especialidad'] ?? null);
+        $modalidades = $this->queryValues($params['modalidad'] ?? $params['formato'] ?? null);
         $cities = $this->queryValues($params['city'] ?? $params['ciudad'] ?? null);
         $lat = $this->normalizeCoordinate($params['lat'] ?? $params['latitude'] ?? null, -90, 90);
         $lng = $this->normalizeCoordinate($params['lng'] ?? $params['longitude'] ?? null, -180, 180);
         $radius = $this->normalizeRadius($params['radius'] ?? null);
         $hasGeoFilter = $lat !== null && $lng !== null;
-        $estados = (array) $request->query('estado', []);
-        $estados = implode(',', $estados);
-        $estados = array_filter(explode(',', $estados), fn($estado) => $estado !== "");
+        $estados = $this->normalizedStateFilters($params['estado'] ?? null);
 
 
 
@@ -101,6 +101,36 @@ class ProfessionalController extends Controller
                 foreach ($especialidades as $especialidad) {
                     $specialtyQuery->orWhereJsonContains('educacion->especialidades', $especialidad);
                 }
+            });
+        }
+
+        if (!empty($modalidades) && !in_array('indiferente', array_map('strtolower', $modalidades), true)) {
+            $compatibleFormats = $this->compatibleFormats($modalidades);
+
+            $q->where(function ($formatQuery) use ($compatibleFormats) {
+                $formatQuery
+                    ->whereIn('users.id', function ($sq) use ($compatibleFormats) {
+                        $placeholders = implode(',', array_fill(0, count($compatibleFormats), '?'));
+
+                        $sq->select('u.id')
+                            ->from('users as u')
+                            ->join(
+                                DB::raw("
+                                    JSON_TABLE(
+                                        u.configurations,
+                                        '$.sesiones[*]'
+                                        COLUMNS (formato VARCHAR(30) PATH '$.formato')
+                                    ) sesiones
+                                "),
+                                DB::raw('1'),
+                                DB::raw('1=1')
+                            )
+                            ->whereRaw("LOWER(sesiones.formato) IN ({$placeholders})", $compatibleFormats)
+                            ->groupBy('u.id');
+                    })
+                    ->orWhereHas('activeSessionPackages', function ($packageQuery) use ($compatibleFormats) {
+                        $packageQuery->whereIn(DB::raw('LOWER(formato)'), $compatibleFormats);
+                    });
             });
         }
 
@@ -195,9 +225,12 @@ class ProfessionalController extends Controller
          * ---------------------------------------------------------
          */
         $result = $q->paginate($perPage, ['*'], 'page', $page);
+        $items = collect($result->items())
+            ->map(fn(User $user) => $this->transformProfessionalListItem($user))
+            ->values();
 
         return response()->json([
-            'data' => $result->items(),
+            'data' => $items,
             'total' => $result->total(),
             'page' => $result->currentPage(),
             'pages' => $result->lastPage(),
@@ -369,5 +402,138 @@ class ProfessionalController extends Controller
             + sin(radians(?))
             * sin(radians(active_offices.latitude))
         ))))';
+    }
+
+    private function normalizedStateFilters(mixed $value): array
+    {
+        $values = $this->queryValues($value);
+        $ignoredStatusTerms = ['activo', 'active', 'publico', 'published', 'visible'];
+
+        return collect($values)
+            ->reject(fn($estado) => in_array(Str::lower($estado), $ignoredStatusTerms, true))
+            ->values()
+            ->all();
+    }
+
+    private function compatibleFormats(array $modalidades): array
+    {
+        return collect($modalidades)
+            ->map(fn($format) => Str::lower($format))
+            ->flatMap(function ($format) {
+                if (in_array($format, ['online', 'presencial'], true)) {
+                    return [$format, 'mixto'];
+                }
+
+                return [$format];
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function transformProfessionalListItem(User $user): array
+    {
+        $sessions = collect(data_get($user->configurations, 'sesiones', []))
+            ->map(function ($session) {
+                return [
+                    'formato' => data_get($session, 'formato'),
+                    'tipoSesion' => data_get($session, 'tipoSesion'),
+                    'duracion' => data_get($session, 'duracion'),
+                    'categoria' => data_get($session, 'categoria', []),
+                    'precio' => data_get($session, 'precio'),
+                    'discount' => data_get($session, 'discount'),
+                    'discountType' => data_get($session, 'discountType'),
+                    'originalPrice' => data_get($session, 'originalPrice'),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'image' => $user->image,
+            'distance_km' => isset($user->distance_km) ? (float) $user->distance_km : null,
+            'public_url' => $this->publicProfileUrl($user),
+            'address' => [
+                'pais' => data_get($user->address, 'pais'),
+                'estado' => data_get($user->address, 'estado'),
+                'state' => data_get($user->address, 'state'),
+                'city' => data_get($user->activeOffice, 'city'),
+            ],
+            'contacto' => [
+                'publicName' => data_get($user->contacto, 'publicName'),
+            ],
+            'personales' => [
+                'genero' => data_get($user->personales, 'genero'),
+                'additional' => [
+                    'language' => data_get($user->personales, 'additional.language'),
+                    'country' => data_get($user->personales, 'additional.country'),
+                ],
+                'idiomas' => data_get($user->personales, 'idiomas', []),
+            ],
+            'educacion' => [
+                'especialidades' => data_get($user->educacion, 'especialidades', []),
+                'enfoque' => data_get($user->educacion, 'enfoque'),
+                'experiencia' => data_get($user->educacion, 'experiencia'),
+                'littleDescription' => Str::limit((string) data_get($user->educacion, 'littleDescription', ''), 320),
+            ],
+            'configurations' => [
+                'sesiones' => $sessions,
+            ],
+            'active_session_packages' => $user->activeSessionPackages
+                ->map(fn($package) => [
+                    'id' => $package->id,
+                    'name' => $package->name,
+                    'session_count' => $package->session_count,
+                    'package_session_price' => (float) $package->package_session_price,
+                    'package_total_price' => (float) $package->package_total_price,
+                    'promotional_session_price' => (float) $package->promotional_session_price,
+                    'promotional_total_price' => (float) $package->promotional_total_price,
+                    'has_active_promotion' => (bool) $package->has_active_promotion,
+                    'formato' => $package->formato,
+                    'tipo_sesion' => $package->tipo_sesion,
+                    'categoria' => $package->categoria,
+                    'is_featured' => (bool) $package->is_featured,
+                ])
+                ->values()
+                ->all(),
+            'active_discount_coupons' => $user->activeDiscountCoupons
+                ->map(fn($coupon) => [
+                    'id' => $coupon->id,
+                    'code' => $coupon->code,
+                    'name' => $coupon->name,
+                    'description' => $coupon->description,
+                    'discount_type' => $coupon->discount_type,
+                    'discount_value' => $coupon->discount_value,
+                    'applies_to' => $coupon->applies_to,
+                ])
+                ->values()
+                ->all(),
+            'identity_verification_status' => $user->identity_verification_status,
+            'identity_verification' => $user->identity_verification_status,
+            'active_office' => $user->activeOffice ? [
+                'city' => $user->activeOffice->city,
+                'state' => $user->activeOffice->state,
+                'latitude' => $user->activeOffice->latitude,
+                'longitude' => $user->activeOffice->longitude,
+            ] : null,
+        ];
+    }
+
+    private function publicProfileUrl(User $user): string
+    {
+        $baseUrl = rtrim(
+            config('app.front_url_user')
+            ?: config('app.front_url')
+            ?: config('app.frontend_url')
+            ?: 'https://mindmeet.com.mx',
+            '/'
+        );
+
+        $slug = Str::slug(data_get($user->contacto, 'publicName') ?: $user->name, '-', 'es');
+
+        return "{$baseUrl}/psicologos/{$user->id}/{$slug}";
     }
 }

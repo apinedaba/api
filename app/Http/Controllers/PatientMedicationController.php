@@ -2,9 +2,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
-use App\Models\PatientMedication;
 use Illuminate\Http\Request;
-use \Log;
+use Illuminate\Http\JsonResponse;
+
 class PatientMedicationController extends Controller
 {
     public function __construct()
@@ -14,22 +14,20 @@ class PatientMedicationController extends Controller
     }
 
     // Listado de medicamentos (solo de pacientes propios)
-    public function index($patientId)
+    public function index($patientId): JsonResponse
     {
-        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
-        // Verifica que el paciente pertenezca al usuario autenticado
+        $patient = $this->resolveOwnedPatient((int) $patientId);
 
-        return $patient
+        return response()->json($patient
             ->medications()
             ->orderBy('start_date', 'desc')
-            ->get();
+            ->get());
     }
 
     // Nuevo medicamento
     public function store(Request $request, $patientId)
     {
-        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
-        Log::info($patient);
+        $patient = $this->resolveOwnedPatient((int) $patientId);
         $data = $request->validate([
             'medication_name' => 'required|string|max:255',
             'dosage' => 'nullable|string|max:100',
@@ -49,7 +47,7 @@ class PatientMedicationController extends Controller
     // Actualizar
     public function update(Request $request, $patientId, $id)
     {
-        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
+        $patient = $this->resolveOwnedPatient((int) $patientId);
 
         $med = $patient->medications()->findOrFail($id);
 
@@ -70,12 +68,21 @@ class PatientMedicationController extends Controller
     // Eliminar
     public function destroy($patientId, $id)
     {
-        $patient = auth()->user()->patientUsers()->where( 'patient', $patientId )->firstOrFail();
+        $patient = $this->resolveOwnedPatient((int) $patientId);
 
         $patient->medications()
             ->findOrFail($id)
             ->delete();
 
         return response()->json([], 204);
+    }
+
+    private function resolveOwnedPatient(int $patientId): Patient
+    {
+        return Patient::where('id', $patientId)
+            ->whereHas('connections', function ($query) {
+                $query->where('user', auth()->id());
+            })
+            ->firstOrFail();
     }
 }

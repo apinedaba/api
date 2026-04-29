@@ -302,7 +302,17 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
         $originalData = Appointment::with(['user', 'cart', 'patient'])->findOrFail($appointment->id);
-        $updatedData = $request->except(['patient', 'cart', 'payments', 'user']);
+        $updatedData = $request->only([
+            'title',
+            'start',
+            'end',
+            'statusUser',
+            'statusPatient',
+            'state',
+            'comments',
+            'link',
+            'video_call_room',
+        ]);
         $fieldsToUpdate = [];
         $arrayOriginal = $originalData->toArray();
 
@@ -317,6 +327,15 @@ class AppointmentController extends Controller
 
             if ((string) $arrayOriginal[$key] !== (string) $value) {
                 $fieldsToUpdate[$key] = $value;
+            }
+        }
+
+        if ($request->exists('comments')) {
+            $incomingComments = (string) $request->input('comments', '');
+            $originalComments = (string) ($originalData->comments ?? '');
+
+            if ($incomingComments !== $originalComments) {
+                $fieldsToUpdate['comments'] = $incomingComments;
             }
         }
 

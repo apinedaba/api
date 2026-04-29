@@ -30,6 +30,9 @@ return [
         'public_key' => env('STRIPE_PUBLIC_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
+    'checkout' => [
+        'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),
+    ],
 
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),

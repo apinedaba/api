@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\AppointmentCart;
 use App\Models\Patient;
+use App\Services\CheckoutPricingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class AppointmentCartController extends Controller
 {
+    public function __construct(protected CheckoutPricingService $pricingService)
+    {
+    }
     /**
      * Display a listing of the resource.
      */
@@ -69,7 +73,7 @@ class AppointmentCartController extends Controller
             'user_id' => 'required|exists:users,id',
             'tipoSesion' => 'required|string',
             'duracion' => 'required|string',
-            'precio' => 'required|integer',
+            'precio' => 'required|numeric|min:0',
         ]);
         // return response()->json($request->except(['categoria', 'user']) + [
         //         'estado' => 'pendiente',
@@ -82,6 +86,9 @@ class AppointmentCartController extends Controller
                 'user_id' => $request->user_id,
             ]
         );
+
+        $this->pricingService->fillCart($cart)->save();
+
         return response()->json($cart);
     }
 

@@ -19,6 +19,7 @@ use App\Models\AppointmentCart;
 use App\Models\Appointment;
 use App\Models\PatientUser;
 use App\Services\AppointmentService;
+use App\Services\CheckoutPricingService;
 use App\Services\SubscriptionStatusService;
 use App\Models\User;
 use App\Models\Subscription;
@@ -31,13 +32,19 @@ class StripeController extends Controller
     protected $stripe_secretkey;
     protected $service;
     protected $subscriptionStatusService;
+    protected $pricingService;
 
-    public function __construct(AppointmentService $service, SubscriptionStatusService $subscriptionStatusService)
+    public function __construct(
+        AppointmentService $service,
+        SubscriptionStatusService $subscriptionStatusService,
+        CheckoutPricingService $pricingService
+    )
     {
         // Usa tu secret actual (puede ser el mismo en local y prod, tú ya lo tenías así)
         $this->stripe_secretkey = config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY');
         $this->service = $service;
         $this->subscriptionStatusService = $subscriptionStatusService;
+        $this->pricingService = $pricingService;
     }
 
     public function createPaymentIntent()
@@ -54,7 +61,9 @@ class StripeController extends Controller
             return response()->json(['message' => 'No hay una cita pendiente para pagar.'], 404);
         }
 
-        $amount = (int) round($cart->precio * 100); // MXN -> centavos
+        $pricing = $this->pricingService->buildFromCart($cart, request('cuando'));
+        $cart->forceFill($pricing)->save();
+        $amount = (int) round($pricing['total_charge_amount'] * 100);
 
         $intent = PaymentIntent::create([
             'amount' => $amount,
@@ -63,6 +72,12 @@ class StripeController extends Controller
                 'appointment_cart_id' => $cart->id,
                 'patient_id' => $patient->id,
                 'user_id' => $cart->user_id,
+                'charge_mode' => $pricing['charge_mode'],
+                'session_base_amount' => $pricing['session_base_amount'],
+                'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+                'platform_fee_amount' => $pricing['platform_fee_amount'],
+                'total_charge_amount' => $pricing['total_charge_amount'],
+                'remaining_balance_amount' => $pricing['remaining_balance_amount'],
                 'type' => 'session_pago_card',
             ],
         ]);
@@ -82,13 +97,9 @@ class StripeController extends Controller
         Stripe::setApiKey($this->stripe_secretkey);
 
         $intentId = $request->intentId;
-        $method = $request->paymentMethod;
+        $method = $request->input('paymentMethod') ?? $request->input('cuando');
         if (!$intentId) {
             return response()->json(['message' => 'Falta el payment_intent_id'], 400);
-        }
-
-        if ($method == "avg") {
-            return response()->json("Pagaras solo el anticipo");
         }
         $cart = AppointmentCart::with('user')
             ->where('payment_intent_id', $intentId)
@@ -115,6 +126,11 @@ class StripeController extends Controller
         }
 
         // Relación + sala
+        $chargeMode = $this->pricingService->normalizeChargeMode(
+            $method ?: data_get($intent, 'metadata.charge_mode')
+        );
+        $pricing = $this->pricingService->buildFromCart($cart, $chargeMode);
+        $cart->forceFill($pricing)->save();
         $relation = $this->service->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
 
         $inicio = "{$cart->fecha} {$cart->hora}";
@@ -128,7 +144,7 @@ class StripeController extends Controller
             'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
             'statusUser' => 'Pending Approve',
             'statusPatient' => 'Pending Approve',
-            'state' => 'Creado',
+            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
             'precio' => $cart->precio,
             'tipoSesion' => $cart->tipoSesion,
             'cart_id' => $cart->id,
@@ -140,12 +156,22 @@ class StripeController extends Controller
             'payer_type' => 'patient',
             'appointment_id' => $appointment->id,
             'patient_id' => $cart->patient_id,
-            'amount' => $cart->precio,
+            'amount' => $pricing['total_charge_amount'],
             'currency' => 'MXN',
             'payment_method' => 'card',
             'status' => 'completed',
             'stripe_payment_id' => $intent->id,
             'receipt_url' => $intent->charges->data[0]->receipt_url ?? null,
+            'concepto' => $chargeMode === 'avg' ? 'session_deposit' : 'session_payment',
+            'session_base_amount' => $pricing['session_base_amount'],
+            'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+            'platform_fee_rate' => $pricing['platform_fee_rate'],
+            'platform_fee_amount' => $pricing['platform_fee_amount'],
+            'total_charge_amount' => $pricing['total_charge_amount'],
+            'psychologist_amount' => $pricing['psychologist_amount'],
+            'remaining_balance_amount' => $pricing['remaining_balance_amount'],
+            'charge_mode' => $pricing['charge_mode'],
+            'payout_status' => $pricing['payout_status'],
         ]);
         $this->generarEnlace($cart->user_id, $cart->patient_id);
         $cart->update([
@@ -195,7 +221,9 @@ class StripeController extends Controller
             return response()->json(['message' => 'No hay una cita pendiente para pagar.'], 404);
         }
 
-        $amount = (int) round($cart->precio * 100);
+        $pricing = $this->pricingService->buildFromCart($cart, $request->input('cuando'));
+        $cart->forceFill($pricing)->save();
+        $amount = (int) round($pricing['total_charge_amount'] * 100);
 
         // 🔒 Normaliza FRONTEND_URL con fallback
         $frontend = trim(config('app.front_url') ?: config('app.url') ?: '', " \t\n\r\0\x0B/");
@@ -227,6 +255,12 @@ class StripeController extends Controller
                     'appointment_cart_id' => $cart->id,
                     'patient_id' => $patient->id,
                     'user_id' => $cart->user_id,
+                    'charge_mode' => $pricing['charge_mode'],
+                    'session_base_amount' => $pricing['session_base_amount'],
+                    'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+                    'platform_fee_amount' => $pricing['platform_fee_amount'],
+                    'total_charge_amount' => $pricing['total_charge_amount'],
+                    'remaining_balance_amount' => $pricing['remaining_balance_amount'],
                 ],
             ],
             'success_url' => $frontend . '/pago/oxxo/exito?session_id={CHECKOUT_SESSION_ID}',
@@ -236,6 +270,7 @@ class StripeController extends Controller
                 'appointment_cart_id' => $cart->id,
                 'patient_id' => $patient->id,
                 'user_id' => $cart->user_id,
+                'charge_mode' => $pricing['charge_mode'],
             ],
             'locale' => 'es-419',
         ]);
@@ -258,7 +293,9 @@ class StripeController extends Controller
             return response()->json(['message' => 'No hay una cita pendiente para pagar.'], 404);
         }
 
-        $amount = (int) round($cart->precio * 100); // MXN -> centavos
+        $pricing = $this->pricingService->buildFromCart($cart, $request->input('cuando'));
+        $cart->forceFill($pricing)->save();
+        $amount = (int) round($pricing['total_charge_amount'] * 100);
 
         $pi = PaymentIntent::create([
             'amount' => $amount,
@@ -273,6 +310,12 @@ class StripeController extends Controller
                 'appointment_cart_id' => $cart->id,
                 'patient_id' => $patient->id,
                 'user_id' => $cart->user_id,
+                'charge_mode' => $pricing['charge_mode'],
+                'session_base_amount' => $pricing['session_base_amount'],
+                'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+                'platform_fee_amount' => $pricing['platform_fee_amount'],
+                'total_charge_amount' => $pricing['total_charge_amount'],
+                'remaining_balance_amount' => $pricing['remaining_balance_amount'],
             ],
         ]);
 
@@ -333,6 +376,9 @@ class StripeController extends Controller
                             $cart = AppointmentCart::with('user')->find($cartId);
                             if ($cart && $cart->estado !== 'pagado') {
                                 // Relación + sala
+                                $chargeMode = $this->pricingService->normalizeChargeMode($meta['charge_mode'] ?? null);
+                                $pricing = $this->pricingService->buildFromCart($cart, $chargeMode);
+                                $cart->forceFill($pricing)->save();
                                 $relation = $this->service->ensureRelationshipAndRoom($userId, $patientId);
 
                                 $inicio = "{$cart->fecha} {$cart->hora}";
@@ -348,7 +394,7 @@ class StripeController extends Controller
                                         'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
                                         'statusUser' => 'Pending Approve',
                                         'statusPatient' => 'Pending Approve',
-                                        'state' => 'Creado',
+                                        'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
                                         'precio' => $cart->precio,
                                         'tipoSesion' => $cart->tipoSesion,
                                         'video_call_room' => $relation->video_call_room,
@@ -360,12 +406,22 @@ class StripeController extends Controller
                                     'payer_type' => 'patient',
                                     'appointment_id' => $appointment->id,
                                     'patient_id' => $cart->patient_id,
-                                    'amount' => $cart->precio,
+                                    'amount' => $pricing['total_charge_amount'],
                                     'currency' => 'MXN',
                                     'payment_method' => 'oxxo',
                                     'status' => 'completed',
                                     'stripe_payment_id' => $pi->id,
                                     'receipt_url' => $cart->stripe_session_id ?? null,
+                                    'concepto' => $chargeMode === 'avg' ? 'session_deposit' : 'session_payment',
+                                    'session_base_amount' => $pricing['session_base_amount'],
+                                    'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+                                    'platform_fee_rate' => $pricing['platform_fee_rate'],
+                                    'platform_fee_amount' => $pricing['platform_fee_amount'],
+                                    'total_charge_amount' => $pricing['total_charge_amount'],
+                                    'psychologist_amount' => $pricing['psychologist_amount'],
+                                    'remaining_balance_amount' => $pricing['remaining_balance_amount'],
+                                    'charge_mode' => $pricing['charge_mode'],
+                                    'payout_status' => $pricing['payout_status'],
                                 ]);
 
                                 $this->generarEnlace($userId, $patientId);

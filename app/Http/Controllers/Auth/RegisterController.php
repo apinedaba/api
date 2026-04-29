@@ -21,10 +21,14 @@ use App\Services\SellerCommissionService;
 
 class RegisterController extends Controller
 {
+    private const EMAIL_REGEX = '/^[^\s@]+@[^\s@]+\.[^\s@]+$/';
+    private const MX_PHONE_REGEX = '/^\d{10}$/';
+
     private $registerValidationRules = [
-        'name' => 'required',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required'
+        'name' => 'required|string|max:255',
+        'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
+        'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
+        'password' => 'required|string|min:6'
     ];
 
     public function registerUser(Request $request, SellerCommissionService $sellerCommissionService)
@@ -46,9 +50,11 @@ class RegisterController extends Controller
             : null;
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'contacto' => $request->contacto,
+            'name' => trim((string) $request->name),
+            'email' => mb_strtolower(trim((string) $request->email)),
+            'contacto' => array_merge($request->contacto ?? [], [
+                'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
+            ]),
             'password' => Hash::make($request->password),
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
@@ -138,12 +144,14 @@ class RegisterController extends Controller
 
         $validateUser = Validator::make($data, [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'contacto.telefono' => 'nullable|string|max:20',
+            'email' => ['nullable', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX],
+            'contacto.telefono' => ['nullable', 'regex:' . self::MX_PHONE_REGEX],
             'password' => 'required|string|min:6'
         ], [
             'name.required' => 'El nombre es obligatorio.',
-            'password.required' => 'La contrasena es obligatoria.'
+            'password.required' => 'La contrasena es obligatoria.',
+            'email.regex' => 'El correo debe tener un formato valido.',
+            'contacto.telefono.regex' => 'El telefono debe tener exactamente 10 digitos y no incluir espacios.'
         ]);
 
         if ($validateUser->fails()) {
@@ -162,11 +170,11 @@ class RegisterController extends Controller
             ], 400);
         }
 
-        if ($phone && strlen($phone) < 10) {
+        if ($phone && !preg_match(self::MX_PHONE_REGEX, $phone)) {
             return response()->json([
                 'message' => 'Ha ocurrido un error de validacion',
                 'errors' => [
-                    'contacto.telefono' => ['El telefono debe tener al menos 10 digitos.'],
+                    'contacto.telefono' => ['El telefono debe tener exactamente 10 digitos y no incluir espacios.'],
                 ]
             ], 400);
         }

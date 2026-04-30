@@ -28,6 +28,7 @@ class ConsultaContacto extends Model
         'precio',
         'formato',
         'categoria',
+        'duracion',
         'discount',
         'discount_type',
         'codigo_descuento',
@@ -51,6 +52,7 @@ class ConsultaContacto extends Model
     ];
 
     protected $casts = [
+        'duracion' => 'integer',
         'package_total_price' => 'decimal:2',
         'package_session_price' => 'decimal:2',
         'coupon_discount_value' => 'decimal:2',

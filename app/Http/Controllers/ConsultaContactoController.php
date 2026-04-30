@@ -29,6 +29,7 @@ class ConsultaContactoController extends Controller
             'fecha' => 'required|string',
             'hora' => 'required|string',
             'user_id' => 'required|exists:users,id',
+            'duracion' => 'nullable|integer|min:1|max:8',
             'session_package_id' => 'nullable|exists:session_packages,id',
             'package_name' => 'nullable|string|max:255',
             'package_total_price' => 'nullable|numeric|min:0',
@@ -66,6 +67,11 @@ class ConsultaContactoController extends Controller
         $payload['tipo_sesion'] = $payload['tipo_sesion'] ?? 'Paquete de sesiones';
         $couponCode = strtoupper(trim($payload['codigo_descuento'] ?? $payload['coupon_code'] ?? ''));
         unset($payload['codigo_descuento'], $payload['coupon_code']);
+
+        $configurationErrors = $this->validateLeadConfiguration($payload);
+        if ($configurationErrors) {
+            throw ValidationException::withMessages($configurationErrors);
+        }
 
         if (empty($payload['motivo']) && $payload['lead_type'] === 'package') {
             $payload['motivo'] = 'Estoy interesado/a en contratar el paquete "' . ($payload['package_name'] ?? 'Paquete de sesiones') . '".';
@@ -161,6 +167,43 @@ class ConsultaContactoController extends Controller
         }
 
         return (float) ($payload['precio'] ?? 0);
+    }
+
+    protected function validateLeadConfiguration(array $payload): array
+    {
+        if (($payload['lead_type'] ?? 'session') === 'package') {
+            $missing = [];
+
+            if (empty($payload['session_package_id']) && empty($payload['package_name'])) {
+                $missing['session_package_id'] = ['Selecciona el paquete que te interesa antes de enviar la solicitud.'];
+            }
+
+            if ((float) ($payload['package_total_price'] ?? 0) <= 0) {
+                $missing['package_total_price'] = ['El paquete debe incluir un precio valido antes de crear el lead.'];
+            }
+
+            return $missing;
+        }
+
+        $missing = [];
+
+        if (blank($payload['tipo_sesion'] ?? null)) {
+            $missing['tipo_sesion'] = ['Selecciona el tipo de sesion.'];
+        }
+
+        if (blank($payload['formato'] ?? null)) {
+            $missing['formato'] = ['Selecciona la modalidad de la sesion.'];
+        }
+
+        if ((int) ($payload['duracion'] ?? 0) <= 0) {
+            $missing['duracion'] = ['Selecciona una duracion valida para la sesion.'];
+        }
+
+        if ((float) ($payload['precio'] ?? 0) <= 0) {
+            $missing['precio'] = ['Selecciona una configuracion con precio antes de enviar la solicitud.'];
+        }
+
+        return $missing;
     }
     public function getData()
     {

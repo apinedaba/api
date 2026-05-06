@@ -9,6 +9,7 @@ const navigationGroups = [
         items: [
             { label: 'Dashboard', href: 'dashboard', match: ['dashboard'] },
             { label: 'Analytics', href: 'analytics', match: ['analytics'] },
+            { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
         ],
     },

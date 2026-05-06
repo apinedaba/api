@@ -19,6 +19,19 @@ class Subscription extends Model
         'trial_reminder_day_1_at',
         'trial_reminder_day_3_at',
         'trial_reminder_day_7_at',
+        'upcoming_charge_notified_for_date',
+        'last_payment_failed_invoice_id',
+        'last_payment_failed_notified_at',
+    ];
+
+    protected $casts = [
+        'trial_ends_at' => 'datetime',
+        'ends_at' => 'datetime',
+        'trial_reminder_day_1_at' => 'datetime',
+        'trial_reminder_day_3_at' => 'datetime',
+        'trial_reminder_day_7_at' => 'datetime',
+        'upcoming_charge_notified_for_date' => 'date',
+        'last_payment_failed_notified_at' => 'datetime',
     ];
 
     public function user()

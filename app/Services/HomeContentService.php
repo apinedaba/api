@@ -38,7 +38,9 @@ class HomeContentService
     {
         $home = $this->read();
         $home['hero'] = (string) ($payload['hero'] ?? '');
-        $home['homeSlider'] = $this->decodeJsonField($payload['homeSlider'] ?? '[]', 'homeSlider');
+        $homeSlider = $this->decodeJsonField($payload['homeSlider'] ?? '[]', 'homeSlider');
+        $this->validateHomeSlider($homeSlider);
+        $home['homeSlider'] = $homeSlider;
         $home['promotions'] = $this->decodeJsonField($payload['promotions'] ?? '[]', 'promotions');
         $home['especialidades'] = $this->decodeJsonField($payload['especialidades'] ?? '[]', 'especialidades');
         $home['sections'] = $this->decodeJsonField($payload['sections'] ?? '[]', 'sections');
@@ -110,5 +112,26 @@ class HomeContentService
     protected function encodeForTextarea(array $data): string
     {
         return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    protected function validateHomeSlider(array $homeSlider): void
+    {
+        if (empty($homeSlider)) {
+            return; // Permitir array vacío
+        }
+
+        foreach ($homeSlider as $index => $slide) {
+            if (!is_array($slide)) {
+                throw new InvalidArgumentException("El slide #{$index} del homeSlider debe ser un objeto.");
+            }
+
+            $imageUrl = trim($slide['imageUrl'] ?? '');
+
+            if (empty($imageUrl)) {
+                throw new InvalidArgumentException("El slide #{$index} requiere una imagen para desktop (imageUrl).");
+            }
+
+            // imageUrlMobile es opcional
+        }
     }
 }

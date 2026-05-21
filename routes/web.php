@@ -71,7 +71,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'update'])->name('help-center.update');
     Route::delete('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'destroy'])->name('help-center.destroy');
     Route::get('/home-content', [HomeContentController::class, 'index'])->name('home-content.index');
+    Route::get('/home-content/professionals', [HomeContentController::class, 'getProfessionals'])->name('home-content.professionals');
     Route::put('/home-content', [HomeContentController::class, 'update'])->name('home-content.update');
+    Route::post('/home-content/upload-image', [HomeContentController::class, 'uploadImage'])->name('home-content.upload-image')->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');

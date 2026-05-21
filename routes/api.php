@@ -56,6 +56,7 @@ use Illuminate\Support\Facades\URL;
 // Rutas publicas
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
+Route::get('pages/home', [HomeController::class, 'getImages']);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])

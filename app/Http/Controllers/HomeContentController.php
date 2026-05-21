@@ -208,13 +208,13 @@ class HomeContentController extends Controller
                 'minWidth' => 800,
                 'minHeight' => 400,
                 'expectedRatio' => '2.0', // 16:8 aprox
-                'tolerance' => 0.5,
+                'tolerance' => 0.8,
             ],
             'promotions' => [
                 'minWidth' => 600,
                 'minHeight' => 300,
                 'expectedRatio' => '2.0', // 16:8 aprox
-                'tolerance' => 0.5,
+                'tolerance' => 0.8,
             ],
             'profesionales' => [
                 'minWidth' => 300,

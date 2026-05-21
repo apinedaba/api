@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\Payment;
@@ -12,11 +13,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Appointment extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
+        'organization_id',
         'user',
         'patient',
+        'clinic_id',
         'title',
         'start',
         'end',
@@ -60,6 +63,11 @@ class Appointment extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user', 'id');
+    }
+
+    public function clinic()
+    {
+        return $this->belongsTo(Clinic::class, 'clinic_id');
     }
 
     public function cart()

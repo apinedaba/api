@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Models\ClinicMembership;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\Availabiliti;
@@ -113,6 +114,7 @@ class AdminAppointmentController extends Controller
             $appointment = Appointment::create([
                 'user' => $request->user_id,
                 'patient' => $request->patient_id,
+                'clinic_id' => $this->resolveClinicIdForProfessional((int) $request->user_id),
                 'title' => $request->motivo ?? 'Cita programada',
                 'start' => $request->fecha_inicio,
                 'end' => $request->fecha_fin,
@@ -488,5 +490,13 @@ class AdminAppointmentController extends Controller
                 'message' => 'Error al obtener estadísticas'
             ], 500);
         }
+    }
+
+    protected function resolveClinicIdForProfessional(int $userId): ?int
+    {
+        return ClinicMembership::query()
+            ->where('user_id', $userId)
+            ->where('is_primary', true)
+            ->value('clinic_id');
     }
 }

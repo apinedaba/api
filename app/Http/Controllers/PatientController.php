@@ -130,6 +130,7 @@ class PatientController extends Controller
         $validationRules = [
             'email' => ['nullable', 'email'],
             'contacto.telefono' => ['nullable', 'string', 'max:20'],
+            'organization_id' => ['nullable', 'exists:organizations,id'],
         ];
 
         if (!$email && !$telefono) {
@@ -165,6 +166,7 @@ class PatientController extends Controller
         if ($isNewPatient) {
             $passwordSeed = $request->input('password') ?: $telefono ?: $email;
             $data = array_merge($data, $attributes, [
+                'organization_id' => $request->input('organization_id') ?: $request->attributes->get('active_organization')?->id,
                 'password' => Hash::make($passwordSeed),
             ]);
 
@@ -173,6 +175,12 @@ class PatientController extends Controller
             $patient->save();
         } else {
             $dirty = false;
+            $organizationId = $request->input('organization_id') ?: $request->attributes->get('active_organization')?->id;
+
+            if (!$patient->organization_id && $organizationId) {
+                $patient->organization_id = $organizationId;
+                $dirty = true;
+            }
 
             if (!$patient->email && $email) {
                 $patient->email = $email;

@@ -69,7 +69,7 @@ class SubscriptionStatusService
             'status_label' => $this->statusLabel($uiStatus),
             'headline' => $this->headlineFor($uiStatus),
             'description' => $this->descriptionFor($uiStatus, $periodEnd),
-            'can_access' => in_array($uiStatus, ['active', 'trialing', 'canceling'], true),
+            'can_access' => in_array($uiStatus, ['active', 'trial', 'trialing', 'canceling', 'clinic_managed'], true),
             'can_manage' => filled($user->stripe_id),
             'show_available_plans' => in_array($uiStatus, ['not_subscribed', 'init', 'canceled', 'trial_disabled', 'incomplete_expired'], true),
             'requires_payment_update' => in_array($uiStatus, ['past_due', 'unpaid', 'incomplete'], true),
@@ -141,7 +141,9 @@ class SubscriptionStatusService
 
         return match ($status) {
             'trialing' => 'trialing',
+            'trial' => 'trialing',
             'active' => 'active',
+            'clinic_managed' => 'clinic_managed',
             'init' => 'init',
             'past_due' => 'past_due',
             'unpaid' => 'unpaid',
@@ -159,6 +161,7 @@ class SubscriptionStatusService
         return match ($status) {
             'trialing' => 'Prueba activa',
             'active' => 'Activa',
+            'clinic_managed' => 'Administrada por clínica',
             'init' => 'Registro iniciado',
             'canceling' => 'Cancelada al final del periodo',
             'past_due' => 'Pago pendiente',
@@ -176,6 +179,10 @@ class SubscriptionStatusService
 
     protected function headlineFor(string $status): string
     {
+        if ($status === 'clinic_managed') {
+            return 'Tu acceso lo administra tu clínica.';
+        }
+
         return match ($status) {
             'trialing' => 'Tu prueba está activa.',
             'active' => 'Tu suscripción está activa.',
@@ -195,6 +202,10 @@ class SubscriptionStatusService
 
     protected function descriptionFor(string $status, ?Carbon $periodEnd): string
     {
+        if ($status === 'clinic_managed') {
+            return 'Tu clínica cubre tu acceso con uno de sus espacios disponibles. No necesitas contratar una membresía individual.';
+        }
+
         $formattedEnd = $this->formatCarbonLabel($periodEnd);
 
         return match ($status) {

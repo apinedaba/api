@@ -25,6 +25,7 @@ use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
+use Illuminate\Support\Str;
 
 class StripeController extends Controller
 {
@@ -412,6 +413,7 @@ class StripeController extends Controller
         Stripe::setApiKey($this->stripe_secretkey);
         $request->validate(['plan_id' => 'required|string']);
         $user = $request->user();
+        $psychologistFrontendUrl = $this->resolvePsychologistFrontendUrl();
         $subscription = $user->subscription()->first();
         if (!$user->stripe_id) {
             $customer = \Stripe\Customer::create(['email' => $user->email, 'name' => $user->name]);
@@ -439,14 +441,14 @@ class StripeController extends Controller
                 );
 
                 return response()->json([
-                    'url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=reactivated',
+                    'url' => $psychologistFrontendUrl . '/perfil/suscripcion?status=reactivated',
                 ]);
             }
 
             if ($this->shouldRedirectToPortal($existingSubscription)) {
                 $portalSession = BillingPortalSession::create([
                     'customer' => $user->stripe_id,
-                    'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
+                    'return_url' => $psychologistFrontendUrl . '/perfil/suscripcion',
                 ]);
 
                 return response()->json([
@@ -460,8 +462,8 @@ class StripeController extends Controller
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
             'line_items' => [['price' => $request->plan_id, 'quantity' => 1]],
-            'success_url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=success',
-            'cancel_url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=canceled',
+            'success_url' => $psychologistFrontendUrl . '/perfil/suscripcion?status=success',
+            'cancel_url' => $psychologistFrontendUrl . '/perfil/suscripcion?status=canceled',
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
@@ -484,13 +486,14 @@ class StripeController extends Controller
     {
         Stripe::setApiKey($this->stripe_secretkey);
         $user = $request->user();
+        $psychologistFrontendUrl = $this->resolvePsychologistFrontendUrl();
         if (!$user->stripe_id) {
             return response()->json(['error' => 'Usuario no tiene cliente de Stripe.'], 400);
         }
 
         $portalSession = BillingPortalSession::create([
             'customer' => $user->stripe_id,
-            'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
+            'return_url' => $psychologistFrontendUrl . '/perfil/suscripcion',
         ]);
 
         return response()->json(['url' => $portalSession->url]);
@@ -640,5 +643,43 @@ class StripeController extends Controller
     protected function shouldRedirectToPortal($subscription): bool
     {
         return in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true);
+    }
+
+    protected function resolvePsychologistFrontendUrl(): string
+    {
+        $candidates = [
+            config('app.front_url_psicologo'),
+            config('app.front_url_user'),
+            config('app.front_url'),
+            config('app.frontend_url'),
+            'https://minder.mindmeet.com.mx',
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeAbsoluteUrl($candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return 'https://minder.mindmeet.com.mx';
+    }
+
+    protected function normalizeAbsoluteUrl(?string $url): ?string
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return null;
+        }
+
+        if (!Str::startsWith($url, ['http://', 'https://'])) {
+            $url = 'https://' . ltrim($url, '/');
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        return rtrim($url, '/');
     }
 }

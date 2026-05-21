@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Patient_Medication;
 use App\Models\PatientUser;
 use App\Models\Expediente;
@@ -13,9 +14,9 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Patient extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use BelongsToOrganization, HasApiTokens, HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'phone', 'password', 'address', 'contacto', 'historial', 'activo', 'status', 'historiaClinica', 'relevantes', 'personales', 'image'];
+    protected $fillable = ['organization_id', 'name', 'email', 'phone', 'password', 'address', 'contacto', 'historial', 'activo', 'status', 'historiaClinica', 'relevantes', 'personales', 'image'];
 
     protected $hidden = ['password', 'created_at', 'updated_at', 'remember_token', 'email_verified_at'];
 

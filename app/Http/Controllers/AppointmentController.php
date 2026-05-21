@@ -165,6 +165,8 @@ class AppointmentController extends Controller
             'until' => 'nullable|date|after_or_equal:start',
             'interval' => 'nullable|integer|min:1',
             'syncWithGoogle' => 'nullable|boolean',
+            'clinic_id' => 'nullable|exists:clinics,id',
+            'organization_id' => 'nullable|exists:organizations,id',
         ]);
 
         if (in_array('user', $middlewares, true)) {
@@ -179,9 +181,17 @@ class AppointmentController extends Controller
             ], 403);
         }
 
+        $clinicId = $this->resolveClinicContext(
+            $request->input('clinic_id'),
+            (int) $request->input('user'),
+            (int) $request->input('patient')
+        );
+        $organizationId = $request->input('organization_id')
+            ?: $request->attributes->get('active_organization')?->id;
+
         if ($request->filled('lead') && in_array('user', $middlewares, true)) {
             $request->merge([
-                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user')),
+                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user'), $clinicId, $organizationId),
             ]);
         }
 
@@ -193,7 +203,7 @@ class AppointmentController extends Controller
             ], 422);
         }
 
-        $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'));
+        $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'), $clinicId);
         $start = Carbon::parse($request->input('start'));
         $end = Carbon::parse($request->input('end'));
         $duration = max($start->diffInMinutes($end), 1);
@@ -223,8 +233,10 @@ class AppointmentController extends Controller
 
         foreach ($occurrences as $occurrence) {
             $appointment = Appointment::create([
+                'organization_id' => $organizationId,
                 'user' => $request->input('user'),
                 'patient' => $request->input('patient'),
+                'clinic_id' => $clinicId,
                 'title' => $request->input('title'),
                 'start' => $occurrence['start'],
                 'end' => $occurrence['end'],
@@ -510,7 +522,7 @@ class AppointmentController extends Controller
         return in_array($status, ['cancel', 'cancelado', 'cancelada'], true);
     }
 
-    private function resolveLeadToPatient(int $leadId, int $userId): int
+    private function resolveLeadToPatient(int $leadId, int $userId, ?int $clinicId = null, ?int $organizationId = null): int
     {
         $consulta = ConsultaContacto::findOrFail($leadId);
 
@@ -518,11 +530,17 @@ class AppointmentController extends Controller
             ['email' => $consulta->email],
             [
                 'name' => $consulta->nombre,
+                'organization_id' => $organizationId,
                 'contacto' => ['telefono' => $consulta->telefono],
                 'phone' => preg_replace('/\D+/', '', (string) $consulta->telefono) ?: null,
                 'password' => Hash::make($consulta->telefono ?? Str::random(12)),
             ]
         );
+
+        if (!$patient->organization_id && $organizationId) {
+            $patient->organization_id = $organizationId;
+            $patient->save();
+        }
 
         $relacionExiste = PatientUser::where('user', $userId)
             ->where('patient', $patient->id)
@@ -532,6 +550,7 @@ class AppointmentController extends Controller
             PatientUser::create([
                 'user' => $userId,
                 'patient' => $patient->id,
+                'clinic_id' => $clinicId ?: $this->resolveClinicContext(null, $userId, $patient->id),
                 'activo' => true,
                 'status' => 'Vinculado',
                 'video_call_room' => 'mindmeet-room-' . Str::uuid(),
@@ -540,6 +559,29 @@ class AppointmentController extends Controller
         }
 
         return $patient->id;
+    }
+
+    private function resolveClinicContext($requestedClinicId, int $userId, ?int $patientId = null): ?int
+    {
+        if ($requestedClinicId) {
+            return (int) $requestedClinicId;
+        }
+
+        if ($patientId) {
+            $existingRelationClinicId = PatientUser::query()
+                ->where('user', $userId)
+                ->where('patient', $patientId)
+                ->value('clinic_id');
+
+            if ($existingRelationClinicId) {
+                return (int) $existingRelationClinicId;
+            }
+        }
+
+        return User::with('primaryClinicMembership')
+            ->find($userId)
+            ?->primaryClinicMembership
+            ?->clinic_id;
     }
 
     public function sendNotificacionStatusEmail($appointment, ?Appointment $originalAppointment = null): bool

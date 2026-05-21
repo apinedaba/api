@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Models\Clinic;
+use App\Models\ClinicMembership;
 use App\Models\Patient;
 use App\Models\Vendedor;
 use App\Models\Subscription;
@@ -15,21 +17,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
 
 class RegisterController extends Controller
 {
-    private $registerValidationRules = [
-        'name' => 'required',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required'
-    ];
+    private const EMAIL_REGEX = '/^[^\s@]+@[^\s@]+\.[^\s@]+$/';
+    private const MX_PHONE_REGEX = '/^\d{10}$/';
 
     public function registerUser(Request $request, SellerCommissionService $sellerCommissionService)
     {
-        $validateUser = Validator::make($request->all(), $this->registerValidationRules);
+        $validateUser = Validator::make($request->all(), $this->registerValidationRules($request));
 
         if ($validateUser->fails()) {
             return response()->json([
@@ -46,13 +46,20 @@ class RegisterController extends Controller
             : null;
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'contacto' => $request->contacto,
+            'name' => trim((string) $request->name),
+            'email' => mb_strtolower(trim((string) $request->email)),
+            'contacto' => array_merge($request->contacto ?? [], [
+                'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
+            ]),
+            'configurations' => $this->buildWorkspaceConfiguration($request),
             'password' => Hash::make($request->password),
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
         ]);
+
+        if ($this->resolveAccountType($request) === 'clinic') {
+            $this->createClinicWorkspaceForOwner($user, $request);
+        }
 
         if ($vendedor) {
             Subscription::firstOrCreate(
@@ -82,6 +89,94 @@ class RegisterController extends Controller
             'message' => 'Te has registrado',
             'type' => 'success',
         ], 200);
+    }
+
+    private function registerValidationRules(Request $request): array
+    {
+        $accountType = $this->resolveAccountType($request);
+
+        $rules = [
+            'account_type' => ['nullable', 'in:independent,clinic'],
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
+            'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
+            'password' => 'required|string|min:6',
+        ];
+
+        if ($accountType === 'clinic') {
+            $rules['clinic_name'] = ['required', 'string', 'max:255'];
+        }
+
+        return $rules;
+    }
+
+    private function resolveAccountType(Request $request): string
+    {
+        return $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
+    }
+
+    private function buildWorkspaceConfiguration(Request $request): array
+    {
+        $accountType = $this->resolveAccountType($request);
+        $existingConfigurations = is_array($request->input('configurations')) ? $request->input('configurations') : [];
+
+        return array_merge($existingConfigurations, [
+            'workspace_type' => $accountType,
+            'registration_mode' => $accountType,
+            'clinic_onboarding_pending' => $accountType === 'clinic',
+        ]);
+    }
+
+    private function createClinicWorkspaceForOwner(User $user, Request $request): Clinic
+    {
+        $clinicName = trim((string) $request->input('clinic_name'));
+        $clinic = Clinic::create([
+            'owner_user_id' => $user->id,
+            'name' => $clinicName,
+            'slug' => $this->generateUniqueClinicSlug($clinicName),
+            'account_type' => 'clinic',
+            'status' => 'active',
+            'base_psychologist_limit' => 6,
+            'addon_psychologist_slots' => 0,
+            'contact' => [
+                'owner_name' => $user->name,
+                'email' => $user->email,
+                'telefono' => data_get($user->contacto, 'telefono'),
+            ],
+            'settings' => [
+                'created_from_registration' => true,
+            ],
+        ]);
+
+        ClinicMembership::updateOrCreate(
+            [
+                'clinic_id' => $clinic->id,
+                'user_id' => $user->id,
+            ],
+            [
+                'role' => 'owner',
+                'is_primary' => true,
+                'can_manage_schedule' => true,
+                'can_manage_patients' => true,
+                'can_view_finance' => true,
+            ]
+        );
+
+        return $clinic;
+    }
+
+    private function generateUniqueClinicSlug(string $name): string
+    {
+        $baseSlug = Str::slug($name) ?: 'clinica';
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while (Clinic::where('slug', $slug)->exists()) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
     }
 
     public function verifyCode(Request $request)
@@ -138,12 +233,14 @@ class RegisterController extends Controller
 
         $validateUser = Validator::make($data, [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'contacto.telefono' => 'nullable|string|max:20',
+            'email' => ['nullable', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX],
+            'contacto.telefono' => ['nullable', 'regex:' . self::MX_PHONE_REGEX],
             'password' => 'required|string|min:6'
         ], [
             'name.required' => 'El nombre es obligatorio.',
-            'password.required' => 'La contrasena es obligatoria.'
+            'password.required' => 'La contrasena es obligatoria.',
+            'email.regex' => 'El correo debe tener un formato valido.',
+            'contacto.telefono.regex' => 'El telefono debe tener exactamente 10 digitos y no incluir espacios.'
         ]);
 
         if ($validateUser->fails()) {
@@ -162,11 +259,11 @@ class RegisterController extends Controller
             ], 400);
         }
 
-        if ($phone && strlen($phone) < 10) {
+        if ($phone && !preg_match(self::MX_PHONE_REGEX, $phone)) {
             return response()->json([
                 'message' => 'Ha ocurrido un error de validacion',
                 'errors' => [
-                    'contacto.telefono' => ['El telefono debe tener al menos 10 digitos.'],
+                    'contacto.telefono' => ['El telefono debe tener exactamente 10 digitos y no incluir espacios.'],
                 ]
             ], 400);
         }

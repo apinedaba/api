@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AiDiagnoseController;
+use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentRequestController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
+use App\Http\Controllers\ClinicWorkspaceController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
@@ -41,6 +43,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\SessionPackageController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
@@ -101,17 +104,49 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.
 // Aquí van todas las funcionalidades principales de la plataforma.
-Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organization'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
-        return $request->user()->load('subscription', 'escuelas');
+        $user = $request->user()->load([
+            'subscription',
+            'escuelas',
+            'clinicMemberships.clinic',
+            'primaryClinicMembership.clinic',
+            'ownedClinics',
+            'organizationMemberships.organization',
+            'ownedOrganizations',
+        ])->append([]);
+
+        return array_merge($user->toArray(), [
+            'workspace_access' => $user->resolveWorkspaceAccess(),
+            'clinic_access' => $user->resolveClinicAccess(),
+            'organization_access' => $user->resolveOrganizationAccess(),
+            'current_clinic_membership' => optional($user->currentClinicMembership(), function ($membership) {
+                return [
+                    'id' => $membership->id,
+                    'clinic_id' => $membership->clinic_id,
+                    'role' => $membership->role,
+                    'is_primary' => (bool) $membership->is_primary,
+                    'can_manage_schedule' => (bool) $membership->can_manage_schedule,
+                    'can_manage_patients' => (bool) $membership->can_manage_patients,
+                    'can_view_finance' => (bool) $membership->can_view_finance,
+                    'meta' => $membership->meta ?? [],
+                    'clinic' => $membership->clinic ? [
+                        'id' => $membership->clinic->id,
+                        'name' => $membership->clinic->name,
+                        'slug' => $membership->clinic->slug,
+                    ] : null,
+                ];
+            }),
+        ]);
     });
     Route::get('/subscription/status', function (Request $request) {
 
         $user = $request->user()->load('subscription');
 
         return [
-            'active' => optional($user->subscription)->stripe_status === 'active'
+            'active' => in_array(optional($user->subscription)->stripe_status, ['active', 'trial', 'trialing', 'clinic_managed'], true),
+            'managed_by_clinic' => optional($user->subscription)->stripe_status === 'clinic_managed',
         ];
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
@@ -215,6 +250,19 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::post('user/documentacion/{driveId}/favorito', [DocumentacionController::class, 'toggleFavorito']);
     Route::get('user/documentacion/{driveId}/download', [DocumentacionController::class, 'download']);
     Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
+    Route::get('user/help-center', [HelpCenterController::class, 'index']);
+    Route::get('user/organizations', [OrganizationController::class, 'index']);
+    Route::post('user/organizations', [OrganizationController::class, 'store']);
+    Route::post('user/organizations/{organization}/switch', [OrganizationController::class, 'switch']);
+    Route::get('user/organizations/{organization}/members', [OrganizationController::class, 'members']);
+    Route::post('user/organizations/{organization}/members/invite', [OrganizationController::class, 'inviteMember']);
+    Route::get('user/clinics', [ClinicWorkspaceController::class, 'index']);
+    Route::post('user/clinics', [ClinicWorkspaceController::class, 'store']);
+    Route::get('user/clinics/{clinic}', [ClinicWorkspaceController::class, 'show']);
+    Route::put('user/clinics/{clinic}', [ClinicWorkspaceController::class, 'update']);
+    Route::post('user/clinics/{clinic}/psychologists', [ClinicWorkspaceController::class, 'storePsychologist']);
+    Route::put('user/clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'updatePsychologist']);
+    Route::delete('user/clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'detachPsychologist']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 
@@ -283,3 +331,5 @@ require __DIR__ . '/api/professional.php';
 require __DIR__ . '/api/deviceToken.php';
 require __DIR__ . '/api/timeline.php';
 require __DIR__ . '/api/attachments.php';
+require __DIR__ . '/api/minder.php';
+require __DIR__ . '/api/red.php';

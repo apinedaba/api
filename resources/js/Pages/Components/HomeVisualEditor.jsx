@@ -45,6 +45,7 @@ export default function HomeVisualEditor({ data, onChange }) {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
     const slideImageInputRef = useRef(null);
+    const slideImageMobileInputRef = useRef(null);
     const { toasts, addToast, removeToast } = useToast();
 
     const handleImageClick = (type, index, field = 'imageUrl') => {
@@ -138,9 +139,25 @@ export default function HomeVisualEditor({ data, onChange }) {
         }
     };
 
+    const handleSlideImageUploadMobile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const imageUrl = await uploadToCloudinary(file, 'slider-mobile');
+            setSlideForm({ ...slideForm, imageUrlMobile: imageUrl });
+            addToast('Imagen móvil del slide subida', 'success', 2000);
+        } catch (error) {
+            addToast(`Error: ${error.message}`, 'error', 4000);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleSaveSlide = () => {
         if (!slideForm || !slideForm.imageUrl) {
-            addToast('La imagen es requerida', 'warning', 3000);
+            addToast('La imagen para desktop es requerida', 'warning', 3000);
             return;
         }
 
@@ -404,6 +421,40 @@ export default function HomeVisualEditor({ data, onChange }) {
                             type="file"
                             accept="image/*"
                             onChange={handleSlideImageUpload}
+                            className="hidden"
+                        />
+
+                        {/* Imagen Mobile (Opcional) */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-2">
+                                📱 Imagen Móvil (Opcional)
+                            </label>
+                            <div
+                                onClick={() => slideImageMobileInputRef.current?.click()}
+                                className="relative h-32 bg-slate-100 rounded-lg overflow-hidden cursor-pointer group"
+                            >
+                                {slideForm.imageUrlMobile ? (
+                                    <img
+                                        src={slideForm.imageUrlMobile}
+                                        alt="Slide Mobile"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-2xl opacity-50">
+                                        📱
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                    <span className="text-2xl">📤</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input
+                            ref={slideImageMobileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleSlideImageUploadMobile}
                             className="hidden"
                         />
 

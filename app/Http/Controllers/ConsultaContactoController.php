@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
 use App\Notifications\NuevoPosiblePaciente;
 use App\Notifications\ConfirmacionPaciente;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ConsultaContactoController extends Controller
@@ -101,6 +102,7 @@ class ConsultaContactoController extends Controller
                 'final_amount' => $consulta->final_amount,
             ],
         ]);
+        $notificationErrors = [];
         try {
             $consulta->notify(new ConfirmacionPaciente());
             $psicologo = \App\Models\User::find($request->user_id);
@@ -116,12 +118,16 @@ class ConsultaContactoController extends Controller
                 }
             }
         } catch (\Throwable $th) {
-            \Log::error("ERROR REAL: " . $th->getMessage());
+            $notificationErrors[] = 'notification_failed';
+            Log::warning("Lead notification failed: " . $th->getMessage(), [
+                'lead_id' => $consulta->id,
+            ]);
         }
 
         return response()->json([
             'status' => 'success',
             'message' => '¡Consulta enviada con éxito!',
+            'warnings' => $notificationErrors,
             'data' => $consulta
         ], 201);
     }

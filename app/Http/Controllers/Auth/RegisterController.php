@@ -12,6 +12,7 @@ use App\Support\PatientIdentity;
 use Carbon\Carbon;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -109,6 +110,11 @@ class RegisterController extends Controller
         $user->markEmailAsVerified();
         $user->forceFill(['verification_code' => null, 'code_expires_at' => null])->save();
 
+        if ($request->hasSession()) {
+            Auth::guard('user_web')->login($user, true);
+            $request->session()->regenerate();
+        }
+
         return response()->json([
             'message' => 'Correo verificado con exito',
             'type' => 'success',
@@ -200,9 +206,16 @@ class RegisterController extends Controller
         } catch (\Throwable $th) {
             Log::error('Error al notificar nuevo paciente auto-registrado: ' . $th->getMessage());
         }
+
+        if ($request->hasSession()) {
+            Auth::guard('patient_web')->login($patient, true);
+            $request->session()->regenerate();
+        }
+
         return response()->json([
             'message' => 'El usuario se ha creado',
-            'token' => $patient->createToken('patient_token')->plainTextToken
+            'token' => $patient->createToken('patient_token')->plainTextToken,
+            'user' => $patient,
         ], 200);
     }
 

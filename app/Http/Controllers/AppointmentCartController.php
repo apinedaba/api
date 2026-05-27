@@ -69,6 +69,12 @@ class AppointmentCartController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->has('duracion')) {
+            $request->merge([
+                'duracion' => (string) $request->input('duracion'),
+            ]);
+        }
+
         $request->validate([
             'user_id' => 'required|exists:users,id',
             'tipoSesion' => 'required|string',
@@ -79,17 +85,61 @@ class AppointmentCartController extends Controller
         //         'estado' => 'pendiente',
         //     ]);
         $patient = auth()->user();  // auth:patient
+        $estado = $request->estado === 'pendientePago' ? 'pendientePago' : 'pendiente';
+        $cartPayload = [
+            'user_id' => $request->input('user_id'),
+            'fecha' => $request->input('fecha'),
+            'hora' => $request->input('hora'),
+            'tipoSesion' => $request->input('tipoSesion'),
+            'duracion' => (string) $request->input('duracion'),
+            'precio' => $request->input('precio'),
+            'formato' => $this->firstScalar($request->input('formato')),
+            'discount' => $this->nullableNumeric($request->input('discount')),
+            'discountType' => $this->firstScalar($request->input('discountType')),
+            'originalPrice' => $this->nullableNumeric($request->input('originalPrice')),
+            'categoria' => $this->firstScalar($request->input('categoria')),
+            'patient_id' => $patient->id,
+            'estado' => $estado,
+        ];
+
         $cart = AppointmentCart::updateOrCreate(
-            $request->except(['categoria', 'user']) + [
+            [
                 'patient_id' => $patient->id,
-                'estado' => $request->estado === 'pendientePago' ? 'pendientePago' : 'pendiente',
-                'user_id' => $request->user_id,
-            ]
+                'estado' => $estado,
+            ],
+            $cartPayload
         );
 
         $this->pricingService->fillCart($cart)->save();
 
         return response()->json($cart);
+    }
+
+    private function firstScalar(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $scalar = $this->firstScalar($item);
+                if ($scalar !== null && $scalar !== '') {
+                    return $scalar;
+                }
+            }
+
+            return null;
+        }
+
+        return is_scalar($value) ? $value : null;
+    }
+
+    private function nullableNumeric(mixed $value): mixed
+    {
+        $scalar = $this->firstScalar($value);
+
+        if ($scalar === null || $scalar === '') {
+            return null;
+        }
+
+        return is_numeric($scalar) ? $scalar : null;
     }
 
     /**

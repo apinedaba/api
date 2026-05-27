@@ -56,8 +56,18 @@ return [
             'provider' => 'users',
         ],
 
+        'user_web' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
         'patient' => [
             'driver' => 'sanctum',
+            'provider' => 'patients',
+        ],
+
+        'patient_web' => [
+            'driver' => 'session',
             'provider' => 'patients',
         ],
     ],

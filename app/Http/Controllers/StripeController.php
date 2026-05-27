@@ -8,6 +8,7 @@ use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
@@ -26,6 +27,7 @@ use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
+use App\Notifications\SessionPaymentRegisteredNotification;
 
 class StripeController extends Controller
 {
@@ -105,6 +107,10 @@ class StripeController extends Controller
             ->where('payment_intent_id', $intentId)
             ->first();
 
+        if (!$cart && $request->filled('cartId')) {
+            $cart = AppointmentCart::with('user')->find($request->input('cartId'));
+        }
+
         if (!$cart) {
             $existing = Appointment::where('cart_id', function ($q) use ($intentId) {
                 $q->select('id')->from('appointment_carts')->where('payment_intent_id', $intentId)->limit(1);
@@ -113,11 +119,6 @@ class StripeController extends Controller
             return $existing
                 ? response()->json($existing)
                 : response()->json(['message' => 'No se encontró carrito o cita'], 404);
-        }
-
-        $existing = Appointment::where('cart_id', $cart->id)->first();
-        if ($existing) {
-            return response()->json($existing);
         }
 
         $intent = PaymentIntent::retrieve($intentId);
@@ -131,6 +132,21 @@ class StripeController extends Controller
         );
         $pricing = $this->pricingService->buildFromCart($cart, $chargeMode);
         $cart->forceFill($pricing)->save();
+
+        $existing = Appointment::where('cart_id', $cart->id)->first();
+        if ($existing) {
+            $this->ensureCompletedPayment($cart, $existing, $intent, $pricing, 'card');
+            $this->generarEnlace($cart->user_id, $cart->patient_id);
+            $cart->update([
+                'estado' => 'pagado',
+                'payment_intent_id' => null,
+                'stripe_session_id' => null,
+                'appointment_id' => $existing->id
+            ]);
+
+            return response()->json($existing);
+        }
+
         $relation = $this->service->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
 
         $inicio = "{$cart->fecha} {$cart->hora}";
@@ -151,28 +167,7 @@ class StripeController extends Controller
             'video_call_room' => $relation->video_call_room,
         ]);
 
-        $payment = Payment::create([
-            'user_id' => $cart->user_id,
-            'payer_type' => 'patient',
-            'appointment_id' => $appointment->id,
-            'patient_id' => $cart->patient_id,
-            'amount' => $pricing['total_charge_amount'],
-            'currency' => 'MXN',
-            'payment_method' => 'card',
-            'status' => 'completed',
-            'stripe_payment_id' => $intent->id,
-            'receipt_url' => $intent->charges->data[0]->receipt_url ?? null,
-            'concepto' => $chargeMode === 'avg' ? 'session_deposit' : 'session_payment',
-            'session_base_amount' => $pricing['session_base_amount'],
-            'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
-            'platform_fee_rate' => $pricing['platform_fee_rate'],
-            'platform_fee_amount' => $pricing['platform_fee_amount'],
-            'total_charge_amount' => $pricing['total_charge_amount'],
-            'psychologist_amount' => $pricing['psychologist_amount'],
-            'remaining_balance_amount' => $pricing['remaining_balance_amount'],
-            'charge_mode' => $pricing['charge_mode'],
-            'payout_status' => $pricing['payout_status'],
-        ]);
+        $this->ensureCompletedPayment($cart, $appointment, $intent, $pricing, 'card');
         $this->generarEnlace($cart->user_id, $cart->patient_id);
         $cart->update([
             'estado' => 'pagado',
@@ -183,6 +178,60 @@ class StripeController extends Controller
 
 
         return response()->json($appointment);
+    }
+
+    private function ensureCompletedPayment(
+        AppointmentCart $cart,
+        Appointment $appointment,
+        PaymentIntent $intent,
+        array $pricing,
+        string $paymentMethod
+    ): Payment {
+        $paymentPayload = [
+            'user_id' => $cart->user_id,
+            'payer_type' => 'patient',
+            'appointment_id' => $appointment->id,
+            'patient_id' => $cart->patient_id,
+            'amount' => $pricing['total_charge_amount'],
+            'currency' => 'MXN',
+            'payment_method' => $paymentMethod,
+            'status' => 'completed',
+            'receipt_url' => data_get($intent, 'charges.data.0.receipt_url'),
+            'session_base_amount' => $pricing['session_base_amount'],
+            'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
+            'platform_fee_rate' => $pricing['platform_fee_rate'],
+            'platform_fee_amount' => $pricing['platform_fee_amount'],
+            'total_charge_amount' => $pricing['total_charge_amount'],
+            'psychologist_amount' => $pricing['psychologist_amount'],
+            'remaining_balance_amount' => $pricing['remaining_balance_amount'],
+            'charge_mode' => $pricing['charge_mode'],
+            'payout_status' => $pricing['payout_status'],
+        ];
+
+        if (Schema::hasColumn('payments', 'concepto')) {
+            $paymentPayload['concepto'] = $pricing['charge_mode'] === 'avg'
+                ? 'session_deposit'
+                : 'session_payment';
+        }
+
+        $payment = Payment::updateOrCreate(
+            ['stripe_payment_id' => $intent->id],
+            $paymentPayload
+        );
+
+        if ($payment->wasRecentlyCreated) {
+            try {
+                $cart->user?->notify(new SessionPaymentRegisteredNotification($appointment, $payment));
+            } catch (\Throwable $th) {
+                Log::warning('Session payment notification failed', [
+                    'payment_id' => $payment->id,
+                    'appointment_id' => $appointment->id,
+                    'message' => $th->getMessage(),
+                ]);
+            }
+        }
+
+        return $payment;
     }
 
     public function generarEnlace($user, $patient)
@@ -401,28 +450,7 @@ class StripeController extends Controller
                                     ]
                                 );
 
-                                $payment = Payment::create([
-                                    'user_id' => $cart->user_id,
-                                    'payer_type' => 'patient',
-                                    'appointment_id' => $appointment->id,
-                                    'patient_id' => $cart->patient_id,
-                                    'amount' => $pricing['total_charge_amount'],
-                                    'currency' => 'MXN',
-                                    'payment_method' => 'oxxo',
-                                    'status' => 'completed',
-                                    'stripe_payment_id' => $pi->id,
-                                    'receipt_url' => $cart->stripe_session_id ?? null,
-                                    'concepto' => $chargeMode === 'avg' ? 'session_deposit' : 'session_payment',
-                                    'session_base_amount' => $pricing['session_base_amount'],
-                                    'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
-                                    'platform_fee_rate' => $pricing['platform_fee_rate'],
-                                    'platform_fee_amount' => $pricing['platform_fee_amount'],
-                                    'total_charge_amount' => $pricing['total_charge_amount'],
-                                    'psychologist_amount' => $pricing['psychologist_amount'],
-                                    'remaining_balance_amount' => $pricing['remaining_balance_amount'],
-                                    'charge_mode' => $pricing['charge_mode'],
-                                    'payout_status' => $pricing['payout_status'],
-                                ]);
+                                $this->ensureCompletedPayment($cart, $appointment, $pi, $pricing, 'oxxo');
 
                                 $this->generarEnlace($userId, $patientId);
 
@@ -430,6 +458,7 @@ class StripeController extends Controller
                                     'estado' => 'pagado',
                                     'payment_intent_id' => $pi->id,
                                     'stripe_session_id' => $cart->stripe_session_id, // lo conservas si quieres
+                                    'appointment_id' => $appointment->id,
                                 ]);
 
                                 Log::info("OXXO pago acreditado. Cart {$cart->id} -> Appointment {$appointment->id}");

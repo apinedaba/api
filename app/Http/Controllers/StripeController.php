@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Jobs\HandleStripeEventJob;
 use App\Services\EmailService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -28,6 +27,8 @@ use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
 use App\Notifications\SessionPaymentRegisteredNotification;
+use App\Services\TwilioWhatsAppService;
+use Carbon\Carbon;
 
 class StripeController extends Controller
 {
@@ -49,11 +50,11 @@ class StripeController extends Controller
         $this->pricingService = $pricingService;
     }
 
-    public function createPaymentIntent()
+    public function createPaymentIntent(Request $request)
     {
         Stripe::setApiKey($this->stripe_secretkey);
 
-        $patient = Auth::user();
+        $patient = $request->user();
 
         $cart = AppointmentCart::where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
@@ -63,7 +64,7 @@ class StripeController extends Controller
             return response()->json(['message' => 'No hay una cita pendiente para pagar.'], 404);
         }
 
-        $pricing = $this->pricingService->buildFromCart($cart, request('cuando'));
+        $pricing = $this->pricingService->buildFromCart($cart, $request->input('cuando'));
         $cart->forceFill($pricing)->save();
         $amount = (int) round($pricing['total_charge_amount'] * 100);
 
@@ -149,23 +150,7 @@ class StripeController extends Controller
 
         $relation = $this->service->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
 
-        $inicio = "{$cart->fecha} {$cart->hora}";
-        $fin = \Carbon\Carbon::parse($inicio)->addHours($cart->duracion);
-
-        $appointment = Appointment::create([
-            'user' => $cart->user_id,
-            'patient' => $cart->patient_id,
-            'start' => $inicio,
-            'end' => $fin,
-            'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
-            'statusUser' => 'Pending Approve',
-            'statusPatient' => 'Pending Approve',
-            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
-            'precio' => $cart->precio,
-            'tipoSesion' => $cart->tipoSesion,
-            'cart_id' => $cart->id,
-            'video_call_room' => $relation->video_call_room,
-        ]);
+        $appointment = $this->createPaidAppointment($cart, $relation->video_call_room, $chargeMode);
 
         $this->ensureCompletedPayment($cart, $appointment, $intent, $pricing, 'card');
         $this->generarEnlace($cart->user_id, $cart->patient_id);
@@ -178,6 +163,37 @@ class StripeController extends Controller
 
 
         return response()->json($appointment);
+    }
+
+    private function createPaidAppointment(AppointmentCart $cart, ?string $videoCallRoom, string $chargeMode): Appointment
+    {
+        $cart->loadMissing(['user', 'patient']);
+
+        $start = Carbon::parse("{$cart->fecha} {$cart->hora}");
+        $duration = is_numeric($cart->duracion) ? (float) $cart->duracion : 1.0;
+        $minutes = $duration <= 8 ? (int) round($duration * 60) : (int) round($duration);
+        $end = $start->copy()->addMinutes(max($minutes, 1));
+        $patientName = $cart->patient?->name ?: 'Paciente MindMeet';
+
+        return Appointment::create([
+            'user' => $cart->user_id,
+            'patient' => $cart->patient_id,
+            'start' => $start,
+            'end' => $end,
+            'title' => 'Sesión con ' . $patientName,
+            'statusUser' => 'Pending Approve',
+            'statusPatient' => 'Pending Approve',
+            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
+            'cart_id' => $cart->id,
+            'video_call_room' => $videoCallRoom,
+            'extendedProps' => [
+                'tipoSesion' => $cart->tipoSesion,
+                'formato' => $cart->formato,
+                'payment_status' => 'paid',
+                'charge_mode' => $chargeMode,
+            ],
+            'notification_meta' => [],
+        ]);
     }
 
     private function ensureCompletedPayment(
@@ -229,9 +245,38 @@ class StripeController extends Controller
                     'message' => $th->getMessage(),
                 ]);
             }
+
+            try {
+                if ($cart->user) {
+                    app(TwilioWhatsAppService::class)->sendToUser(
+                        $cart->user,
+                        $this->paymentRegisteredWhatsAppMessage($appointment, $payment)
+                    );
+                }
+            } catch (\Throwable $th) {
+                Log::warning('Session payment WhatsApp notification failed', [
+                    'payment_id' => $payment->id,
+                    'appointment_id' => $appointment->id,
+                    'message' => $th->getMessage(),
+                ]);
+            }
         }
 
         return $payment;
+    }
+
+    private function paymentRegisteredWhatsAppMessage(Appointment $appointment, Payment $payment): string
+    {
+        $patient = $appointment->patient()->first();
+        $start = \Carbon\Carbon::parse($appointment->start)->timezone(config('app.timezone'));
+        $agendaUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
+        $concept = $payment->concepto === 'session_deposit' ? 'anticipo' : 'pago';
+        $amount = '$' . number_format((float) $payment->amount, 2) . ' ' . ($payment->currency ?: 'MXN');
+
+        return "MindMeet: se registro un {$concept} de {$amount} para una sesion.\n"
+            . "Paciente: " . ($patient?->name ?: 'Paciente MindMeet') . "\n"
+            . "Fecha: " . $start->format('d/m/Y H:i') . "\n"
+            . "La cita ya esta en tu agenda: {$agendaUrl}";
     }
 
     public function generarEnlace($user, $patient)
@@ -430,25 +475,8 @@ class StripeController extends Controller
                                 $cart->forceFill($pricing)->save();
                                 $relation = $this->service->ensureRelationshipAndRoom($userId, $patientId);
 
-                                $inicio = "{$cart->fecha} {$cart->hora}";
-                                $fin = \Carbon\Carbon::parse($inicio)->addHours($cart->duracion);
-
-                                $appointment = Appointment::firstOrCreate(
-                                    ['cart_id' => $cart->id],
-                                    [
-                                        'user' => $userId,
-                                        'patient' => $patientId,
-                                        'start' => $inicio,
-                                        'end' => $fin,
-                                        'title' => 'Sesión con ' . ($cart->user->contacto['publicName'] ?? $cart->user->name),
-                                        'statusUser' => 'Pending Approve',
-                                        'statusPatient' => 'Pending Approve',
-                                        'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
-                                        'precio' => $cart->precio,
-                                        'tipoSesion' => $cart->tipoSesion,
-                                        'video_call_room' => $relation->video_call_room,
-                                    ]
-                                );
+                                $appointment = Appointment::where('cart_id', $cart->id)->first()
+                                    ?: $this->createPaidAppointment($cart, $relation->video_call_room, $chargeMode);
 
                                 $this->ensureCompletedPayment($cart, $appointment, $pi, $pricing, 'oxxo');
 

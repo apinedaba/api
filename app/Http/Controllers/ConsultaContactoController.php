@@ -8,6 +8,7 @@ use App\Models\DeviceToken;
 use App\Models\DiscountCoupon;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
+use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
@@ -105,10 +106,22 @@ class ConsultaContactoController extends Controller
         $notificationErrors = [];
         try {
             $consulta->notify(new ConfirmacionPaciente());
-            $psicologo = \App\Models\User::find($request->user_id);
-            if ($psicologo) {
+        } catch (\Throwable $th) {
+            $notificationErrors[] = 'patient_confirmation_failed';
+            Log::warning("Lead patient notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+        }
+
+        $psicologo = \App\Models\User::find($request->user_id);
+        if ($psicologo) {
+            try {
                 $psicologo->notify(new NuevoPosiblePaciente($consulta));
                 event(new LeadsEvent($psicologo, $consulta));
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'professional_notification_failed';
+                Log::warning("Lead professional notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+            }
+
+            try {
                 $tokens = DeviceToken::where('user_id', $psicologo->id)->pluck('token')->all();
                 foreach ($tokens as $token) {
                     Fcm::send($token, "Nuevo contacto recibido", "Un visitante de mindmeet esta interesado en ti, su info esta disponible en leads", [
@@ -116,12 +129,20 @@ class ConsultaContactoController extends Controller
                         'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
                     ]);
                 }
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'push_notification_failed';
+                Log::warning("Lead push notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
             }
-        } catch (\Throwable $th) {
-            $notificationErrors[] = 'notification_failed';
-            Log::warning("Lead notification failed: " . $th->getMessage(), [
-                'lead_id' => $consulta->id,
-            ]);
+
+            try {
+                app(TwilioWhatsAppService::class)->sendToUser(
+                    $psicologo,
+                    $this->newLeadWhatsAppMessage($consulta)
+                );
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'whatsapp_notification_failed';
+                Log::warning("Lead WhatsApp notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+            }
         }
 
         return response()->json([
@@ -130,6 +151,21 @@ class ConsultaContactoController extends Controller
             'warnings' => $notificationErrors,
             'data' => $consulta
         ], 201);
+    }
+
+    protected function newLeadWhatsAppMessage(ConsultaContacto $consulta): string
+    {
+        $leadLabel = $consulta->lead_type === 'package'
+            ? 'paquete ' . ($consulta->package_name ?: 'de sesiones')
+            : ($consulta->tipo_sesion ?: 'sesion');
+
+        $leadsUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads';
+
+        return "MindMeet: tienes un nuevo lead para {$leadLabel}.\n"
+            . "Paciente: {$consulta->nombre}\n"
+            . "Fecha: {$consulta->fecha} {$consulta->hora}\n"
+            . "Contacto: {$consulta->telefono}\n"
+            . "Revisalo aqui: {$leadsUrl}";
     }
 
     protected function applyCouponContext(array $payload, string $couponCode): array

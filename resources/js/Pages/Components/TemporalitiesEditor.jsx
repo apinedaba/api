@@ -68,12 +68,24 @@ export default function TemporalitiesEditor() {
     const handleSave = async () => {
         setSaving(true);
         try {
+            // Convertir formato: 2026-05-27T10:30 → 2026-05-27 10:30:00
+            const formatDate = (dateString) => {
+                if (!dateString) return null;
+                // Reemplazar T por espacio
+                let formatted = dateString.replace('T', ' ');
+                // Si no tiene segundos (longitud 16), agregar :00
+                if (formatted.length === 16) {
+                    formatted += ':00';
+                }
+                return formatted;
+            };
+
             if (editing) {
                 // Actualizar propiedades
                 await axios.patch(`/content-temporalities/${editing.id}`, {
                     name: formData.name,
-                    start_date: formData.start_date ? formData.start_date + ':00' : null,
-                    end_date: formData.end_date ? formData.end_date + ':00' : null,
+                    start_date: formatDate(formData.start_date),
+                    end_date: formatDate(formData.end_date),
                     notes: formData.notes,
                 });
                 setSuccess('Temporalidad actualizada');
@@ -83,8 +95,8 @@ export default function TemporalitiesEditor() {
                     section_key: sectionKey,
                     name: formData.name,
                     slug: formData.slug,
-                    start_date: formData.start_date ? formData.start_date + ':00' : null,
-                    end_date: formData.end_date ? formData.end_date + ':00' : null,
+                    start_date: formatDate(formData.start_date),
+                    end_date: formatDate(formData.end_date),
                     notes: formData.notes,
                 });
                 setSuccess('Temporalidad creada');

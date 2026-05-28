@@ -5,33 +5,70 @@ namespace App\Services;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
+use Illuminate\Support\Facades\Auth;
 
 class HomeContentService
 {
+    public function __construct(
+        private ContentSectionService $contentSectionService
+    ) {}
+
     public function path(): string
     {
         return storage_path('app/home.json');
     }
 
+    /**
+     * Leer datos del home desde la BD (con fallback a archivo)
+     */
     public function read(): array
     {
-        $path = $this->path();
+        // Intentar obtener de la BD primero
+        $data = $this->contentSectionService->get('home');
 
-        if (!File::exists($path)) {
-            return [];
+        if ($data === null) {
+            // Fallback: cargar del archivo si existe
+            $path = $this->path();
+            if (!File::exists($path)) {
+                return [];
+            }
+            $decoded = json_decode(File::get($path), true);
+            return is_array($decoded) ? $decoded : [];
         }
 
-        $decoded = json_decode(File::get($path), true);
-
-        return is_array($decoded) ? $decoded : [];
+        return $data;
     }
 
-    public function write(array $content): void
+    /**
+     * Guardar datos del home en la BD
+     * 
+     * @param array $content Datos a guardar
+     * @param bool $createVersion Si false, solo actualiza sin crear versión (para uploads de imagen)
+     */
+    public function write(array $content, bool $createVersion = true): void
     {
-        File::put(
-            $this->path(),
-            json_encode($content, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        );
+        $userId = Auth::id();
+
+        if ($createVersion) {
+            // Flujo normal: crea versión del contenido anterior
+            $this->contentSectionService->update(
+                'home',
+                $content,
+                $userId,
+                'Manual update from HomeContentController'
+            );
+        } else {
+            // Flujo de upload de imagen: solo actualiza sin crear versión
+            $section = \App\Models\ContentSection::where('key', 'home')->first();
+            if ($section) {
+                $section->update([
+                    'data' => $content,
+                    'updated_by' => $userId,
+                ]);
+                // Invalidar cache
+                \Illuminate\Support\Facades\Cache::forget('content_section:home');
+            }
+        }
     }
 
     public function updateFromPayload(array $payload): array

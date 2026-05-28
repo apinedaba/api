@@ -3,29 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\ContentSectionService;
+use App\Services\TemporalityService;
 use Illuminate\Http\Request;
 use App\Models\User;
 
 class HomeController extends Controller
 {
+    public function __construct(
+        private ContentSectionService $contentSectionService,
+        private TemporalityService $temporalityService
+    ) {}
+
     function getImages()
     {
-        $homeData = json_decode(file_get_contents(storage_path('app/home.json')), true);
+        // Obtener datos del home: si hay temporalidad activa, usar esa; sino, usar original
+        $homeData = $this->temporalityService->getActiveContent('home');
+
+        if (empty($homeData)) {
+            return response()->json([], 404);
+        }
+
+        // Asegurar que sections es un array
+        if (!isset($homeData['sections']) || !is_array($homeData['sections'])) {
+            return response()->json($homeData);
+        }
 
         // Procesar secciones dinámicas
-        if (isset($homeData['sections']) && is_array($homeData['sections'])) {
-            foreach ($homeData['sections'] as $index => $section) {
-                if ($section['type'] === 'slider') {
-                    // Cargar profesionales para sliders
-                    $professionals = $this->getProfessionalsByFilter(
-                        $section['filterType'] ?? 'especialidades',
-                        $section['filterValue'] ?? [],
-                        $section['limit'] ?? 6
-                    );
-                    $homeData['sections'][$index]['professionals'] = $professionals;
-                }
-                // Las secciones de tipo 'promotions' y 'psicoPlus' usarán los datos existentes
+        foreach ($homeData['sections'] as $index => $section) {
+            if (isset($section['type']) && $section['type'] === 'slider') {
+                // Cargar profesionales para sliders
+                $professionals = $this->getProfessionalsByFilter(
+                    $section['filterType'] ?? 'especialidades',
+                    $section['filterValue'] ?? [],
+                    $section['limit'] ?? 6
+                );
+                $homeData['sections'][$index]['professionals'] = $professionals;
             }
+            // Las secciones de tipo 'promotions' y 'psicoPlus' usarán los datos existentes
         }
 
         return response()->json($homeData);
@@ -33,8 +48,14 @@ class HomeController extends Controller
 
     function buenfin()
     {
-        return response()->json(json_decode(file_get_contents(storage_path('app/buenfin.json')))); // o usa directamente resources si lo cargas ahí
+        // Obtener datos de buenfin: si hay temporalidad activa, usar esa; sino, usar original
+        $buenfinData = $this->temporalityService->getActiveContent('buenfin');
 
+        if (!$buenfinData) {
+            return response()->json([], 404);
+        }
+
+        return response()->json($buenfinData);
     }
 
     /**
@@ -59,11 +80,8 @@ class HomeController extends Controller
                     if ($filterType === 'enfoques') {
                         $q->orWhere('educacion->enfoque', $value);
                     }
-
                 }
-
             });
-
         }
 
         return $this->formatProfessionals(

@@ -27,6 +27,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('sellers:generate-commission-cut')
             ->monthlyOn(25, '02:30')
             ->timezone('America/Mexico_City');
+        // Desactivar temporalidades vencidas cada hora
+        $schedule->command('temporalities:deactivate-expired')
+            ->hourly()
+            ->timezone('America/Mexico_City');
         //$schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00')->timezone('America/Mexico_City');
     }
 

@@ -73,16 +73,29 @@ class TemporalityService
 
     /**
      * Activar una temporalidad manualmente
-     * Desactiva la anterior si la hay
+     * Solo se permite 1 activa a la vez (manual o programada)
      */
     public function activateTemporality(int $temporalityId, int $adminId): bool
     {
         $temporality = ContentSectionTemporality::findOrFail($temporalityId);
         $sectionId = $temporality->content_section_id;
 
-        // Desactivar todas las temporalidades activas de esta sección
+        // Verificar si hay ALGUNA activa (manual o programada)
+        $alreadyActive = ContentSectionTemporality::forSection($sectionId)
+            ->where('is_active', true)
+            ->first();
+
+        if ($alreadyActive && $alreadyActive->id !== $temporality->id) {
+            throw new \Exception(
+                'Solo puede haber una temporalidad activa a la vez. ' .
+                    'Desactiva primero: ' . $alreadyActive->name
+            );
+        }
+
+        // Desactivar todas las temporalidades activas de esta sección (por si acaso)
         ContentSectionTemporality::forSection($sectionId)
             ->where('is_active', true)
+            ->where('id', '!=', $temporality->id)
             ->update(['is_active' => false]);
 
         // Activar esta

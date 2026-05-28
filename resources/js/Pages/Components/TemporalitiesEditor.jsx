@@ -261,12 +261,27 @@ export default function TemporalitiesEditor() {
                                                         {'🔔'} Desactivar
                                                     </button>
                                                 ) : (
-                                                    <button
-                                                        onClick={() => handleActivate(temp.id)}
-                                                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium transition-colors"
-                                                    >
-                                                        {'✓'} Activar
-                                                    </button>
+                                                    (() => {
+                                                        // Buscar si hay ALGUNA temporalidad activa
+                                                        const hasAnyActive = temporalities.some(
+                                                            t => t.is_active
+                                                        );
+                                                        const isDisabled = hasAnyActive;
+
+                                                        return (
+                                                            <button
+                                                                onClick={() => !isDisabled && handleActivate(temp.id)}
+                                                                disabled={isDisabled}
+                                                                title={isDisabled ? 'Solo puede haber una temporalidad activa. Desactiva la actual primero.' : ''}
+                                                                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${isDisabled
+                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+                                                                        : 'bg-green-100 hover:bg-green-200 text-green-700'
+                                                                    }`}
+                                                            >
+                                                                {'✓'} Activar
+                                                            </button>
+                                                        );
+                                                    })()
                                                 )}
 
                                                 {/* Botón editar propiedades */}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\HomeContentService;
+use App\Services\ContentSectionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use InvalidArgumentException;
@@ -15,7 +16,8 @@ use Illuminate\Support\Facades\DB;
 class HomeContentController extends Controller
 {
     public function __construct(
-        protected HomeContentService $homeContentService
+        protected HomeContentService $homeContentService,
+        protected ContentSectionService $contentSectionService
     ) {}
 
     public function index()
@@ -95,7 +97,8 @@ class HomeContentController extends Controller
             // Mantener solo las últimas 50 imágenes
             $home['uploadedImages']['recent'] = array_slice($home['uploadedImages']['recent'], 0, 50);
 
-            $this->homeContentService->write($home);
+            // Actualizar sin crear versión (upload de imagen no debe generar versionado)
+            $this->homeContentService->write($home, createVersion: false);
 
             return response()->json([
                 'success' => true,
@@ -243,6 +246,72 @@ class HomeContentController extends Controller
             if (abs($actualRatio - $ratio) > $tolerance) {
                 throw new \Exception("Aspecto de imagen incorrecto. Esperado: ~{$ratio}:1 (actual: {$actualRatio}:1)");
             }
+        }
+    }
+
+    /**
+     * Obtener historial de versiones del home
+     */
+    public function getVersionHistory(): JsonResponse
+    {
+        try {
+            $history = $this->contentSectionService->getHistory('home');
+
+            return response()->json([
+                'success' => true,
+                'history' => $history->map(fn($version) => [
+                    'version' => $version->version_number,
+                    'changedAt' => $version->created_at,
+                    'changedBy' => $version->changedBy?->name ?? 'Sistema',
+                    'reason' => $version->change_reason,
+                ]),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting version history', [
+                'message' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al obtener historial',
+            ], 500);
+        }
+    }
+
+    /**
+     * Restaurar una versión anterior del home
+     */
+    public function restoreVersion(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'version' => ['required', 'integer', 'min:1'],
+            ]);
+
+            $success = $this->contentSectionService->restoreVersion(
+                'home',
+                $validated['version'],
+                auth()->id()
+            );
+
+            if (!$success) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Versión no encontrada',
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Restaurado a versión {$validated['version']}",
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error restoring version', [
+                'message' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al restaurar versión',
+            ], 500);
         }
     }
 }

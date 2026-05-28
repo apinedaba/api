@@ -14,6 +14,8 @@ use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\FacebookCatalogController;
 use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\HomeContentController;
+use App\Http\Controllers\TemporalityController;
+use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
@@ -72,8 +74,26 @@ Route::middleware('auth')->group(function () {
     Route::delete('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'destroy'])->name('help-center.destroy');
     Route::get('/home-content', [HomeContentController::class, 'index'])->name('home-content.index');
     Route::get('/home-content/professionals', [HomeContentController::class, 'getProfessionals'])->name('home-content.professionals');
+    Route::get('/home-content/versions/history', [HomeContentController::class, 'getVersionHistory'])->name('home-content.versions.history');
+    Route::post('/home-content/versions/restore', [HomeContentController::class, 'restoreVersion'])->name('home-content.versions.restore');
     Route::put('/home-content', [HomeContentController::class, 'update'])->name('home-content.update');
     Route::post('/home-content/upload-image', [HomeContentController::class, 'uploadImage'])->name('home-content.upload-image')->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
+
+    // Rutas de temporalidades (eventos temporales)
+    Route::prefix('content-temporalities')->group(function () {
+        Route::get('{sectionKey}', [TemporalityController::class, 'index'])->name('temporalities.index');
+        Route::get('{sectionKey}/{id}', [TemporalityController::class, 'show'])->name('temporalities.show');
+        Route::post('', [TemporalityController::class, 'store'])->name('temporalities.store');
+        Route::put('{id}', [TemporalityController::class, 'updateData'])->name('temporalities.updateData');
+        Route::patch('{id}', [TemporalityController::class, 'updateProperties'])->name('temporalities.updateProperties');
+        Route::post('{id}/activate', [TemporalityController::class, 'activate'])->name('temporalities.activate');
+        Route::post('{id}/deactivate', [TemporalityController::class, 'deactivate'])->name('temporalities.deactivate');
+        Route::delete('{id}', [TemporalityController::class, 'destroy'])->name('temporalities.destroy');
+    });
+
+    // Página para editar contenido de temporalidades
+    Route::get('/home-content/temporalities/{sectionKey}/{id}/edit', [TemporalityContentController::class, 'edit'])->name('temporalities.edit');
+
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');

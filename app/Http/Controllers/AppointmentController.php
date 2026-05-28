@@ -21,7 +21,6 @@ use App\Services\GoogleCalendarService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -47,7 +46,7 @@ class AppointmentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = Auth::user();
+        $user = $request->user();
         $appointments = Appointment::with(['payments', 'cart'])
             ->where('user', $user->id)
             ->orderBy('start')
@@ -59,7 +58,7 @@ class AppointmentController extends Controller
     public function getAppoinmentsByPatient($patient = null): JsonResponse
     {
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
-        $user = Auth::user();
+        $user = request()->user();
 
         if (in_array('user', $middlewares, true)) {
             $appointments = Appointment::where('user', $user->id)
@@ -149,7 +148,7 @@ class AppointmentController extends Controller
         Log::info('Creando cita con datos', $request->all());
 
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
-        $authUser = Auth::user();
+        $authUser = $request->user();
 
         $request->validate([
             'start' => 'required|date',
@@ -302,7 +301,7 @@ class AppointmentController extends Controller
 
     public function showABP($id): JsonResponse
     {
-        $patient = Auth::user();
+        $patient = request()->user();
         $appointment = Appointment::where('id', $id)
             ->where('patient', $patient->id)
             ->with(['cart', 'user'])
@@ -314,7 +313,17 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
         $originalData = Appointment::with(['user', 'cart', 'patient'])->findOrFail($appointment->id);
-        $updatedData = $request->except(['patient', 'cart', 'payments', 'user']);
+        $updatedData = $request->only([
+            'title',
+            'start',
+            'end',
+            'statusUser',
+            'statusPatient',
+            'state',
+            'comments',
+            'link',
+            'video_call_room',
+        ]);
         $fieldsToUpdate = [];
         $arrayOriginal = $originalData->toArray();
 
@@ -329,6 +338,15 @@ class AppointmentController extends Controller
 
             if ((string) $arrayOriginal[$key] !== (string) $value) {
                 $fieldsToUpdate[$key] = $value;
+            }
+        }
+
+        if ($request->exists('comments')) {
+            $incomingComments = (string) $request->input('comments', '');
+            $originalComments = (string) ($originalData->comments ?? '');
+
+            if ($incomingComments !== $originalComments) {
+                $fieldsToUpdate['comments'] = $incomingComments;
             }
         }
 

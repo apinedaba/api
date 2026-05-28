@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Events\NewNotification;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
@@ -36,13 +37,25 @@ class UserAuthController extends Controller
         }
         event(new NewNotification("user.{$user->id}", "Login correcto"));
         $token = $user->createToken('user_token')->plainTextToken;
-        \Log::alert($token);
-        return response()->json(['token' => $token], 200);
+        if ($request->hasSession()) {
+            Auth::guard('user_web')->login($user, true);
+            $request->session()->regenerate();
+        }
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+        ], 200);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->tokens()->delete();
+        $request->user()?->tokens()?->delete();
+        if ($request->hasSession()) {
+            Auth::guard('user_web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['message' => 'Logged out'], 200);
     }

@@ -8,11 +8,13 @@ use App\Models\DeviceToken;
 use App\Models\DiscountCoupon;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
+use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
 use App\Notifications\NuevoPosiblePaciente;
 use App\Notifications\ConfirmacionPaciente;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ConsultaContactoController extends Controller
@@ -29,6 +31,7 @@ class ConsultaContactoController extends Controller
             'fecha' => 'required|string',
             'hora' => 'required|string',
             'user_id' => 'required|exists:users,id',
+            'duracion' => 'nullable|integer|min:1|max:8',
             'session_package_id' => 'nullable|exists:session_packages,id',
             'package_name' => 'nullable|string|max:255',
             'package_total_price' => 'nullable|numeric|min:0',
@@ -67,6 +70,11 @@ class ConsultaContactoController extends Controller
         $couponCode = strtoupper(trim($payload['codigo_descuento'] ?? $payload['coupon_code'] ?? ''));
         unset($payload['codigo_descuento'], $payload['coupon_code']);
 
+        $configurationErrors = $this->validateLeadConfiguration($payload);
+        if ($configurationErrors) {
+            throw ValidationException::withMessages($configurationErrors);
+        }
+
         if (empty($payload['motivo']) && $payload['lead_type'] === 'package') {
             $payload['motivo'] = 'Estoy interesado/a en contratar el paquete "' . ($payload['package_name'] ?? 'Paquete de sesiones') . '".';
         }
@@ -95,12 +103,25 @@ class ConsultaContactoController extends Controller
                 'final_amount' => $consulta->final_amount,
             ],
         ]);
+        $notificationErrors = [];
         try {
             $consulta->notify(new ConfirmacionPaciente());
-            $psicologo = \App\Models\User::find($request->user_id);
-            if ($psicologo) {
+        } catch (\Throwable $th) {
+            $notificationErrors[] = 'patient_confirmation_failed';
+            Log::warning("Lead patient notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+        }
+
+        $psicologo = \App\Models\User::find($request->user_id);
+        if ($psicologo) {
+            try {
                 $psicologo->notify(new NuevoPosiblePaciente($consulta));
                 event(new LeadsEvent($psicologo, $consulta));
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'professional_notification_failed';
+                Log::warning("Lead professional notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+            }
+
+            try {
                 $tokens = DeviceToken::where('user_id', $psicologo->id)->pluck('token')->all();
                 foreach ($tokens as $token) {
                     Fcm::send($token, "Nuevo contacto recibido", "Un visitante de mindmeet esta interesado en ti, su info esta disponible en leads", [
@@ -108,16 +129,43 @@ class ConsultaContactoController extends Controller
                         'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
                     ]);
                 }
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'push_notification_failed';
+                Log::warning("Lead push notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
             }
-        } catch (\Throwable $th) {
-            \Log::error("ERROR REAL: " . $th->getMessage());
+
+            try {
+                app(TwilioWhatsAppService::class)->sendToUser(
+                    $psicologo,
+                    $this->newLeadWhatsAppMessage($consulta)
+                );
+            } catch (\Throwable $th) {
+                $notificationErrors[] = 'whatsapp_notification_failed';
+                Log::warning("Lead WhatsApp notification failed: " . $th->getMessage(), ['lead_id' => $consulta->id]);
+            }
         }
 
         return response()->json([
             'status' => 'success',
             'message' => '¡Consulta enviada con éxito!',
+            'warnings' => $notificationErrors,
             'data' => $consulta
         ], 201);
+    }
+
+    protected function newLeadWhatsAppMessage(ConsultaContacto $consulta): string
+    {
+        $leadLabel = $consulta->lead_type === 'package'
+            ? 'paquete ' . ($consulta->package_name ?: 'de sesiones')
+            : ($consulta->tipo_sesion ?: 'sesion');
+
+        $leadsUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads';
+
+        return "MindMeet: tienes un nuevo lead para {$leadLabel}.\n"
+            . "Paciente: {$consulta->nombre}\n"
+            . "Fecha: {$consulta->fecha} {$consulta->hora}\n"
+            . "Contacto: {$consulta->telefono}\n"
+            . "Revisalo aqui: {$leadsUrl}";
     }
 
     protected function applyCouponContext(array $payload, string $couponCode): array
@@ -161,6 +209,43 @@ class ConsultaContactoController extends Controller
         }
 
         return (float) ($payload['precio'] ?? 0);
+    }
+
+    protected function validateLeadConfiguration(array $payload): array
+    {
+        if (($payload['lead_type'] ?? 'session') === 'package') {
+            $missing = [];
+
+            if (empty($payload['session_package_id']) && empty($payload['package_name'])) {
+                $missing['session_package_id'] = ['Selecciona el paquete que te interesa antes de enviar la solicitud.'];
+            }
+
+            if ((float) ($payload['package_total_price'] ?? 0) <= 0) {
+                $missing['package_total_price'] = ['El paquete debe incluir un precio valido antes de crear el lead.'];
+            }
+
+            return $missing;
+        }
+
+        $missing = [];
+
+        if (blank($payload['tipo_sesion'] ?? null)) {
+            $missing['tipo_sesion'] = ['Selecciona el tipo de sesion.'];
+        }
+
+        if (blank($payload['formato'] ?? null)) {
+            $missing['formato'] = ['Selecciona la modalidad de la sesion.'];
+        }
+
+        if ((int) ($payload['duracion'] ?? 0) <= 0) {
+            $missing['duracion'] = ['Selecciona una duracion valida para la sesion.'];
+        }
+
+        if ((float) ($payload['precio'] ?? 0) <= 0) {
+            $missing['precio'] = ['Selecciona una configuracion con precio antes de enviar la solicitud.'];
+        }
+
+        return $missing;
     }
     public function getData()
     {

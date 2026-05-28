@@ -3,10 +3,19 @@
 use App\Events\NewNotification;
 use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminPatientController;
+use App\Http\Controllers\Admin\AdminMinderGroupController;
+use App\Http\Controllers\Admin\AdminMinderReportController;
+use App\Http\Controllers\Admin\AdminMinderMetricsController;
+use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\FacebookCatalogController;
+use App\Http\Controllers\HelpCenterAdminController;
+use App\Http\Controllers\HomeContentController;
+use App\Http\Controllers\TemporalityController;
+use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
@@ -50,6 +59,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/analytics', [ProfessionalAnalyticsController::class, 'adminIndex'])->name('analytics');
+    Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
+    Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/coupons', [DiscountCouponController::class, 'adminIndex'])->name('coupons');
     Route::post('/coupons', [DiscountCouponController::class, 'adminStore'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
@@ -57,6 +68,32 @@ Route::middleware('auth')->group(function () {
     Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
     Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
     Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
+    Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
+    Route::post('/help-center', [HelpCenterAdminController::class, 'store'])->name('help-center.store');
+    Route::put('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'update'])->name('help-center.update');
+    Route::delete('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'destroy'])->name('help-center.destroy');
+    Route::get('/home-content', [HomeContentController::class, 'index'])->name('home-content.index');
+    Route::get('/home-content/professionals', [HomeContentController::class, 'getProfessionals'])->name('home-content.professionals');
+    Route::get('/home-content/versions/history', [HomeContentController::class, 'getVersionHistory'])->name('home-content.versions.history');
+    Route::post('/home-content/versions/restore', [HomeContentController::class, 'restoreVersion'])->name('home-content.versions.restore');
+    Route::put('/home-content', [HomeContentController::class, 'update'])->name('home-content.update');
+    Route::post('/home-content/upload-image', [HomeContentController::class, 'uploadImage'])->name('home-content.upload-image')->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
+
+    // Rutas de temporalidades (eventos temporales)
+    Route::prefix('content-temporalities')->group(function () {
+        Route::get('{sectionKey}', [TemporalityController::class, 'index'])->name('temporalities.index');
+        Route::get('{sectionKey}/{id}', [TemporalityController::class, 'show'])->name('temporalities.show');
+        Route::post('', [TemporalityController::class, 'store'])->name('temporalities.store');
+        Route::put('{id}', [TemporalityController::class, 'updateData'])->name('temporalities.updateData');
+        Route::patch('{id}', [TemporalityController::class, 'updateProperties'])->name('temporalities.updateProperties');
+        Route::post('{id}/activate', [TemporalityController::class, 'activate'])->name('temporalities.activate');
+        Route::post('{id}/deactivate', [TemporalityController::class, 'deactivate'])->name('temporalities.deactivate');
+        Route::delete('{id}', [TemporalityController::class, 'destroy'])->name('temporalities.destroy');
+    });
+
+    // Página para editar contenido de temporalidades
+    Route::get('/home-content/temporalities/{sectionKey}/{id}/edit', [TemporalityContentController::class, 'edit'])->name('temporalities.edit');
+
     Route::get('/psicologo/{id}', [UserController::class, 'show'])->name('psicologoShow');
     Route::delete('/psicologo/{id}', [UserController::class, 'desactive'])->name('psicologo.desactive');
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
@@ -109,6 +146,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/pacientes/{patientId}/citas/stats', [AdminAppointmentController::class, 'getStats'])->name('admin.citas.stats');
     });
 });
+Route::get('/feeds/facebook-psychologists.csv', [FacebookCatalogController::class, 'feed'])->name('facebook-catalog.feed');
 Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professional'])
     ->whereNumber('id')
     ->name('share.professional');
@@ -148,4 +186,36 @@ Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::get('enviar-prueba', function () {
     TestNotificacionJob::dispatch();
     return response()->json(['status' => 'Job Dispatched']);
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  Comunidad Minder — Panel de administración (Inertia)
+// ─────────────────────────────────────────────────────────────────
+Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () {
+    // Grupos
+    Route::get('/groups', [AdminMinderGroupController::class, 'index'])->name('groups.index');
+    Route::post('/groups', [AdminMinderGroupController::class, 'store'])->name('groups.store');
+    Route::put('/groups/{minderGroup}', [AdminMinderGroupController::class, 'update'])->name('groups.update');
+    Route::delete('/groups/{minderGroup}', [AdminMinderGroupController::class, 'destroy'])->name('groups.destroy');
+    Route::get('/groups/{minderGroup}', [AdminMinderGroupController::class, 'show'])->name('groups.show');
+
+    // Miembros y moderadores
+    Route::post('/groups/{minderGroup}/members', [AdminMinderGroupController::class, 'addMember'])->name('groups.members.add');
+    Route::delete('/groups/{minderGroup}/members/{user}', [AdminMinderGroupController::class, 'removeMember'])->name('groups.members.remove');
+    Route::patch('/groups/{minderGroup}/members/{user}/role', [AdminMinderGroupController::class, 'updateMemberRole'])->name('groups.members.role');
+    Route::post('/groups/{minderGroup}/members/{user}/ban', [AdminMinderGroupController::class, 'banMember'])->name('groups.members.ban');
+    Route::delete('/groups/{minderGroup}/members/{user}/ban', [AdminMinderGroupController::class, 'unbanMember'])->name('groups.members.unban');
+
+    // Reportes
+    Route::get('/reports', [AdminMinderReportController::class, 'index'])->name('reports.index');
+    Route::patch('/reports/{report}/resolve', [AdminMinderReportController::class, 'resolve'])->name('reports.resolve');
+
+    // Métricas
+    Route::get('/metrics', [AdminMinderMetricsController::class, 'index'])->name('metrics.index');
+
+    // Soporte
+    Route::get('/support', [AdminMinderSupportController::class, 'index'])->name('support.index');
+    Route::get('/support/{thread}', [AdminMinderSupportController::class, 'show'])->name('support.show');
+    Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
+    Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
 });

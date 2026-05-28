@@ -20,7 +20,17 @@ class Payment extends Model
         'status',
         'stripe_payment_id',
         'receipt_url',
-        'id_transaccion_reembolsada'
+        'id_transaccion_reembolsada',
+        'concepto',
+        'session_base_amount',
+        'charge_subtotal_amount',
+        'platform_fee_rate',
+        'platform_fee_amount',
+        'total_charge_amount',
+        'psychologist_amount',
+        'remaining_balance_amount',
+        'charge_mode',
+        'payout_status',
     ];
    
 
@@ -38,6 +48,17 @@ class Payment extends Model
     {
         return $this->belongsTo(Patient::class, 'patient_id');
     }
+
+    protected $casts = [
+        'amount' => 'float',
+        'session_base_amount' => 'float',
+        'charge_subtotal_amount' => 'float',
+        'platform_fee_rate' => 'float',
+        'platform_fee_amount' => 'float',
+        'total_charge_amount' => 'float',
+        'psychologist_amount' => 'float',
+        'remaining_balance_amount' => 'float',
+    ];
 
 
 }

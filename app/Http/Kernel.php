@@ -77,5 +77,6 @@ class Kernel extends HttpKernel
         'active_organization' => \App\Http\Middleware\ResolveActiveOrganization::class,
         'subscribed' => \App\Http\Middleware\CheckSubscriptionStatus::class,
         'vendedor_web' => \App\Http\Middleware\EnsureVendedor::class,
+        'minder_access' => \App\Http\Middleware\EnsureMinderAccess::class,
     ];
 }

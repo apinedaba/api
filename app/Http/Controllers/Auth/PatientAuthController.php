@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Patient;
 use App\Support\PatientIdentity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class PatientAuthController extends Controller
@@ -38,6 +39,10 @@ class PatientAuthController extends Controller
         }
 
         $token = $patient->createToken('patient_token')->plainTextToken;
+        if ($request->hasSession()) {
+            Auth::guard('patient_web')->login($patient, true);
+            $request->session()->regenerate();
+        }
 
         return response()->json([
             'token' => $token,
@@ -47,7 +52,12 @@ class PatientAuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->tokens()->delete();
+        $request->user()?->tokens()?->delete();
+        if ($request->hasSession()) {
+            Auth::guard('patient_web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['message' => 'Logged out'], 200);
     }

@@ -16,7 +16,8 @@ class PatientUser extends Model
         'patient',
         'clinic_id',
         'activo',
-        'status'
+        'status',
+        'video_call_room',
     ];
 
     protected $hidden = ["created_at", "updated_at"];

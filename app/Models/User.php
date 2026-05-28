@@ -308,6 +308,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(SellerReferral::class);
     }
 
+    public function facebookCatalogItem(): HasOne
+    {
+        return $this->hasOne(FacebookCatalogItem::class);
+    }
+
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";

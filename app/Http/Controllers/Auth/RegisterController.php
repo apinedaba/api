@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Models\Clinic;
-use App\Models\ClinicMembership;
 use App\Models\Patient;
 use App\Models\Vendedor;
 use App\Models\Subscription;
@@ -14,10 +12,10 @@ use App\Support\PatientIdentity;
 use Carbon\Carbon;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use OpenApi\Annotations as OA;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
@@ -27,9 +25,16 @@ class RegisterController extends Controller
     private const EMAIL_REGEX = '/^[^\s@]+@[^\s@]+\.[^\s@]+$/';
     private const MX_PHONE_REGEX = '/^\d{10}$/';
 
+    private $registerValidationRules = [
+        'name' => 'required|string|max:255',
+        'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
+        'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
+        'password' => 'required|string|min:6'
+    ];
+
     public function registerUser(Request $request, SellerCommissionService $sellerCommissionService)
     {
-        $validateUser = Validator::make($request->all(), $this->registerValidationRules($request));
+        $validateUser = Validator::make($request->all(), $this->registerValidationRules);
 
         if ($validateUser->fails()) {
             return response()->json([
@@ -51,15 +56,10 @@ class RegisterController extends Controller
             'contacto' => array_merge($request->contacto ?? [], [
                 'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
             ]),
-            'configurations' => $this->buildWorkspaceConfiguration($request),
             'password' => Hash::make($request->password),
             'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'code_expires_at' => now()->addMinutes(10),
         ]);
-
-        if ($this->resolveAccountType($request) === 'clinic') {
-            $this->createClinicWorkspaceForOwner($user, $request);
-        }
 
         if ($vendedor) {
             Subscription::firstOrCreate(
@@ -91,94 +91,6 @@ class RegisterController extends Controller
         ], 200);
     }
 
-    private function registerValidationRules(Request $request): array
-    {
-        $accountType = $this->resolveAccountType($request);
-
-        $rules = [
-            'account_type' => ['nullable', 'in:independent,clinic'],
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
-            'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
-            'password' => 'required|string|min:6',
-        ];
-
-        if ($accountType === 'clinic') {
-            $rules['clinic_name'] = ['required', 'string', 'max:255'];
-        }
-
-        return $rules;
-    }
-
-    private function resolveAccountType(Request $request): string
-    {
-        return $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
-    }
-
-    private function buildWorkspaceConfiguration(Request $request): array
-    {
-        $accountType = $this->resolveAccountType($request);
-        $existingConfigurations = is_array($request->input('configurations')) ? $request->input('configurations') : [];
-
-        return array_merge($existingConfigurations, [
-            'workspace_type' => $accountType,
-            'registration_mode' => $accountType,
-            'clinic_onboarding_pending' => $accountType === 'clinic',
-        ]);
-    }
-
-    private function createClinicWorkspaceForOwner(User $user, Request $request): Clinic
-    {
-        $clinicName = trim((string) $request->input('clinic_name'));
-        $clinic = Clinic::create([
-            'owner_user_id' => $user->id,
-            'name' => $clinicName,
-            'slug' => $this->generateUniqueClinicSlug($clinicName),
-            'account_type' => 'clinic',
-            'status' => 'active',
-            'base_psychologist_limit' => 6,
-            'addon_psychologist_slots' => 0,
-            'contact' => [
-                'owner_name' => $user->name,
-                'email' => $user->email,
-                'telefono' => data_get($user->contacto, 'telefono'),
-            ],
-            'settings' => [
-                'created_from_registration' => true,
-            ],
-        ]);
-
-        ClinicMembership::updateOrCreate(
-            [
-                'clinic_id' => $clinic->id,
-                'user_id' => $user->id,
-            ],
-            [
-                'role' => 'owner',
-                'is_primary' => true,
-                'can_manage_schedule' => true,
-                'can_manage_patients' => true,
-                'can_view_finance' => true,
-            ]
-        );
-
-        return $clinic;
-    }
-
-    private function generateUniqueClinicSlug(string $name): string
-    {
-        $baseSlug = Str::slug($name) ?: 'clinica';
-        $slug = $baseSlug;
-        $counter = 2;
-
-        while (Clinic::where('slug', $slug)->exists()) {
-            $slug = "{$baseSlug}-{$counter}";
-            $counter++;
-        }
-
-        return $slug;
-    }
-
     public function verifyCode(Request $request)
     {
         $request->validate([
@@ -197,6 +109,11 @@ class RegisterController extends Controller
         }
         $user->markEmailAsVerified();
         $user->forceFill(['verification_code' => null, 'code_expires_at' => null])->save();
+
+        if ($request->hasSession()) {
+            Auth::guard('user_web')->login($user, true);
+            $request->session()->regenerate();
+        }
 
         return response()->json([
             'message' => 'Correo verificado con exito',
@@ -289,9 +206,16 @@ class RegisterController extends Controller
         } catch (\Throwable $th) {
             Log::error('Error al notificar nuevo paciente auto-registrado: ' . $th->getMessage());
         }
+
+        if ($request->hasSession()) {
+            Auth::guard('patient_web')->login($patient, true);
+            $request->session()->regenerate();
+        }
+
         return response()->json([
             'message' => 'El usuario se ha creado',
-            'token' => $patient->createToken('patient_token')->plainTextToken
+            'token' => $patient->createToken('patient_token')->plainTextToken,
+            'user' => $patient,
         ], 200);
     }
 

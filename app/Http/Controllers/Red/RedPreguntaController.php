@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Red;
 
+use App\Events\RedPreguntaActualizada;
 use App\Http\Controllers\Controller;
 use App\Models\RedPregunta;
 use App\Models\RedRespuesta;
@@ -113,6 +114,8 @@ class RedPreguntaController extends Controller
 
         Notification::send($psicologosVerificados, new NuevaPreguntaEnRed($pregunta));
 
+        broadcast(new RedPreguntaActualizada('nueva_pregunta', $pregunta->id));
+
         return response()->json([
             'data'    => $this->formatPregunta($pregunta, $request->user()->id),
             'message' => 'Pregunta publicada exitosamente.',
@@ -167,7 +170,10 @@ class RedPreguntaController extends Controller
     {
         abort_if($pregunta->user_id !== $request->user()->id, 403, 'No puedes eliminar esta pregunta.');
 
+        $preguntaId = $pregunta->id;
         $pregunta->delete();
+
+        broadcast(new RedPreguntaActualizada('pregunta_eliminada', $preguntaId));
 
         return response()->json(['message' => 'Pregunta eliminada.']);
     }

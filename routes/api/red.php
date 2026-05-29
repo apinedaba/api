@@ -18,6 +18,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'minder_acces
         Route::get('preguntas/mis-preguntas/sin-leer', [RedPreguntaController::class, 'misPreguntasSinLeer']);
         Route::get('preguntas/{pregunta}', [RedPreguntaController::class, 'show']);
         Route::delete('preguntas/{pregunta}', [RedPreguntaController::class, 'destroy']);
+        Route::patch('preguntas/{pregunta}/marcar-vista', [RedPreguntaController::class, 'marcarVista']);
         Route::post(
             'preguntas/{pregunta}/mejor-respuesta/{respuesta}',
             [RedPreguntaController::class, 'marcarMejorRespuesta']

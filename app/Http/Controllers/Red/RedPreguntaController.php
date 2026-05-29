@@ -193,6 +193,8 @@ class RedPreguntaController extends Controller
 
         $pregunta->update(['mejor_respuesta_id' => $respuesta->id]);
 
+        broadcast(new RedPreguntaActualizada('mejor_respuesta', $pregunta->id));
+
         return response()->json([
             'message'             => 'Mejor respuesta marcada.',
             'mejor_respuesta_id'  => $respuesta->id,
@@ -290,5 +292,22 @@ class RedPreguntaController extends Controller
             'data' => $preguntas,
             'total_con_respuestas_nuevas' => $preguntas->count(),
         ]);
+    }
+
+    /**
+     * PATCH /user/red/preguntas/{pregunta}/marcar-vista
+     * Marca que el autor ya vio las respuestas de su pregunta.
+     */
+    public function marcarVista(Request $request, RedPregunta $pregunta): JsonResponse
+    {
+        // Solo tiene efecto para el autor; otros usuarios simplemente reciben 200 sin cambios.
+        if ($pregunta->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'OK.']);
+        }
+
+        $pregunta->ultima_respuesta_vista_at = now();
+        $pregunta->save();
+
+        return response()->json(['message' => 'Marcada como vista.']);
     }
 }

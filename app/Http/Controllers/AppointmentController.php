@@ -7,6 +7,7 @@ use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
 use App\Models\ConsultaContacto;
+use App\Models\OrganizationMembership;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
@@ -169,7 +170,20 @@ class AppointmentController extends Controller
         ]);
 
         if (in_array('user', $middlewares, true)) {
-            $request->merge(['user' => $authUser->id]);
+            $requestedProfessionalId = (int) $request->input('user', $authUser->id);
+            $activeOrganization = $request->attributes->get('active_organization');
+            $membership = $request->attributes->get('organization_membership');
+            $canAssignOrganizationProfessional = $this->canAssignOrganizationProfessional(
+                $activeOrganization?->id,
+                $membership,
+                $requestedProfessionalId
+            );
+
+            $request->merge([
+                'user' => $canAssignOrganizationProfessional
+                    ? $requestedProfessionalId
+                    : $authUser->id,
+            ]);
         } elseif (in_array('patient', $middlewares, true)) {
             $request->merge(['patient' => $authUser->id]);
         } else {
@@ -288,6 +302,41 @@ class AppointmentController extends Controller
             'type' => 'success',
             'appointments' => $appointments,
         ], 200);
+    }
+
+    private function canAssignOrganizationProfessional(
+        ?int $organizationId,
+        ?OrganizationMembership $membership,
+        int $professionalId
+    ): bool {
+        if (!$organizationId || !$membership || !$professionalId) {
+            return false;
+        }
+
+        $permissions = $membership->permissions ?: [];
+        $canManageSchedule = in_array($membership->role, [
+            OrganizationMembership::ROLE_OWNER,
+            OrganizationMembership::ROLE_ADMIN,
+            OrganizationMembership::ROLE_RECEPTIONIST,
+        ], true)
+            || in_array('*', $permissions, true)
+            || in_array('appointments.create', $permissions, true)
+            || in_array('appointments.manage', $permissions, true)
+            || in_array('schedule.manage', $permissions, true)
+            || (is_array($permissions) && !empty($permissions['appointments.create']))
+            || (is_array($permissions) && !empty($permissions['appointments.manage']))
+            || (is_array($permissions) && !empty($permissions['schedule.manage']));
+
+        if (!$canManageSchedule) {
+            return false;
+        }
+
+        return OrganizationMembership::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $professionalId)
+            ->where('role', OrganizationMembership::ROLE_PSYCHOLOGIST)
+            ->where('status', OrganizationMembership::STATUS_ACTIVE)
+            ->exists();
     }
 
     public function show(Appointment $appointment): JsonResponse

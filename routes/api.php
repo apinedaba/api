@@ -43,6 +43,8 @@ use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\SessionPackageController;
+use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\ClinicWorkspaceController;
 use App\Http\Middleware\HandleInvalidToken;
 use App\Models\Sintomas;
 use App\Models\User;
@@ -101,9 +103,25 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     return response()->json(['message' => 'Email verificado correctamente'], 200);
 })->middleware(['signed'])->name('verification.verify');
 
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('user')->group(function () {
+    Route::get('organizations', [OrganizationController::class, 'index']);
+    Route::post('organizations', [OrganizationController::class, 'store']);
+    Route::post('organizations/{organization}/switch', [OrganizationController::class, 'switch']);
+    Route::get('organizations/{organization}/members', [OrganizationController::class, 'members']);
+    Route::post('organizations/{organization}/members/invite', [OrganizationController::class, 'inviteMember']);
+
+    Route::get('clinics', [ClinicWorkspaceController::class, 'index']);
+    Route::post('clinics', [ClinicWorkspaceController::class, 'store']);
+    Route::get('clinics/{clinic}', [ClinicWorkspaceController::class, 'show']);
+    Route::put('clinics/{clinic}', [ClinicWorkspaceController::class, 'update']);
+    Route::post('clinics/{clinic}/psychologists', [ClinicWorkspaceController::class, 'storePsychologist']);
+    Route::put('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'updatePsychologist']);
+    Route::delete('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'detachPsychologist']);
+});
+
 // Grupo 2: Requiere autenticación Y una suscripción activa.
 // Aquí van todas las funcionalidades principales de la plataforma.
-Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(function () {
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organization'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
         return $request->user()->load('subscription', 'escuelas');

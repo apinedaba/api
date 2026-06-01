@@ -17,7 +17,13 @@ class PatientUser extends Model
         'clinic_id',
         'activo',
         'status',
+        'archived_at',
+        'status_before_archive',
         'video_call_room',
+    ];
+
+    protected $casts = [
+        'archived_at' => 'datetime',
     ];
 
     protected $hidden = ["created_at", "updated_at"];

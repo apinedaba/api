@@ -53,6 +53,7 @@ class PatientTimelineController extends Controller
         $psychologist = auth()->user();
         // Verificar acceso
         $this->authorizeSession($session, $psychologist);
+        $this->abortIfArchived($session, $psychologist);
 
         $validator = Validator::make($request->all(), [
             'content' => 'required|string',
@@ -79,6 +80,9 @@ class PatientTimelineController extends Controller
     public function storeAttachment(Request $request, $sessionId)
     {
         $session = Appointment::findOrFail($sessionId);
+        $psychologist = auth()->user();
+        $this->authorizeSession($session, $psychologist);
+        $this->abortIfArchived($session, $psychologist);
 
         $request->validate([
             'url' => 'required|string',
@@ -146,6 +150,18 @@ class PatientTimelineController extends Controller
     {
         if ($session->user !== $psychologist->id) {
             abort(403, 'No autorizado.');
+        }
+    }
+
+    private function abortIfArchived($session, $psychologist): void
+    {
+        $isArchived = PatientUser::where('patient', $session->patient)
+            ->where('user', $psychologist->id)
+            ->whereNotNull('archived_at')
+            ->exists();
+
+        if ($isArchived) {
+            abort(423, 'Paciente archivado. Reactivalo para modificar su expediente.');
         }
     }
 }

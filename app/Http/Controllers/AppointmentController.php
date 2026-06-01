@@ -217,6 +217,14 @@ class AppointmentController extends Controller
         }
 
         $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'), $clinicId);
+        if ($relation?->archived_at) {
+            return response()->json([
+                'rasson' => 'Paciente archivado. Reactivalo para agendar nuevas sesiones.',
+                'message' => 'Paciente archivado',
+                'type' => 'error',
+            ], 423);
+        }
+
         $start = Carbon::parse($request->input('start'));
         $end = Carbon::parse($request->input('end'));
         $duration = max($start->diffInMinutes($end), 1);

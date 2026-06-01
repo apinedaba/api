@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\JsonResponse;
 
 
 class PatientUserController extends Controller
@@ -18,6 +19,58 @@ class PatientUserController extends Controller
     {
         $user = Auth::user();
         return response()->json(data: PatientUser::with('patient')->with('expediente')->where('user', $user->id)->get(), status: 200);
+    }
+
+    public function archive($patient): JsonResponse
+    {
+        $relation = $this->resolveRelation($patient);
+
+        if (!$relation) {
+            return response()->json([
+                'message' => 'Paciente no encontrado en tu directorio',
+                'type' => 'error',
+            ], 404);
+        }
+
+        if (!$relation->archived_at) {
+            $relation->update([
+                'activo' => false,
+                'status_before_archive' => $relation->status,
+                'status' => 'Archivado',
+                'archived_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Paciente archivado correctamente',
+            'type' => 'success',
+            'data' => $relation->fresh(['patient', 'expediente']),
+        ], 200);
+    }
+
+    public function reactivate($patient): JsonResponse
+    {
+        $relation = $this->resolveRelation($patient);
+
+        if (!$relation) {
+            return response()->json([
+                'message' => 'Paciente no encontrado en tu directorio',
+                'type' => 'error',
+            ], 404);
+        }
+
+        $relation->update([
+            'activo' => true,
+            'status' => $relation->status_before_archive ?: 'Vinculado',
+            'status_before_archive' => null,
+            'archived_at' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Paciente reactivado correctamente',
+            'type' => 'success',
+            'data' => $relation->fresh(['patient', 'expediente']),
+        ], 200);
     }
 
     /**
@@ -95,6 +148,12 @@ class PatientUserController extends Controller
     {
         $user = Auth::user();
         $enlace = PatientUser::where('user', $user->id)->where('patient', $request->id);
+        if ($enlace->first()?->archived_at && !$request->boolean('reactivate_archived')) {
+            return response()->json([
+                'message' => 'Paciente archivado. Usa la reactivacion para habilitarlo de nuevo.',
+                'type' => 'error',
+            ], 423);
+        }
         $currentActive = $enlace->first()['activo'];
         if (isset($request->isPatient) && !$currentActive) {
             $enlace->update(["activo" => !$currentActive, 'status' => "Enlace Aceptado"]);
@@ -143,5 +202,14 @@ class PatientUserController extends Controller
     public function destroy(PatientUser $patientUser)
     {
         //
+    }
+
+    private function resolveRelation($patient): ?PatientUser
+    {
+        $user = Auth::user();
+
+        return PatientUser::where('user', $user->id)
+            ->where('patient', $patient)
+            ->first();
     }
 }

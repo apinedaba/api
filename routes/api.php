@@ -186,6 +186,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::delete('user/coupons/{coupon}', [DiscountCouponController::class, 'destroy']);
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
+    Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);
+    Route::patch('user/catalog/patients/{patient}/reactivate', [PatientUserController::class, 'reactivate']);
     Route::resource('user/catalog/patients', PatientUserController::class);
     Route::prefix('user/patients/{patient}/medications')->group(function () {
         Route::get('/', [PatientMedicationController::class, 'index']);

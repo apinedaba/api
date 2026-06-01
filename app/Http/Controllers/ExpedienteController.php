@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Expediente;
+use App\Models\PatientUser;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
@@ -31,6 +32,13 @@ class ExpedienteController extends Controller
     public function store(Request $request)
     {
         $patient_id = $request->patient_id;
+        if ($this->patientArchivedForCurrentUser($patient_id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para modificar el expediente.',
+                'type' => 'error',
+            ], 423);
+        }
+
         \Log::info($request->all());
         $isUpdatde = Expediente::where('user_id', auth()->id())->where('patient_id', $patient_id)->exists();
         if ($isUpdatde) {
@@ -111,6 +119,13 @@ class ExpedienteController extends Controller
     public function update(Request $request, Expediente $expediente)
     {
         $expediente = Expediente::where('user_id', auth()->id())->find($expediente->id);
+        if ($this->patientArchivedForCurrentUser($expediente?->patient_id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para modificar el expediente.',
+                'type' => 'error',
+            ], 423);
+        }
+
         $expediente->update([
             'user_id' => auth()->id(),
             'paciente_id' => $request->paciente_id,
@@ -128,5 +143,13 @@ class ExpedienteController extends Controller
     public function destroy(Expediente $expediente)
     {
         //
+    }
+
+    private function patientArchivedForCurrentUser($patientId): bool
+    {
+        return PatientUser::where('patient', $patientId)
+            ->where('user', auth()->id())
+            ->whereNotNull('archived_at')
+            ->exists();
     }
 }

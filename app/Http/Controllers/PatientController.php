@@ -254,6 +254,13 @@ class PatientController extends Controller
 
     public function updateRelationships(Request $request, $id)
     {
+        if ($this->patientArchivedForCurrentUser($id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para modificar sus relaciones.',
+                'type' => 'error',
+            ], 423);
+        }
+
         $patient = Patient::findOrFail($id);
 
         $validated = $request->validate([
@@ -356,6 +363,7 @@ class PatientController extends Controller
         $user = auth()->user();
         $isPatientToUser = PatientUser::where('patient', $patient->id)->where('user', $user->id)->first();
         if ($isPatientToUser) {
+            $patient->setAttribute('patient_user', $isPatientToUser);
             return response()->json($patient, 200);
         }
         return response()->json([
@@ -500,6 +508,13 @@ class PatientController extends Controller
     }
     public function update(Request $request, Patient $patient)
     {
+        if ($this->patientArchivedForCurrentUser($patient->id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para editar su informacion.',
+                'type' => 'error',
+            ], 423);
+        }
+
         try {
             $patient->update($request->all());
             $response = [
@@ -522,4 +537,12 @@ class PatientController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(Patient $patient) {}
+
+    private function patientArchivedForCurrentUser($patientId): bool
+    {
+        return PatientUser::where('patient', $patientId)
+            ->where('user', auth()->id())
+            ->whereNotNull('archived_at')
+            ->exists();
+    }
 }

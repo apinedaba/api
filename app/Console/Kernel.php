@@ -31,6 +31,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('temporalities:deactivate-expired')
             ->hourly()
             ->timezone('America/Mexico_City');
+        $schedule->command('marketing:expire-campaigns')
+            ->hourly()
+            ->timezone('America/Mexico_City');
         //$schedule->command('mindmeet:notify-psychologists')->dailyAt('10:00')->timezone('America/Mexico_City');
     }
 

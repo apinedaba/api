@@ -34,9 +34,19 @@ class HandleStripeEventJob implements ShouldQueue
                 $session = $this->event->data->object;
                 Log::info('Checkout session completed');
 
+                // ── Suscripciones (lógica original, intacta) ─────────────────
                 if (($session->mode ?? null) === 'subscription') {
                     $this->handleNewSubscription($session);
                 }
+
+                // ── MindBoost: pago de campaña de marketing ───────────────────
+                // El servicio es idempotente; si ya fue procesado por el otro
+                // webhook (/stripe/webhook), retorna silenciosamente.
+                if (! empty(data_get($session, 'metadata.campaign_request_id'))) {
+                    app(\App\Services\MarketingPaymentService::class)
+                        ->handleCheckoutCompleted($session);
+                }
+
                 break;
 
             case 'customer.subscription.updated':

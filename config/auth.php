@@ -134,7 +134,7 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
-        'admministrators' => [
+        'administrators' => [
             'provider' => 'administrators',
             'table' => 'password_reset_tokens',
             'expire' => 60,

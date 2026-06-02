@@ -77,5 +77,6 @@ class Kernel extends HttpKernel
         'subscribed' => \App\Http\Middleware\CheckSubscriptionStatus::class,
         'vendedor_web' => \App\Http\Middleware\EnsureVendedor::class,
         'minder_access' => \App\Http\Middleware\EnsureMinderAccess::class,
+        'administrator' => \App\Http\Middleware\EnsureAdministrator::class,
     ];
 }

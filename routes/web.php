@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminMinderGroupController;
 use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderMetricsController;
+use App\Http\Controllers\Admin\AdminMarketingController;
 use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
@@ -119,6 +120,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
     Route::get('/vendedores/{vendedor}/qr-download', [VendedorController::class, 'download'])->name('vendedores.qr.download');
 
+    // ── MindBoost (Solo Admin) ──────────────────────────────────────────────────
+    Route::middleware('administrator')->group(function () {
+        Route::get('/marketing/packages', [AdminMarketingController::class, 'packages'])->name('marketing.packages.index');
+        Route::post('/marketing/packages', [AdminMarketingController::class, 'storePackage'])->name('marketing.packages.store');
+        Route::put('/marketing/packages/{package}', [AdminMarketingController::class, 'updatePackage'])->name('marketing.packages.update');
+        Route::get('/marketing/campaigns', [AdminMarketingController::class, 'campaigns'])->name('marketing.campaigns.index');
+        Route::post('/marketing/campaigns/{campaignRequest}/activate', [AdminMarketingController::class, 'activateCampaign'])->name('marketing.campaigns.activate');
+        Route::post('/marketing/campaigns/{campaignRequest}/finish', [AdminMarketingController::class, 'finishCampaign'])->name('marketing.campaigns.finish');
+        Route::post('/marketing/groups/{groupCampaign}/activate', [AdminMarketingController::class, 'activateGroupCampaign'])->name('marketing.groups.activate');
+        Route::post('/marketing/groups/{groupCampaign}/finish', [AdminMarketingController::class, 'finishGroupCampaign'])->name('marketing.groups.finish');
+        Route::post('/marketing/campaigns/{campaignRequest}/link', [AdminMarketingController::class, 'updateCampaignLink'])->name('marketing.campaigns.link');
+        Route::post('/marketing/campaigns/{campaignRequest}/brief', [AdminMarketingController::class, 'updateCampaignBrief'])->name('marketing.campaigns.brief');
+    });
+
     // Rutas administrativas para pacientes
     Route::prefix('admin')->group(function () {
         // CRUD de pacientes
@@ -219,3 +234,7 @@ Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () 
     Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
     Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
 });
+
+// ─ Fake Stripe Checkout (Para testing con STRIPE_MODE=fake) ─────────────────────
+Route::get('/fake-stripe/checkout/{sessionId}', [\App\Http\Controllers\StripeController::class, 'showFakeCheckout'])->name('stripe.fake.checkout');
+Route::post('/fake-stripe/checkout/{sessionId}/complete', [\App\Http\Controllers\StripeController::class, 'completeFakeCheckout'])->name('stripe.fake.complete');

@@ -29,6 +29,8 @@ return [
         'secret_key' => env('STRIPE_SECRET_KEY'),
         'public_key' => env('STRIPE_PUBLIC_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // Modo de operación: 'real' o 'fake'
+        'mode' => env('STRIPE_MODE', env('APP_ENV') === 'production' ? 'real' : 'fake'),
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),

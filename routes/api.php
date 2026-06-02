@@ -218,6 +218,23 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->group(funct
     Route::get('user/documentacion/{driveId}/download', [DocumentacionController::class, 'download']);
     Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
     Route::get('user/help-center', [HelpCenterController::class, 'index']);
+
+    // ── MindBoost (Marketing as a Service) ──────────────────────────────────
+    Route::get('user/marketing/packages', [\App\Http\Controllers\MarketingController::class, 'index']);
+    Route::post('user/marketing/campaign-requests', [\App\Http\Controllers\MarketingController::class, 'store']);
+    Route::post('user/marketing/campaign-requests/{campaignRequest}/checkout', [\App\Http\Controllers\StripeController::class, 'createMarketingCheckout']);
+    Route::post('user/marketing/campaign-requests/{campaignRequest}/cancel', [\App\Http\Controllers\StripeController::class, 'cancelCampaignRequest']);
+    Route::get('user/marketing/my-campaigns', [\App\Http\Controllers\MarketingController::class, 'my']);
+
+    // ── Testing Routes (Solo en desarrollo - APP_DEBUG=true) ──────────────────
+    if (config('app.debug')) {
+        Route::prefix('testing/marketing')->group(function () {
+            Route::post('webhook/simulate', [\App\Http\Controllers\MarketingTestController::class, 'simulateWebhook']);
+            Route::post('checkout/create-fake', [\App\Http\Controllers\MarketingTestController::class, 'createFakeCheckout']);
+            Route::get('fake-stripe/stats', [\App\Http\Controllers\MarketingTestController::class, 'getFakeStripeStats']);
+            Route::post('fake-stripe/reset', [\App\Http\Controllers\MarketingTestController::class, 'resetFakeStripe']);
+        });
+    }
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

@@ -17,18 +17,21 @@ use Stripe\Subscription as StripeSubscription;
 
 use App\Models\AppointmentCart;
 use App\Models\Appointment;
+use App\Models\CampaignRequest;
 use App\Models\PatientUser;
 use App\Services\AppointmentService;
 use App\Services\CheckoutPricingService;
 use App\Services\SubscriptionStatusService;
 use App\Models\User;
 use App\Models\Subscription;
+use App\Enums\CampaignRequestStatus;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
 use App\Notifications\SessionPaymentRegisteredNotification;
 use App\Services\TwilioWhatsAppService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 
 class StripeController extends Controller
 {
@@ -41,8 +44,7 @@ class StripeController extends Controller
         AppointmentService $service,
         SubscriptionStatusService $subscriptionStatusService,
         CheckoutPricingService $pricingService
-    )
-    {
+    ) {
         // Usa tu secret actual (puede ser el mismo en local y prod, tú ya lo tenías así)
         $this->stripe_secretkey = config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY');
         $this->service = $service;
@@ -448,10 +450,15 @@ class StripeController extends Controller
             case 'checkout.session.completed': {
                     $session = $event->data->object;
                     Log::info('Checkout session completed (voucher generado): ' . $session->id);
-                    // Puedes actualizar estado del cart a "voucher_generado" si gustas:
+                    // Actualizar estado del cart OXXO a "voucher_generado"
                     if (!empty($session->metadata->appointment_cart_id)) {
                         AppointmentCart::where('id', $session->metadata->appointment_cart_id)
                             ->update(['estado' => 'voucher_generado']);
+                    }
+                    // ── MindBoost: pago de campaña de marketing ───────────────
+                    if (!empty($session->metadata->campaign_request_id)) {
+                        app(\App\Services\MarketingPaymentService::class)
+                            ->handleCheckoutCompleted($session);
                     }
                     break;
                 }
@@ -753,5 +760,321 @@ class StripeController extends Controller
     protected function shouldRedirectToPortal($subscription): bool
     {
         return in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true);
+    }
+
+    // ── MindBoost ─────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/marketing/campaign-requests/{id}/checkout
+     *
+     * Crea una Checkout Session de Stripe para pagar una campaña de marketing.
+     * Reutiliza el customer_id de Stripe del psicólogo (o lo crea si no existe).
+     *
+     * El metadata 'campaign_request_id' es procesado por MarketingPaymentService
+     * cuando Stripe dispara 'checkout.session.completed'.
+     */
+    public function createMarketingCheckout(Request $request, int $campaignRequestId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $stripeMode = config('services.stripe.mode', 'fake');
+
+            $campaignRequest = \App\Models\CampaignRequest::where('id', $campaignRequestId)
+                ->where('user_id', $user->id)
+                ->where('status', \App\Enums\CampaignRequestStatus::PendingPayment->value)
+                ->with('marketingPackage', 'groupCampaign')
+                ->first();
+
+            if (! $campaignRequest) {
+                return response()->json([
+                    'message' => 'Solicitud de campaña no encontrada o ya fue procesada.',
+                ], 404);
+            }
+
+            $package = $campaignRequest->marketingPackage;
+
+            if (! $package) {
+                return response()->json([
+                    'message' => 'El paquete de marketing no existe.',
+                ], 422);
+            }
+
+            if (! $package->is_active) {
+                return response()->json([
+                    'message' => 'El paquete de marketing ya no está disponible.',
+                ], 422);
+            }
+
+            // Validar slots disponibles para paquetes de grupo
+            if ($package->type->value === 'group') {
+                $groupCampaign = $campaignRequest->groupCampaign;
+
+                if (! $groupCampaign) {
+                    return response()->json([
+                        'message' => 'No hay grupo disponible para este paquete en este momento.',
+                    ], 422);
+                }
+
+                if ($groupCampaign->status->value !== 'recruiting') {
+                    return response()->json([
+                        'message' => 'El grupo ya no está reclutando psicólogos.',
+                    ], 422);
+                }
+
+                if ($groupCampaign->current_slots >= $package->max_slots) {
+                    return response()->json([
+                        'message' => 'El grupo está completo. No hay slots disponibles.',
+                    ], 422);
+                }
+            }
+
+            // Asegurar customer en Stripe
+            if (! $user->stripe_id) {
+                if ($stripeMode === 'fake') {
+                    $user->stripe_id = 'cus_fake_' . $user->id;
+                } else {
+                    Stripe::setApiKey($this->stripe_secretkey);
+                    $customer = \Stripe\Customer::create([
+                        'email' => $user->email,
+                        'name'  => $user->name,
+                    ]);
+                    $user->stripe_id = $customer->id;
+                }
+                $user->save();
+            }
+
+            $amountCents = (int) round($package->price * 100);
+
+            $frontend = trim(
+                config('app.front_url_psicologo') ?: config('app.front_url') ?: config('app.url') ?: '',
+                " \t\n\r\0\x0B/"
+            );
+
+            // Crear sesión de checkout según el modo
+            if ($stripeMode === 'fake') {
+                $session = \App\Services\FakeStripeService::createCheckoutSession([
+                    'mode'     => 'payment',
+                    'customer' => $user->stripe_id,
+                    'line_items' => [
+                        [
+                            'price_data' => [
+                                'currency'     => 'mxn',
+                                'product_data' => ['name' => $package->name],
+                                'unit_amount'  => $amountCents,
+                            ],
+                            'quantity' => 1,
+                        ],
+                    ],
+                    'metadata' => [
+                        'type'                 => 'mindboost_marketing',
+                        'campaign_request_id'  => $campaignRequest->id,
+                        'user_id'              => $user->id,
+                        'marketing_package_id' => $package->id,
+                    ],
+                    'success_url' => $frontend . '/mindboost/pago/exito?session_id={CHECKOUT_SESSION_ID}',
+                    'cancel_url'  => $frontend . '/mindboost/pago/cancelado',
+                    'locale'      => 'es-419',
+                ]);
+            } else {
+                Stripe::setApiKey($this->stripe_secretkey);
+                $session = CheckoutSession::create([
+                    'mode'     => 'payment',
+                    'customer' => $user->stripe_id,
+                    'line_items' => [
+                        [
+                            'price_data' => [
+                                'currency'     => 'mxn',
+                                'product_data' => ['name' => $package->name],
+                                'unit_amount'  => $amountCents,
+                            ],
+                            'quantity' => 1,
+                        ],
+                    ],
+                    'metadata' => [
+                        'type'                 => 'mindboost_marketing',
+                        'campaign_request_id'  => $campaignRequest->id,
+                        'user_id'              => $user->id,
+                        'marketing_package_id' => $package->id,
+                    ],
+                    'success_url' => $frontend . '/mindboost/pago/exito?session_id={CHECKOUT_SESSION_ID}',
+                    'cancel_url'  => $frontend . '/mindboost/pago/cancelado',
+                    'locale'      => 'es-419',
+                ]);
+            }
+
+            Log::info('MindBoost: Checkout session creada exitosamente.', [
+                'mode'                => $stripeMode,
+                'session_id'          => $session->id,
+                'campaign_request_id' => $campaignRequest->id,
+                'user_id'             => $user->id,
+                'package_id'          => $package->id,
+                'amount'              => $package->price,
+            ]);
+
+            return response()->json([
+                'url' => $session->url,
+                'session_id' => $session->id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('MindBoost: Error creando checkout session.', [
+                'campaign_request_id' => $campaignRequestId,
+                'user_id'             => $user?->id,
+                'error'               => $e->getMessage(),
+                'trace'               => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Error al crear la sesión de pago. Intenta de nuevo.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Mostrar la página de checkout fake (solo cuando STRIPE_MODE=fake)
+     */
+    public function showFakeCheckout(string $sessionId)
+    {
+        $session = \App\Services\FakeStripeService::getSession($sessionId);
+
+        if (!$session) {
+            return view('fake-stripe.error', [
+                'message' => 'Sesión de pago no encontrada.',
+                'code' => 404,
+            ]);
+        }
+
+        return view('fake-stripe.checkout', [
+            'session' => $session,
+            'sessionId' => $sessionId,
+        ]);
+    }
+
+    /**
+     * Completar el pago fake (simular webhook)
+     */
+    public function completeFakeCheckout(string $sessionId)
+    {
+        try {
+            $session = \App\Services\FakeStripeService::getSession($sessionId);
+
+            if (!$session) {
+                return response()->json(['message' => 'Sesión no encontrada.'], 404);
+            }
+
+            Log::info('FakeStripe: Iniciando pago simulado', [
+                'session_id' => $sessionId,
+                'metadata' => $session['metadata'] ?? [],
+            ]);
+
+            // Simular que el pago se completó
+            $webhook = \App\Services\FakeStripeService::simulateCheckoutCompleted($sessionId);
+
+            if (!$webhook) {
+                return response()->json(['message' => 'Error al simular el pago.'], 500);
+            }
+
+            // Procesar manualmente el evento (sin validación de Stripe)
+            $event = $webhook;
+            $eventSession = $event['data']['object'];
+            $metadata = $eventSession['metadata'] ?? [];
+
+            // ── MindBoost: pago de campaña de marketing ───────────────
+            if (!empty($metadata['campaign_request_id'])) {
+                Log::info('FakeStripe: Procesando pago de campaña MindBoost', [
+                    'campaign_request_id' => $metadata['campaign_request_id'],
+                ]);
+
+                try {
+                    $campaignRequest = \App\Models\CampaignRequest::findOrFail($metadata['campaign_request_id']);
+
+                    // Crear objeto simulado de Stripe session
+                    $fakeStripeSession = (object) $eventSession;
+
+                    // Procesar el pago
+                    app(\App\Services\MarketingPaymentService::class)
+                        ->handleCheckoutCompleted($fakeStripeSession);
+
+                    Log::info('FakeStripe: Pago procesado exitosamente', [
+                        'campaign_request_id' => $metadata['campaign_request_id'],
+                    ]);
+
+                    return response()->json([
+                        'message' => '✓ Pago simulado exitosamente. La campaña ha sido activada.',
+                        'session_id' => $sessionId,
+                        'campaign_request_id' => $metadata['campaign_request_id'],
+                        'status' => 'paid',
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('FakeStripe: Error procesando pago de campaña', [
+                        'campaign_request_id' => $metadata['campaign_request_id'],
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Error al procesar el pago: ' . $e->getMessage(),
+                    ], 500);
+                }
+            }
+
+            // Si no es MindBoost, simplemente retornar éxito
+            return response()->json([
+                'message' => '✓ Pago simulado exitosamente.',
+                'session_id' => $sessionId,
+                'status' => 'paid',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('FakeStripe: Error completando pago fake', [
+                'session_id' => $sessionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Error al procesar el pago: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancelar una campaña atrapada en estado PendingPayment
+     */
+    public function cancelCampaignRequest(Request $request, $campaignRequestId)
+    {
+        try {
+            $campaignRequest = CampaignRequest::where('id', $campaignRequestId)
+                ->where('user_id', $request->user()?->id)
+                ->firstOrFail();
+
+            // Solo permitir cancelar si está en PendingPayment
+            if ($campaignRequest->status !== CampaignRequestStatus::PendingPayment) {
+                return response()->json([
+                    'message' => 'Solo se pueden cancelar campañas en estado "Pago Pendiente".',
+                    'current_status' => $campaignRequest->status,
+                ], 400);
+            }
+
+            // Cambiar a Cancelled
+            $campaignRequest->update(['status' => CampaignRequestStatus::Cancelled->value]);
+
+            Log::info('Campaña cancelada por usuario', [
+                'campaign_request_id' => $campaignRequestId,
+                'user_id' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'message' => '✓ Campaña cancelada. Ahora puedes crear una nueva.',
+                'campaign_request_id' => $campaignRequestId,
+                'status' => $campaignRequest->status->value,
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Campaña no encontrada.'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error cancelando campaña', [
+                'campaign_request_id' => $campaignRequestId,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
+        }
     }
 }

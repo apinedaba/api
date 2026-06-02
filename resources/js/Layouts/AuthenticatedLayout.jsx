@@ -31,6 +31,13 @@ const navigationGroups = [
         ],
     },
     {
+        title: 'MindBoost',
+        items: [
+            { label: 'Paquetes', href: 'marketing.packages.index', match: ['marketing.packages.*'] },
+            { label: 'Campañas', href: 'marketing.campaigns.index', match: ['marketing.campaigns.*'] },
+        ],
+    },
+    {
         title: 'Comunidad',
         items: [
             { label: 'Comunidad Minder', href: 'minder.groups.index', match: ['minder.*'] },
@@ -172,11 +179,10 @@ function SidebarLink({ item, onNavigate }) {
         <Link
             href={route(item.href)}
             onClick={onNavigate}
-            className={`flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                active
+            className={`flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium transition ${active
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
-            }`}
+                }`}
         >
             <span>{item.label}</span>
             {active ? <span className="h-2 w-2 rounded-full bg-white" /> : null}

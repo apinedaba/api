@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Administrator;
 use Illuminate\Database\Seeder;
 
 class AdministratorSeeder extends Seeder
@@ -12,10 +12,26 @@ class AdministratorSeeder extends Seeder
      */
     public function run(): void
     {
-         \App\Models\Administrator::factory()->create([
-             'name' => 'Adrian Pineda',
-             'email' => 'apinedabawork@gmail.com',
-             'password' => 'Totalmex@1',
-        ]);
+        $admins = [
+            [
+                'name' => 'Jesus Hernandez',
+                'email' => 'jesus@mindmeet.com.mx',
+            ],
+            [
+                'name' => 'Adrian Pineda',
+                'email' => 'apinedabawork@gmail.com',
+            ],
+        ];
+
+        foreach ($admins as $admin) {
+            Administrator::updateOrCreate(
+                ['email' => $admin['email']],
+                [
+                    'name' => $admin['name'],
+                    'password' => env('SUPERADMIN_PASSWORD', 'Totalmex@1'),
+                    'email_verified_at' => now(),
+                ]
+            );
+        }
     }
 }

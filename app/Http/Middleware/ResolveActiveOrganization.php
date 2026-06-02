@@ -66,7 +66,7 @@ class ResolveActiveOrganization
             ?: ($request->hasSession() ? $request->session()->get('active_organization_id') : null)
             ?: data_get($request->user()?->configurations, 'active_organization_id');
 
-        if ($organizationId) {
+        if ($organizationId && is_numeric($organizationId)) {
             return Organization::query()->find($organizationId);
         }
 
@@ -77,9 +77,9 @@ class ResolveActiveOrganization
 
     private function hasExplicitOrganization(Request $request): bool
     {
-        return $request->headers->has('X-Organization-Id')
-            || $request->headers->has('X-Organization-Slug')
-            || $request->has('organization_id');
+        return filled($request->header('X-Organization-Id'))
+            || filled($request->header('X-Organization-Slug'))
+            || filled($request->input('organization_id'));
     }
 
     private function organizationIdFromToken(Request $request): ?int

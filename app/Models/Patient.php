@@ -16,7 +16,7 @@ class Patient extends Authenticatable
 {
     use BelongsToOrganization, HasApiTokens, HasFactory, Notifiable;
 
-    protected $fillable = ['organization_id', 'name', 'email', 'phone', 'password', 'address', 'contacto', 'historial', 'activo', 'status', 'historiaClinica', 'relevantes', 'personales', 'image'];
+    protected $fillable = ['organization_id', 'name', 'email', 'phone', 'password', 'address', 'contacto', 'historial', 'activo', 'status', 'historiaClinica', 'consentimiento', 'relevantes', 'personales', 'image'];
 
     protected $hidden = ['password', 'created_at', 'updated_at', 'remember_token', 'email_verified_at'];
 
@@ -25,6 +25,7 @@ class Patient extends Authenticatable
         'contacto' => 'array',
         'relevantes' => 'array',
         'historiaClinica' => 'array',
+        'consentimiento' => 'array',
         'personales' => 'array',
         'address' => 'array',
     ];

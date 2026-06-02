@@ -17,6 +17,7 @@ use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
+use App\Http\Controllers\ClinicalRecordPdfController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
@@ -74,6 +75,8 @@ Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController:
 Route::post('public/appointments/confirm', [AppointmentController::class, 'publicConfirm']);
 // Endpoint público para obtener datos legibles de la cita (no expone id)
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
+Route::get('public/consents/{token}', [PatientController::class, 'showPublicConsent']);
+Route::post('public/consents/{token}/sign', [PatientController::class, 'signPublicConsent']);
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit.user');
 Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
@@ -186,6 +189,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::delete('user/coupons/{coupon}', [DiscountCouponController::class, 'destroy']);
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
+    Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
+    Route::post('user/patients/{id}/consent-link', [PatientController::class, 'generateConsentLink']);
+    Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);
     Route::patch('user/catalog/patients/{patient}/reactivate', [PatientUserController::class, 'reactivate']);
     Route::resource('user/catalog/patients', PatientUserController::class);

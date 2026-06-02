@@ -160,6 +160,14 @@ class AppointmentController extends Controller
             'costo' => 'nullable|numeric',
             'tipoSesion' => 'nullable|string|max:255',
             'formato' => 'nullable|string|max:255',
+            'comments' => 'nullable|string',
+            'objective' => 'nullable|string',
+            'session_description' => 'nullable|string',
+            'pre_session_note' => 'nullable|string',
+            'interventions' => 'nullable|string',
+            'action_plan' => 'nullable|string',
+            'observations' => 'nullable|string',
+            'payment_status' => 'nullable|in:pending,paid',
             'is_recurrent' => 'nullable|boolean',
             'frequency' => 'nullable|string|in:DAILY,WEEKLY,MONTHLY',
             'until' => 'nullable|date|after_or_equal:start',
@@ -261,6 +269,14 @@ class AppointmentController extends Controller
                 'title' => $request->input('title'),
                 'start' => $occurrence['start'],
                 'end' => $occurrence['end'],
+                'comments' => $request->input('comments'),
+                'objective' => $request->input('objective'),
+                'session_description' => $request->input('session_description'),
+                'pre_session_note' => $request->input('pre_session_note'),
+                'interventions' => $request->input('interventions'),
+                'action_plan' => $request->input('action_plan'),
+                'observations' => $request->input('observations'),
+                'payment_status' => $request->input('payment_status', 'pending'),
                 'video_call_room' => $relation->video_call_room,
                 'recurrence_id' => $recurrenceId,
                 'recurrence_frequency' => $isRecurrent ? $frequency : null,
@@ -378,6 +394,13 @@ class AppointmentController extends Controller
             'statusPatient',
             'state',
             'comments',
+            'objective',
+            'session_description',
+            'pre_session_note',
+            'interventions',
+            'action_plan',
+            'observations',
+            'payment_status',
             'link',
             'video_call_room',
         ]);
@@ -430,6 +453,9 @@ class AppointmentController extends Controller
                 }
                 if ($request->filled('formato')) {
                     $cartPayload['formato'] = $request->input('formato');
+                }
+                if ($request->filled('payment_status')) {
+                    $cartPayload['estado'] = $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente';
                 }
                 if (!empty($cartPayload)) {
                     $appointment->cart->update($cartPayload);
@@ -531,7 +557,7 @@ class AppointmentController extends Controller
             'tipoSesion' => $request->input('tipoSesion'),
             'formato' => $request->input('formato', 'online'),
             'precio' => $request->input('costo', 0),
-            'estado' => 'Pendiente',
+            'estado' => $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente',
             'patient_id' => $appointment->patient,
             'user_id' => $appointment->user,
             'duracion' => (string) $duration,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Red;
 
+use App\Events\RedPreguntaActualizada;
 use App\Http\Controllers\Controller;
 use App\Models\RedPregunta;
 use App\Models\RedRespuesta;
@@ -51,6 +52,8 @@ class RedRespuestaController extends Controller
 
         $respuesta->load('autor:id,name,image,personales');
         $respuesta->loadCount('votos');
+
+        broadcast(new RedPreguntaActualizada('nueva_respuesta', $pregunta->id));
 
         return response()->json([
             'data'    => $this->formatRespuesta($respuesta, $request->user()->id, $pregunta->mejor_respuesta_id),

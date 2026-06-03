@@ -62,7 +62,12 @@ class ClinicalRecordPdfService
             ->format('A4')
             ->margins(12, 12, 14, 12)
             ->showBackground()
-            ->noSandbox();
+            ->noSandbox()
+            ->addChromiumArguments([
+                'disable-dev-shm-usage',
+                'disable-gpu',
+                'user-data-dir' => storage_path('app/browsershot/chrome-profile'),
+            ]);
 
         $this->configureBrowsershot($browsershot);
 

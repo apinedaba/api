@@ -75,6 +75,7 @@ jobs:
             mkdir -p bootstrap/cache
             mkdir -p storage/framework/{cache,sessions,views}
             mkdir -p storage/app/
+            mkdir -p storage/app/browsershot/chrome-profile
             cp ~/jsons/* storage/app/
 
             # Permisos correctos
@@ -83,20 +84,33 @@ jobs:
             sudo chmod -R 775 storage bootstrap/cache
 
             # Dependencias Node requeridas por Browsershot/Puppeteer en produccion.
-            # Chromium se usa desde el sistema para evitar descargas pesadas en deploy.
-            CHROME_PATH="$(command -v chromium-browser || command -v chromium || command -v google-chrome || true)"
+            # Usamos Google Chrome estable porque chromium-browser en Ubuntu suele ser Snap
+            # y Snap falla cuando se ejecuta desde php-fpm en /var/www.
+            if ! command -v google-chrome >/dev/null 2>&1; then
+              sudo install -d -m 0755 /etc/apt/keyrings
+              wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-linux-signing-keyring.gpg
+              echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-linux-signing-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
+              sudo apt-get update
+              sudo apt-get install -y google-chrome-stable
+            fi
+
+            CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || true)"
             if [ -z "$CHROME_PATH" ]; then
-              echo "No se encontro Chromium/Chrome en el servidor. Instala chromium-browser o google-chrome-stable."
+              echo "No se encontro Google Chrome en el servidor."
               exit 1
             fi
 
             PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev --no-audit --no-fund
 
-            if ! grep -q '^BROWSERSHOT_CHROME_PATH=' .env; then
+            if grep -q '^BROWSERSHOT_CHROME_PATH=' .env; then
+              sed -i "s|^BROWSERSHOT_CHROME_PATH=.*|BROWSERSHOT_CHROME_PATH=$CHROME_PATH|" .env
+            else
               echo "BROWSERSHOT_CHROME_PATH=$CHROME_PATH" >> .env
             fi
 
-            if ! grep -q '^BROWSERSHOT_NODE_MODULE_PATH=' .env; then
+            if grep -q '^BROWSERSHOT_NODE_MODULE_PATH=' .env; then
+              sed -i "s|^BROWSERSHOT_NODE_MODULE_PATH=.*|BROWSERSHOT_NODE_MODULE_PATH=/var/www/mindmeet/api/node_modules|" .env
+            else
               echo "BROWSERSHOT_NODE_MODULE_PATH=/var/www/mindmeet/api/node_modules" >> .env
             fi
             

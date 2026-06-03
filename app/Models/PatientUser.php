@@ -14,9 +14,16 @@ class PatientUser extends Model
     protected $fillable = [
         'user',
         'patient',
+        'clinic_id',
         'activo',
         'status',
+        'archived_at',
+        'status_before_archive',
         'video_call_room',
+    ];
+
+    protected $casts = [
+        'archived_at' => 'datetime',
     ];
 
     protected $hidden = ["created_at", "updated_at"];
@@ -28,6 +35,11 @@ class PatientUser extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user', 'id');
+    }
+
+    public function clinic()
+    {
+        return $this->belongsTo(Clinic::class, 'clinic_id');
     }
 
     public function medications()

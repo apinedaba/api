@@ -21,6 +21,8 @@ jobs:
           node-version: 20
 
       - name: Install NPM dependencies
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
         run: npm ci
 
       - name: Build admin assets
@@ -79,6 +81,24 @@ jobs:
             sudo chown -R ${{secrets.VPS_USER}}:www-data storage bootstrap/cache
             sudo chown -R ${{secrets.VPS_USER}}:www-data ./*
             sudo chmod -R 775 storage bootstrap/cache
+
+            # Dependencias Node requeridas por Browsershot/Puppeteer en produccion.
+            # Chromium se usa desde el sistema para evitar descargas pesadas en deploy.
+            CHROME_PATH="$(command -v chromium-browser || command -v chromium || command -v google-chrome || true)"
+            if [ -z "$CHROME_PATH" ]; then
+              echo "No se encontro Chromium/Chrome en el servidor. Instala chromium-browser o google-chrome-stable."
+              exit 1
+            fi
+
+            PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev --no-audit --no-fund
+
+            if ! grep -q '^BROWSERSHOT_CHROME_PATH=' .env; then
+              echo "BROWSERSHOT_CHROME_PATH=$CHROME_PATH" >> .env
+            fi
+
+            if ! grep -q '^BROWSERSHOT_NODE_MODULE_PATH=' .env; then
+              echo "BROWSERSHOT_NODE_MODULE_PATH=/var/www/mindmeet/api/node_modules" >> .env
+            fi
             
             # Laravel cleanup seguro
             php artisan optimize:clear

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\AppointmentCreated;
+use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
@@ -573,8 +574,17 @@ class AppointmentController extends Controller
         }
 
         if ($owner->googleAccount && $owner->googleAccount->refresh_token) {
+            $notifyEachAppointment = count($appointments) <= 1;
+
             foreach ($appointments as $appointment) {
-                SyncAppointmentToGoogleCalendar::dispatch($appointment, $owner, 'create');
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $owner, 'create', $notifyEachAppointment);
+            }
+
+            if (!$notifyEachAppointment) {
+                event(new NewNotification(
+                    "user.{$owner->id}",
+                    "Se estan sincronizando " . count($appointments) . " sesiones recurrentes con Google Meet. Te notificamos solo una vez para evitar duplicados."
+                ));
             }
 
             return null;

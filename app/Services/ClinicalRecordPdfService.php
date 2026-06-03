@@ -58,12 +58,15 @@ class ClinicalRecordPdfService
             'mentalLabels' => $this->mentalLabels(),
         ])->render();
 
-        return Browsershot::html($html)
+        $browsershot = Browsershot::html($html)
             ->format('A4')
             ->margins(12, 12, 14, 12)
             ->showBackground()
-            ->noSandbox()
-            ->pdf();
+            ->noSandbox();
+
+        $this->configureBrowsershot($browsershot);
+
+        return $browsershot->pdf();
     }
 
     public function filename(Patient $patient): string
@@ -120,5 +123,34 @@ class ClinicalRecordPdfService
             'pensamiento_juicio' => 'Pensamiento y juicio',
             'autoconcepto_personalidad' => 'Autoconcepto y personalidad',
         ];
+    }
+
+    private function configureBrowsershot(Browsershot $browsershot): void
+    {
+        $chromePath = config('services.browsershot.chrome_path');
+        $nodeBinary = config('services.browsershot.node_binary');
+        $npmBinary = config('services.browsershot.npm_binary');
+        $nodeModulePath = config('services.browsershot.node_module_path');
+        $includePath = config('services.browsershot.include_path');
+
+        if ($chromePath) {
+            $browsershot->setChromePath($chromePath);
+        }
+
+        if ($nodeBinary) {
+            $browsershot->setNodeBinary($nodeBinary);
+        }
+
+        if ($npmBinary) {
+            $browsershot->setNpmBinary($npmBinary);
+        }
+
+        if ($nodeModulePath) {
+            $browsershot->setNodeModulePath($nodeModulePath);
+        }
+
+        if ($includePath) {
+            $browsershot->setIncludePath($includePath);
+        }
     }
 }

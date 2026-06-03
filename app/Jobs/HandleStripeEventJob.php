@@ -2,11 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Events\NewNotification;
 use App\Events\SubscriptionActivated;
-use App\Models\User;
 use App\Models\Subscription;
-use App\Services\EmailService;
+use App\Models\User;
+use App\Services\SubscriptionBillingNotificationService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,108 +25,116 @@ class HandleStripeEventJob implements ShouldQueue
         $this->event = $event;
     }
 
-    public function handle()
+    public function handle(): void
     {
         Log::info("Stripe event received: {$this->event->type}");
-        switch ($this->event->type) {
 
+        switch ($this->event->type) {
             case 'checkout.session.completed':
                 $session = $this->event->data->object;
-                Log::info("Checkout session completed");
-                if ($session->mode == 'subscription') {
-                    $this->handleNewSubscription($session);
+                Log::info('Checkout session completed');
 
+                if (($session->mode ?? null) === 'subscription') {
+                    $this->handleNewSubscription($session);
                 }
                 break;
+
             case 'customer.subscription.updated':
             case 'customer.subscription.deleted':
                 $this->handleSubscriptionChange($this->event->data->object);
                 break;
+
             case 'invoice.payment_failed':
                 $this->handleFailedPayment($this->event->data->object);
                 break;
         }
     }
-    protected function handleNewSubscription($session)
+
+    protected function handleNewSubscription($session): void
     {
-        logger(config('services.stripe.secret_key'));
         \Stripe\Stripe::setApiKey(config('services.stripe.secret_key'));
 
-        $user = User::find($session->metadata->user_id);
-        if ($user) {
-            $stripeSubscription = \Stripe\Subscription::retrieve($session->subscription);
-            Subscription::updateOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'stripe_id' => $stripeSubscription->id,
-                    'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
-                    'stripe_status' => $stripeSubscription->status,
-                    'trial_ends_at' => $stripeSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                    'ends_at' => null,
-                ]
-            );
-            Subscription::where('user_id', $user->id)
-                ->where('stripe_id', '!=', $stripeSubscription->id)
-                ->update([
-                    'stripe_status' => 'canceled',
-                    'ends_at' => now(),
-                ]);
-            logger("JOB EJECUTADO");
-            broadcast(new SubscriptionActivated($user->id));
-            logger("EVENTO DISPARADO");
-            Log::info("Nueva suscripción creada para el usuario: {$user->id}");
-        }
-
-    }
-
-    protected function handleSubscriptionChange($stripeSubscription)
-    {
-        $subscription = Subscription::where('stripe_id', $stripeSubscription->id)->first();
-        if ($subscription) {
-            $subscription->update([
-                'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
-                'stripe_status' => $stripeSubscription->status,
-                'trial_ends_at' => $stripeSubscription->trial_end ? Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                'ends_at' => $this->resolveSubscriptionEndsAt($stripeSubscription),
-            ]);
-            Log::info("Suscripción actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
-        }
-    }
-    protected function handleFailedPayment($invoice)
-    {
-        // 🔒 Validación defensiva
-        $userId = $invoice->customer ?? null;
-        Log::info("{$invoice}");
-        if (!$userId) {
-            Log::error("Invoice {$invoice->id} sin user_id");
-            return;
-        }
-
-        $user = User::where('stripe_id', $userId)->first();
+        $user = User::find($session->metadata->user_id ?? null);
 
         if (!$user) {
-            Log::error("Usuario no encontrado: {$userId}");
             return;
         }
 
-        // 📧 Enviar correo (cola)
-        EmailService::send(
-            $user->email,
-            'MindMeet | No pudimos procesar tu renovación',
-            'email.payment-failed',
+        $stripeSubscription = \Stripe\Subscription::retrieve($session->subscription);
+
+        Subscription::updateOrCreate(
+            ['user_id' => $user->id],
             [
-                'name' => $user->name,
-                'url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url'), '/') . '/perfil/suscripcion',
+                'stripe_id' => $stripeSubscription->id,
+                'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
+                'stripe_status' => $stripeSubscription->status,
+                'trial_ends_at' => $stripeSubscription->trial_end
+                    ? Carbon::createFromTimestamp($stripeSubscription->trial_end)
+                    : null,
+                'ends_at' => null,
             ]
         );
 
-        // 🔄 Actualizar suscripción
+        Subscription::where('user_id', $user->id)
+            ->where('stripe_id', '!=', $stripeSubscription->id)
+            ->update([
+                'stripe_status' => 'canceled',
+                'ends_at' => now(),
+            ]);
+
+        broadcast(new SubscriptionActivated($user->id));
+
+        Log::info("Nueva suscripcion creada para el usuario: {$user->id}");
+    }
+
+    protected function handleSubscriptionChange($stripeSubscription): void
+    {
+        $subscription = Subscription::where('stripe_id', $stripeSubscription->id)->first();
+
+        if (!$subscription) {
+            return;
+        }
+
+        $subscription->update([
+            'stripe_plan' => $stripeSubscription->items->data[0]->price->id,
+            'stripe_status' => $stripeSubscription->status,
+            'trial_ends_at' => $stripeSubscription->trial_end
+                ? Carbon::createFromTimestamp($stripeSubscription->trial_end)
+                : null,
+            'ends_at' => $this->resolveSubscriptionEndsAt($stripeSubscription),
+        ]);
+
+        Log::info("Suscripcion actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
+    }
+
+    protected function handleFailedPayment($invoice): void
+    {
+        $customerId = $invoice->customer ?? null;
+
+        Log::warning('Stripe invoice payment failed', [
+            'invoice_id' => $invoice->id ?? null,
+            'customer' => $customerId,
+            'subscription' => $invoice->subscription ?? null,
+        ]);
+
+        if (!$customerId) {
+            Log::error("Invoice {$invoice->id} sin customer de Stripe");
+            return;
+        }
+
+        $user = User::where('stripe_id', $customerId)->first();
+
+        if (!$user) {
+            Log::error("Usuario no encontrado para customer {$customerId}");
+            return;
+        }
+
         if (!empty($invoice->subscription)) {
             Subscription::where('stripe_id', $invoice->subscription)
                 ->update(['stripe_status' => 'past_due']);
-
-            Log::warning("Fallo en pago de suscripción: {$invoice->subscription}");
         }
+
+        app(SubscriptionBillingNotificationService::class)->notifyFailedCharge($user, $invoice);
     }
 
     protected function resolveSubscriptionEndsAt($stripeSubscription): ?Carbon

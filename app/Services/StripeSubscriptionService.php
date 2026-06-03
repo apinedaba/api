@@ -1,23 +1,22 @@
 <?php
+
 namespace App\Services;
 
-use App\Models\User;
 use App\Models\Subscription;
+use App\Models\User;
 use Carbon\Carbon;
 use Stripe\Stripe;
 
 class StripeSubscriptionService
 {
-
     public function __construct()
     {
         Stripe::setApiKey(config('services.stripe.secret_key'));
     }
 
-    public function handleNewSubscription($session)
+    public function handleNewSubscription($session): void
     {
-
-        $user = User::find($session->metadata->user_id);
+        $user = User::find($session->metadata->user_id ?? null);
 
         if (!$user) {
             return;
@@ -32,9 +31,9 @@ class StripeSubscriptionService
                 'stripe_plan' => $subscription->items->data[0]->price->id,
                 'stripe_status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_end
-                    ? \Carbon\Carbon::createFromTimestamp($subscription->trial_end)
+                    ? Carbon::createFromTimestamp($subscription->trial_end)
                     : null,
-                'ends_at' => null
+                'ends_at' => null,
             ]
         );
 
@@ -44,12 +43,10 @@ class StripeSubscriptionService
                 'stripe_status' => 'canceled',
                 'ends_at' => now(),
             ]);
-
     }
 
-    public function updateSubscription($subscription)
+    public function updateSubscription($subscription): void
     {
-
         Subscription::where('stripe_id', $subscription->id)
             ->update([
                 'stripe_plan' => $subscription->items->data[0]->price->id ?? null,
@@ -59,41 +56,29 @@ class StripeSubscriptionService
                     : null,
                 'ends_at' => $this->resolveEndsAt($subscription),
             ]);
-
     }
 
-    public function cancelSubscription($subscription)
+    public function cancelSubscription($subscription): void
     {
-
         Subscription::where('stripe_id', $subscription->id)
             ->update([
                 'ends_at' => now(),
-                'stripe_status' => 'canceled'
+                'stripe_status' => 'canceled',
             ]);
-
     }
 
-    public function paymentFailed($invoice)
+    public function paymentFailed($invoice): void
     {
         $user = User::where('stripe_id', $invoice->customer ?? null)->first();
 
-        if ($user?->email) {
-            EmailService::send(
-                $user->email,
-                'MindMeet | No pudimos procesar tu renovación',
-                'email.payment-failed',
-                [
-                    'name' => $user->name,
-                    'url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url'), '/') . '/perfil/suscripcion',
-                ]
-            );
+        if ($user) {
+            app(SubscriptionBillingNotificationService::class)->notifyFailedCharge($user, $invoice);
         }
 
         Subscription::where('stripe_id', $invoice->subscription)
             ->update([
-                'stripe_status' => 'past_due'
+                'stripe_status' => 'past_due',
             ]);
-
     }
 
     protected function resolveEndsAt($subscription): ?Carbon
@@ -112,5 +97,4 @@ class StripeSubscriptionService
 
         return null;
     }
-
 }

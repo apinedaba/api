@@ -21,7 +21,7 @@ return [
 
     'allowed_origins' => explode(',', env('ALLOWED_ORIGINS', 'http://localhost:3000')),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => array_filter(explode(',', env('ALLOWED_ORIGIN_PATTERNS', ''))),
 
     'allowed_headers' => ['*'],
 

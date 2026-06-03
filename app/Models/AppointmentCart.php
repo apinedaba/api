@@ -24,7 +24,16 @@ class AppointmentCart extends Model
         'discount',
         'discountType',
         'originalPrice',
-        'categoria'
+        'categoria',
+        'session_base_amount',
+        'charge_subtotal_amount',
+        'platform_fee_rate',
+        'platform_fee_amount',
+        'total_charge_amount',
+        'psychologist_amount',
+        'remaining_balance_amount',
+        'charge_mode',
+        'payout_status',
 
     ];
 
@@ -37,4 +46,14 @@ class AppointmentCart extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    protected $casts = [
+        'session_base_amount' => 'float',
+        'charge_subtotal_amount' => 'float',
+        'platform_fee_rate' => 'float',
+        'platform_fee_amount' => 'float',
+        'total_charge_amount' => 'float',
+        'psychologist_amount' => 'float',
+        'remaining_balance_amount' => 'float',
+    ];
 }

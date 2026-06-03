@@ -7,6 +7,7 @@ use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
 use App\Models\ConsultaContacto;
+use App\Models\OrganizationMembership;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
@@ -21,7 +22,6 @@ use App\Services\GoogleCalendarService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -47,7 +47,7 @@ class AppointmentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = Auth::user();
+        $user = $request->user();
         $appointments = Appointment::with(['payments', 'cart'])
             ->where('user', $user->id)
             ->orderBy('start')
@@ -59,7 +59,7 @@ class AppointmentController extends Controller
     public function getAppoinmentsByPatient($patient = null): JsonResponse
     {
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
-        $user = Auth::user();
+        $user = request()->user();
 
         if (in_array('user', $middlewares, true)) {
             $appointments = Appointment::where('user', $user->id)
@@ -149,7 +149,7 @@ class AppointmentController extends Controller
         Log::info('Creando cita con datos', $request->all());
 
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
-        $authUser = Auth::user();
+        $authUser = $request->user();
 
         $request->validate([
             'start' => 'required|date',
@@ -160,15 +160,38 @@ class AppointmentController extends Controller
             'costo' => 'nullable|numeric',
             'tipoSesion' => 'nullable|string|max:255',
             'formato' => 'nullable|string|max:255',
+            'comments' => 'nullable|string',
+            'objective' => 'nullable|string',
+            'session_description' => 'nullable|string',
+            'pre_session_note' => 'nullable|string',
+            'interventions' => 'nullable|string',
+            'action_plan' => 'nullable|string',
+            'observations' => 'nullable|string',
+            'payment_status' => 'nullable|in:pending,paid',
             'is_recurrent' => 'nullable|boolean',
             'frequency' => 'nullable|string|in:DAILY,WEEKLY,MONTHLY',
             'until' => 'nullable|date|after_or_equal:start',
             'interval' => 'nullable|integer|min:1',
             'syncWithGoogle' => 'nullable|boolean',
+            'clinic_id' => 'nullable|exists:clinics,id',
+            'organization_id' => 'nullable|exists:organizations,id',
         ]);
 
         if (in_array('user', $middlewares, true)) {
-            $request->merge(['user' => $authUser->id]);
+            $requestedProfessionalId = (int) $request->input('user', $authUser->id);
+            $activeOrganization = $request->attributes->get('active_organization');
+            $membership = $request->attributes->get('organization_membership');
+            $canAssignOrganizationProfessional = $this->canAssignOrganizationProfessional(
+                $activeOrganization?->id,
+                $membership,
+                $requestedProfessionalId
+            );
+
+            $request->merge([
+                'user' => $canAssignOrganizationProfessional
+                    ? $requestedProfessionalId
+                    : $authUser->id,
+            ]);
         } elseif (in_array('patient', $middlewares, true)) {
             $request->merge(['patient' => $authUser->id]);
         } else {
@@ -179,9 +202,17 @@ class AppointmentController extends Controller
             ], 403);
         }
 
+        $clinicId = $this->resolveClinicContext(
+            $request->input('clinic_id'),
+            (int) $request->input('user'),
+            (int) $request->input('patient')
+        );
+        $organizationId = $request->input('organization_id')
+            ?: $request->attributes->get('active_organization')?->id;
+
         if ($request->filled('lead') && in_array('user', $middlewares, true)) {
             $request->merge([
-                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user')),
+                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user'), $clinicId, $organizationId),
             ]);
         }
 
@@ -193,7 +224,15 @@ class AppointmentController extends Controller
             ], 422);
         }
 
-        $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'));
+        $relation = $this->service->ensureRelationshipAndRoom($request->input('user'), $request->input('patient'), $clinicId);
+        if ($relation?->archived_at) {
+            return response()->json([
+                'rasson' => 'Paciente archivado. Reactivalo para agendar nuevas sesiones.',
+                'message' => 'Paciente archivado',
+                'type' => 'error',
+            ], 423);
+        }
+
         $start = Carbon::parse($request->input('start'));
         $end = Carbon::parse($request->input('end'));
         $duration = max($start->diffInMinutes($end), 1);
@@ -223,11 +262,21 @@ class AppointmentController extends Controller
 
         foreach ($occurrences as $occurrence) {
             $appointment = Appointment::create([
+                'organization_id' => $organizationId,
                 'user' => $request->input('user'),
                 'patient' => $request->input('patient'),
+                'clinic_id' => $clinicId,
                 'title' => $request->input('title'),
                 'start' => $occurrence['start'],
                 'end' => $occurrence['end'],
+                'comments' => $request->input('comments'),
+                'objective' => $request->input('objective'),
+                'session_description' => $request->input('session_description'),
+                'pre_session_note' => $request->input('pre_session_note'),
+                'interventions' => $request->input('interventions'),
+                'action_plan' => $request->input('action_plan'),
+                'observations' => $request->input('observations'),
+                'payment_status' => $request->input('payment_status', 'pending'),
                 'video_call_room' => $relation->video_call_room,
                 'recurrence_id' => $recurrenceId,
                 'recurrence_frequency' => $isRecurrent ? $frequency : null,
@@ -279,6 +328,41 @@ class AppointmentController extends Controller
         ], 200);
     }
 
+    private function canAssignOrganizationProfessional(
+        ?int $organizationId,
+        ?OrganizationMembership $membership,
+        int $professionalId
+    ): bool {
+        if (!$organizationId || !$membership || !$professionalId) {
+            return false;
+        }
+
+        $permissions = $membership->permissions ?: [];
+        $canManageSchedule = in_array($membership->role, [
+            OrganizationMembership::ROLE_OWNER,
+            OrganizationMembership::ROLE_ADMIN,
+            OrganizationMembership::ROLE_RECEPTIONIST,
+        ], true)
+            || in_array('*', $permissions, true)
+            || in_array('appointments.create', $permissions, true)
+            || in_array('appointments.manage', $permissions, true)
+            || in_array('schedule.manage', $permissions, true)
+            || (is_array($permissions) && !empty($permissions['appointments.create']))
+            || (is_array($permissions) && !empty($permissions['appointments.manage']))
+            || (is_array($permissions) && !empty($permissions['schedule.manage']));
+
+        if (!$canManageSchedule) {
+            return false;
+        }
+
+        return OrganizationMembership::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $professionalId)
+            ->where('role', OrganizationMembership::ROLE_PSYCHOLOGIST)
+            ->where('status', OrganizationMembership::STATUS_ACTIVE)
+            ->exists();
+    }
+
     public function show(Appointment $appointment): JsonResponse
     {
         $appointment = Appointment::where('id', $appointment->id)
@@ -290,7 +374,7 @@ class AppointmentController extends Controller
 
     public function showABP($id): JsonResponse
     {
-        $patient = Auth::user();
+        $patient = request()->user();
         $appointment = Appointment::where('id', $id)
             ->where('patient', $patient->id)
             ->with(['cart', 'user'])
@@ -302,7 +386,24 @@ class AppointmentController extends Controller
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
         $originalData = Appointment::with(['user', 'cart', 'patient'])->findOrFail($appointment->id);
-        $updatedData = $request->except(['patient', 'cart', 'payments', 'user']);
+        $updatedData = $request->only([
+            'title',
+            'start',
+            'end',
+            'statusUser',
+            'statusPatient',
+            'state',
+            'comments',
+            'objective',
+            'session_description',
+            'pre_session_note',
+            'interventions',
+            'action_plan',
+            'observations',
+            'payment_status',
+            'link',
+            'video_call_room',
+        ]);
         $fieldsToUpdate = [];
         $arrayOriginal = $originalData->toArray();
 
@@ -317,6 +418,15 @@ class AppointmentController extends Controller
 
             if ((string) $arrayOriginal[$key] !== (string) $value) {
                 $fieldsToUpdate[$key] = $value;
+            }
+        }
+
+        if ($request->exists('comments')) {
+            $incomingComments = (string) $request->input('comments', '');
+            $originalComments = (string) ($originalData->comments ?? '');
+
+            if ($incomingComments !== $originalComments) {
+                $fieldsToUpdate['comments'] = $incomingComments;
             }
         }
 
@@ -343,6 +453,9 @@ class AppointmentController extends Controller
                 }
                 if ($request->filled('formato')) {
                     $cartPayload['formato'] = $request->input('formato');
+                }
+                if ($request->filled('payment_status')) {
+                    $cartPayload['estado'] = $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente';
                 }
                 if (!empty($cartPayload)) {
                     $appointment->cart->update($cartPayload);
@@ -444,7 +557,7 @@ class AppointmentController extends Controller
             'tipoSesion' => $request->input('tipoSesion'),
             'formato' => $request->input('formato', 'online'),
             'precio' => $request->input('costo', 0),
-            'estado' => 'Pendiente',
+            'estado' => $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente',
             'patient_id' => $appointment->patient,
             'user_id' => $appointment->user,
             'duracion' => (string) $duration,
@@ -510,7 +623,7 @@ class AppointmentController extends Controller
         return in_array($status, ['cancel', 'cancelado', 'cancelada'], true);
     }
 
-    private function resolveLeadToPatient(int $leadId, int $userId): int
+    private function resolveLeadToPatient(int $leadId, int $userId, ?int $clinicId = null, ?int $organizationId = null): int
     {
         $consulta = ConsultaContacto::findOrFail($leadId);
 
@@ -518,11 +631,17 @@ class AppointmentController extends Controller
             ['email' => $consulta->email],
             [
                 'name' => $consulta->nombre,
+                'organization_id' => $organizationId,
                 'contacto' => ['telefono' => $consulta->telefono],
                 'phone' => preg_replace('/\D+/', '', (string) $consulta->telefono) ?: null,
                 'password' => Hash::make($consulta->telefono ?? Str::random(12)),
             ]
         );
+
+        if (!$patient->organization_id && $organizationId) {
+            $patient->organization_id = $organizationId;
+            $patient->save();
+        }
 
         $relacionExiste = PatientUser::where('user', $userId)
             ->where('patient', $patient->id)
@@ -532,6 +651,7 @@ class AppointmentController extends Controller
             PatientUser::create([
                 'user' => $userId,
                 'patient' => $patient->id,
+                'clinic_id' => $clinicId ?: $this->resolveClinicContext(null, $userId, $patient->id),
                 'activo' => true,
                 'status' => 'Vinculado',
                 'video_call_room' => 'mindmeet-room-' . Str::uuid(),
@@ -540,6 +660,29 @@ class AppointmentController extends Controller
         }
 
         return $patient->id;
+    }
+
+    private function resolveClinicContext($requestedClinicId, int $userId, ?int $patientId = null): ?int
+    {
+        if ($requestedClinicId) {
+            return (int) $requestedClinicId;
+        }
+
+        if ($patientId) {
+            $existingRelationClinicId = PatientUser::query()
+                ->where('user', $userId)
+                ->where('patient', $patientId)
+                ->value('clinic_id');
+
+            if ($existingRelationClinicId) {
+                return (int) $existingRelationClinicId;
+            }
+        }
+
+        return User::with('primaryClinicMembership')
+            ->find($userId)
+            ?->primaryClinicMembership
+            ?->clinic_id;
     }
 
     public function sendNotificacionStatusEmail($appointment, ?Appointment $originalAppointment = null): bool

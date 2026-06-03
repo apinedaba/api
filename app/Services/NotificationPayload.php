@@ -18,6 +18,7 @@ class NotificationPayload
             'action_url' => data_get($payload, 'action_url'),
             'action_label' => data_get($payload, 'action_label', 'Ver'),
             'kind' => data_get($payload, 'kind', 'general'),
+            'data' => $payload,
             'type' => $notification->type,
             'is_read' => $notification->read_at !== null,
             'read_at' => $notification->read_at?->toIso8601String(),

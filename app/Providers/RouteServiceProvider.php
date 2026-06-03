@@ -31,6 +31,15 @@ class RouteServiceProvider extends ServiceProvider
             // Permite 1 intento por minuto basado en la dirección de correo
             return Limit::perMinute(1)->by($request->input('email'));
         });
+        RateLimiter::for('minder-messages', function (Request $request) {
+            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        });
+        RateLimiter::for('red-preguntas', function (Request $request) {
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        });
+        RateLimiter::for('red-respuestas', function (Request $request) {
+            return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
+        });
 
         $this->routes(function () {
             Route::middleware('api')

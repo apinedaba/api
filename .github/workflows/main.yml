@@ -76,6 +76,7 @@ jobs:
             mkdir -p storage/framework/{cache,sessions,views}
             mkdir -p storage/app/
             mkdir -p storage/app/browsershot/chrome-profile
+            mkdir -p storage/app/browsershot/{home,cache,config,data,crashpad}
             cp ~/jsons/* storage/app/
 
             # Permisos correctos
@@ -120,3 +121,12 @@ jobs:
             # Opcional (solo si quieres cachear en prod)
             php artisan config:cache
             php artisan route:cache
+
+            # Recargar PHP-FPM para limpiar OPcache y usar el codigo recien desplegado.
+            if systemctl list-units --type=service --all | grep -q 'php8.2-fpm.service'; then
+              sudo systemctl reload php8.2-fpm
+            elif systemctl list-units --type=service --all | grep -q 'php8.3-fpm.service'; then
+              sudo systemctl reload php8.3-fpm
+            elif systemctl list-units --type=service --all | grep -q 'php-fpm.service'; then
+              sudo systemctl reload php-fpm
+            fi

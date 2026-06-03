@@ -9,6 +9,7 @@ use App\Models\PatientUser;
 use App\Models\Patient_Medication;
 use App\Models\Sintomas;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 
@@ -58,6 +59,8 @@ class ClinicalRecordPdfService
             'mentalLabels' => $this->mentalLabels(),
         ])->render();
 
+        $this->prepareBrowsershotRuntime();
+
         $browsershot = Browsershot::html($html)
             ->format('A4')
             ->margins(12, 12, 14, 12)
@@ -66,6 +69,14 @@ class ClinicalRecordPdfService
             ->addChromiumArguments([
                 'disable-dev-shm-usage',
                 'disable-gpu',
+                'disable-breakpad',
+                'disable-crashpad',
+                'disable-crash-reporter',
+                'disable-setuid-sandbox',
+                'no-default-browser-check',
+                'no-first-run',
+                'no-zygote',
+                'crash-dumps-dir' => storage_path('app/browsershot/crashpad'),
                 'user-data-dir' => storage_path('app/browsershot/chrome-profile'),
             ]);
 
@@ -156,6 +167,28 @@ class ClinicalRecordPdfService
 
         if ($includePath) {
             $browsershot->setIncludePath($includePath);
+        }
+    }
+
+    private function prepareBrowsershotRuntime(): void
+    {
+        $paths = [
+            'HOME' => storage_path('app/browsershot/home'),
+            'XDG_CACHE_HOME' => storage_path('app/browsershot/cache'),
+            'XDG_CONFIG_HOME' => storage_path('app/browsershot/config'),
+            'XDG_DATA_HOME' => storage_path('app/browsershot/data'),
+        ];
+
+        foreach ([...array_values($paths), storage_path('app/browsershot/chrome-profile'), storage_path('app/browsershot/crashpad')] as $path) {
+            if (!File::isDirectory($path)) {
+                File::makeDirectory($path, 0775, true);
+            }
+        }
+
+        foreach ($paths as $key => $path) {
+            putenv("{$key}={$path}");
+            $_ENV[$key] = $path;
+            $_SERVER[$key] = $path;
         }
     }
 }

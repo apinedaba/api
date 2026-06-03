@@ -38,6 +38,20 @@ class SubscriptionStatusService
         }
 
         if (!$subscription) {
+            $remoteSubscription = $this->findReusableStripeSubscriptionByCustomer($user->stripe_id);
+            if ($remoteSubscription) {
+                $subscription = $this->createLocalSubscriptionFromStripe($user, $remoteSubscription);
+            }
+        }
+
+        if ($subscription && !filled($subscription->stripe_id)) {
+            $remoteSubscription = $this->findReusableStripeSubscriptionByCustomer($user->stripe_id);
+            if ($remoteSubscription) {
+                $subscription = $this->createLocalSubscriptionFromStripe($user, $remoteSubscription);
+            }
+        }
+
+        if (!$subscription) {
             return [
                 'status_key' => 'not_subscribed',
                 'status_label' => 'Sin suscripción',
@@ -109,6 +123,68 @@ class SubscriptionStatusService
 
             return null;
         }
+    }
+
+    protected function findReusableStripeSubscriptionByCustomer(?string $customerId): mixed
+    {
+        if (!filled($customerId)) {
+            return null;
+        }
+
+        try {
+            $subscriptions = \Stripe\Subscription::all([
+                'customer' => $customerId,
+                'status' => 'all',
+                'limit' => 20,
+                'expand' => [
+                    'data.items.data.price.product',
+                    'data.default_payment_method',
+                    'data.latest_invoice.payment_intent.payment_method',
+                    'data.customer',
+                ],
+            ])->data;
+        } catch (ApiErrorException $exception) {
+            Log::warning('No se pudieron consultar suscripciones de Stripe por customer', [
+                'customer_id' => $customerId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        foreach ([['active', 'trialing'], ['past_due', 'unpaid', 'paused'], ['incomplete']] as $statusGroup) {
+            foreach ($subscriptions as $subscription) {
+                if (in_array($subscription->status, $statusGroup, true)) {
+                    return $subscription;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function createLocalSubscriptionFromStripe(User $user, mixed $remoteSubscription): Subscription
+    {
+        $subscription = Subscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_id' => $remoteSubscription->id,
+                'stripe_plan' => data_get($remoteSubscription, 'items.data.0.price.id')
+                    ?: data_get($remoteSubscription, 'items.data.0.plan.id'),
+                'stripe_status' => $remoteSubscription->status,
+                'trial_ends_at' => $this->carbonFromTimestamp($remoteSubscription->trial_end),
+                'ends_at' => $this->resolveEndsAtForSync($remoteSubscription, new Subscription()),
+            ]
+        );
+
+        Log::info('Suscripcion local reconciliada desde Stripe al consultar estatus', [
+            'user_id' => $user->id,
+            'stripe_customer_id' => $user->stripe_id,
+            'stripe_subscription_id' => $remoteSubscription->id,
+            'stripe_status' => $remoteSubscription->status,
+        ]);
+
+        return $subscription->fresh();
     }
 
     protected function syncLocalSubscription(Subscription $subscription, mixed $remoteSubscription): Subscription

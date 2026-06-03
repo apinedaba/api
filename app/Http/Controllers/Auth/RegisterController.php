@@ -5,20 +5,23 @@ namespace App\Http\Controllers\Auth;
 use App\Models\Patient;
 use App\Models\Vendedor;
 use App\Models\Subscription;
+use App\Models\Clinic;
+use App\Models\ClinicMembership;
+use App\Models\Organization;
 use App\Models\User;
 use App\Notifications\NuevoPacienteBienvenida;
 use App\Notifications\NuevoPsicologoRegistrado;
 use App\Support\PatientIdentity;
-use Carbon\Carbon;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use OpenApi\Annotations as OA;
+use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
+use App\Services\OrganizationService;
 
 class RegisterController extends Controller
 {
@@ -29,10 +32,16 @@ class RegisterController extends Controller
         'name' => 'required|string|max:255',
         'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
         'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
+        'account_type' => ['nullable', 'in:independent,clinic'],
+        'clinic_name' => ['required_if:account_type,clinic', 'nullable', 'string', 'max:255'],
         'password' => 'required|string|min:6'
     ];
 
-    public function registerUser(Request $request, SellerCommissionService $sellerCommissionService)
+    public function registerUser(
+        Request $request,
+        SellerCommissionService $sellerCommissionService,
+        OrganizationService $organizationService
+    )
     {
         $validateUser = Validator::make($request->all(), $this->registerValidationRules);
 
@@ -50,31 +59,42 @@ class RegisterController extends Controller
             ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
             : null;
 
-        $user = User::create([
-            'name' => trim((string) $request->name),
-            'email' => mb_strtolower(trim((string) $request->email)),
-            'contacto' => array_merge($request->contacto ?? [], [
-                'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
-            ]),
-            'password' => Hash::make($request->password),
-            'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
-            'code_expires_at' => now()->addMinutes(10),
-        ]);
+        $accountType = $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
+        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode) {
+            $user = User::create([
+                'name' => trim((string) $request->name),
+                'email' => mb_strtolower(trim((string) $request->email)),
+                'contacto' => array_merge($request->contacto ?? [], [
+                    'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
+                ]),
+                'configurations' => [
+                    'workspace_type' => $accountType === 'clinic' ? 'clinic' : 'independent',
+                    'registration_mode' => $accountType === 'clinic' ? 'clinic_owner' : 'independent',
+                ],
+                'password' => Hash::make($request->password),
+                'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+                'code_expires_at' => now()->addMinutes(10),
+            ]);
 
-        if ($vendedor) {
-            Subscription::firstOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'stripe_id' => null,
-                    'stripe_plan' => null,
-                    'stripe_status' => 'init',
-                    'trial_ends_at' => null,
-                    'ends_at' => null,
-                ]
-            );
+            $this->createInitialWorkspace($user, $accountType, $request, $organizationService);
 
-            $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
-        }
+            if ($vendedor) {
+                Subscription::firstOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'stripe_id' => null,
+                        'stripe_plan' => null,
+                        'stripe_status' => 'init',
+                        'trial_ends_at' => null,
+                        'ends_at' => null,
+                    ]
+                );
+
+                $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
+            }
+
+            return $user->fresh();
+        });
 
         if ($user) {
             try {
@@ -89,6 +109,88 @@ class RegisterController extends Controller
             'message' => 'Te has registrado',
             'type' => 'success',
         ], 200);
+    }
+
+    private function createInitialWorkspace(
+        User $user,
+        string $accountType,
+        Request $request,
+        OrganizationService $organizationService
+    ): void {
+        $workspaceName = $accountType === 'clinic'
+            ? trim((string) $request->input('clinic_name'))
+            : ($user->name ?: "Consultorio {$user->id}");
+
+        $organization = $organizationService->create($user, [
+            'name' => $workspaceName,
+            'type' => $accountType === 'clinic' ? Organization::TYPE_CLINIC : Organization::TYPE_INDIVIDUAL,
+            'settings' => [
+                'created_from' => 'registration',
+                'account_type' => $accountType,
+            ],
+        ]);
+
+        $configurations = $user->configurations ?? [];
+        $configurations['active_organization_id'] = $organization->id;
+
+        if ($accountType === 'clinic') {
+            $clinic = Clinic::create([
+                'owner_user_id' => $user->id,
+                'name' => $workspaceName,
+                'slug' => $this->uniqueClinicSlug($workspaceName),
+                'account_type' => 'clinic',
+                'status' => 'active',
+                'description' => null,
+                'base_psychologist_limit' => 6,
+                'addon_psychologist_slots' => 0,
+                'contact' => [
+                    'telefono' => data_get($user->contacto, 'telefono'),
+                    'email' => $user->email,
+                ],
+                'settings' => [
+                    'created_from' => 'registration',
+                    'base_plan' => true,
+                    'unlimited_psychologists' => false,
+                ],
+            ]);
+
+            ClinicMembership::updateOrCreate(
+                [
+                    'clinic_id' => $clinic->id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'role' => 'owner',
+                    'is_primary' => true,
+                    'can_manage_schedule' => true,
+                    'can_manage_patients' => true,
+                    'can_view_finance' => true,
+                    'meta' => [
+                        'allowed_modules' => ['*'],
+                        'created_from' => 'registration',
+                    ],
+                ]
+            );
+
+            $configurations['clinic_id'] = $clinic->id;
+            $configurations['clinic_name'] = $clinic->name;
+        }
+
+        $user->forceFill(['configurations' => $configurations])->save();
+    }
+
+    private function uniqueClinicSlug(string $name): string
+    {
+        $base = Str::slug($name) ?: 'clinica';
+        $slug = $base;
+        $counter = 2;
+
+        while (Clinic::where('slug', $slug)->exists()) {
+            $slug = "{$base}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
     }
 
     public function verifyCode(Request $request)

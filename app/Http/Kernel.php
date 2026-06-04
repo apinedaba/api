@@ -74,6 +74,7 @@ class Kernel extends HttpKernel
         'handle_invalid_token' => \App\Http\Middleware\HandleInvalidToken::class,
         'user' => \App\Http\Middleware\EnsureUser::class,
         'patient' => \App\Http\Middleware\EnsurePatient::class,
+        'active_organization' => \App\Http\Middleware\ResolveActiveOrganization::class,
         'subscribed' => \App\Http\Middleware\CheckSubscriptionStatus::class,
         'vendedor_web' => \App\Http\Middleware\EnsureVendedor::class,
         'minder_access' => \App\Http\Middleware\EnsureMinderAccess::class,

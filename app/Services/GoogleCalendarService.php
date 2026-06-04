@@ -128,7 +128,7 @@ class GoogleCalendarService
      * @param Appointment $appointment La cita a sincronizar.
      * @param User $user El profesional dueño del calendario.
      */
-    public function createEvent(Appointment $appointment, User $user): void
+    public function createEvent(Appointment $appointment, User $user, bool $notifyProfessional = true): void
     {
         logger("Entrando a create");
         $client = $this->getAuthenticatedClient($user);
@@ -155,7 +155,9 @@ class GoogleCalendarService
         $appointment->save();
         logger($appointment->user);
         logger("Se mando el evento y la sesion a google");
-        event(new NewNotification("user.{$appointment->user}", "Cita, Sincronizada con google, ¡Link de meet disponible!"));
+        if ($notifyProfessional) {
+            event(new NewNotification("user.{$appointment->user}", "Cita, Sincronizada con google, ¡Link de meet disponible!"));
+        }
         // Enviar email al paciente con el enlace de la sesión
         $patient = Patient::find($appointment->patient);
         if ($appointment->link && $patient && filled($patient->email)) {

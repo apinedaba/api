@@ -38,6 +38,20 @@ class SubscriptionStatusService
         }
 
         if (!$subscription) {
+            $remoteSubscription = $this->findReusableStripeSubscriptionByCustomer($user->stripe_id);
+            if ($remoteSubscription) {
+                $subscription = $this->createLocalSubscriptionFromStripe($user, $remoteSubscription);
+            }
+        }
+
+        if ($subscription && !filled($subscription->stripe_id)) {
+            $remoteSubscription = $this->findReusableStripeSubscriptionByCustomer($user->stripe_id);
+            if ($remoteSubscription) {
+                $subscription = $this->createLocalSubscriptionFromStripe($user, $remoteSubscription);
+            }
+        }
+
+        if (!$subscription) {
             return [
                 'status_key' => 'not_subscribed',
                 'status_label' => 'Sin suscripción',
@@ -69,7 +83,7 @@ class SubscriptionStatusService
             'status_label' => $this->statusLabel($uiStatus),
             'headline' => $this->headlineFor($uiStatus),
             'description' => $this->descriptionFor($uiStatus, $periodEnd),
-            'can_access' => in_array($uiStatus, ['active', 'trialing', 'canceling'], true),
+            'can_access' => in_array($uiStatus, ['active', 'trial', 'trialing', 'canceling', 'clinic_managed'], true),
             'can_manage' => filled($user->stripe_id),
             'show_available_plans' => in_array($uiStatus, ['not_subscribed', 'init', 'canceled', 'trial_disabled', 'incomplete_expired'], true),
             'requires_payment_update' => in_array($uiStatus, ['past_due', 'unpaid', 'incomplete'], true),
@@ -111,6 +125,68 @@ class SubscriptionStatusService
         }
     }
 
+    protected function findReusableStripeSubscriptionByCustomer(?string $customerId): mixed
+    {
+        if (!filled($customerId)) {
+            return null;
+        }
+
+        try {
+            $subscriptions = \Stripe\Subscription::all([
+                'customer' => $customerId,
+                'status' => 'all',
+                'limit' => 20,
+                'expand' => [
+                    'data.items.data.price.product',
+                    'data.default_payment_method',
+                    'data.latest_invoice.payment_intent.payment_method',
+                    'data.customer',
+                ],
+            ])->data;
+        } catch (ApiErrorException $exception) {
+            Log::warning('No se pudieron consultar suscripciones de Stripe por customer', [
+                'customer_id' => $customerId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        foreach ([['active', 'trialing'], ['past_due', 'unpaid', 'paused'], ['incomplete']] as $statusGroup) {
+            foreach ($subscriptions as $subscription) {
+                if (in_array($subscription->status, $statusGroup, true)) {
+                    return $subscription;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function createLocalSubscriptionFromStripe(User $user, mixed $remoteSubscription): Subscription
+    {
+        $subscription = Subscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_id' => $remoteSubscription->id,
+                'stripe_plan' => data_get($remoteSubscription, 'items.data.0.price.id')
+                    ?: data_get($remoteSubscription, 'items.data.0.plan.id'),
+                'stripe_status' => $remoteSubscription->status,
+                'trial_ends_at' => $this->carbonFromTimestamp($remoteSubscription->trial_end),
+                'ends_at' => $this->resolveEndsAtForSync($remoteSubscription, new Subscription()),
+            ]
+        );
+
+        Log::info('Suscripcion local reconciliada desde Stripe al consultar estatus', [
+            'user_id' => $user->id,
+            'stripe_customer_id' => $user->stripe_id,
+            'stripe_subscription_id' => $remoteSubscription->id,
+            'stripe_status' => $remoteSubscription->status,
+        ]);
+
+        return $subscription->fresh();
+    }
+
     protected function syncLocalSubscription(Subscription $subscription, mixed $remoteSubscription): Subscription
     {
         $subscription->fill([
@@ -141,7 +217,9 @@ class SubscriptionStatusService
 
         return match ($status) {
             'trialing' => 'trialing',
+            'trial' => 'trialing',
             'active' => 'active',
+            'clinic_managed' => 'clinic_managed',
             'init' => 'init',
             'past_due' => 'past_due',
             'unpaid' => 'unpaid',
@@ -159,6 +237,7 @@ class SubscriptionStatusService
         return match ($status) {
             'trialing' => 'Prueba activa',
             'active' => 'Activa',
+            'clinic_managed' => 'Administrada por clínica',
             'init' => 'Registro iniciado',
             'canceling' => 'Cancelada al final del periodo',
             'past_due' => 'Pago pendiente',
@@ -176,6 +255,10 @@ class SubscriptionStatusService
 
     protected function headlineFor(string $status): string
     {
+        if ($status === 'clinic_managed') {
+            return 'Tu acceso lo administra tu clínica.';
+        }
+
         return match ($status) {
             'trialing' => 'Tu prueba está activa.',
             'active' => 'Tu suscripción está activa.',
@@ -195,6 +278,10 @@ class SubscriptionStatusService
 
     protected function descriptionFor(string $status, ?Carbon $periodEnd): string
     {
+        if ($status === 'clinic_managed') {
+            return 'Tu clínica cubre tu acceso con uno de sus espacios disponibles. No necesitas contratar una membresía individual.';
+        }
+
         $formattedEnd = $this->formatCarbonLabel($periodEnd);
 
         return match ($status) {

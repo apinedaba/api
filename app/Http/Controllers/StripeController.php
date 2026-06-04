@@ -271,7 +271,7 @@ class StripeController extends Controller
     {
         $patient = $appointment->patient()->first();
         $start = \Carbon\Carbon::parse($appointment->start)->timezone(config('app.timezone'));
-        $agendaUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/agenda';
+        $agendaUrl = $this->resolvePsychologistFrontendUrl() . '/agenda';
         $concept = $payment->concepto === 'session_deposit' ? 'anticipo' : 'pago';
         $amount = '$' . number_format((float) $payment->amount, 2) . ' ' . ($payment->currency ?: 'MXN');
 
@@ -322,11 +322,7 @@ class StripeController extends Controller
         $amount = (int) round($pricing['total_charge_amount'] * 100);
 
         // 🔒 Normaliza FRONTEND_URL con fallback
-        $frontend = trim(config('app.front_url') ?: config('app.url') ?: '', " \t\n\r\0\x0B/");
-        if (!preg_match('#^https?://#i', $frontend)) {
-            // Si no trae http/https, agrega http:// como fallback en local
-            $frontend = 'http://' . $frontend;
-        }
+        $frontend = $this->resolvePatientFrontendUrl();
 
         $session = \Stripe\Checkout\Session::create([
             'mode' => 'payment',
@@ -532,6 +528,7 @@ class StripeController extends Controller
         Stripe::setApiKey($this->stripe_secretkey);
         $request->validate(['plan_id' => 'required|string']);
         $user = $request->user();
+        $frontendUrl = $this->resolvePsychologistFrontendUrl();
         $subscription = $user->subscription()->first();
         if (!$user->stripe_id) {
             $customer = \Stripe\Customer::create(['email' => $user->email, 'name' => $user->name]);
@@ -542,31 +539,24 @@ class StripeController extends Controller
         $existingSubscription = $this->findReusableStripeSubscription($user->stripe_id);
 
         if ($existingSubscription) {
+            $subscription = $this->syncUserSubscriptionFromStripe($user, $existingSubscription);
+
             if ($this->canReactivateStripeSubscription($existingSubscription)) {
                 $reactivatedSubscription = StripeSubscription::update($existingSubscription->id, [
                     'cancel_at_period_end' => false,
                 ]);
 
-                Subscription::updateOrCreate(
-                    ['user_id' => $user->id],
-                    [
-                        'stripe_id' => $reactivatedSubscription->id,
-                        'stripe_plan' => data_get($reactivatedSubscription, 'items.data.0.price.id'),
-                        'stripe_status' => $reactivatedSubscription->status,
-                        'trial_ends_at' => $reactivatedSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($reactivatedSubscription->trial_end) : null,
-                        'ends_at' => null,
-                    ]
-                );
+                $this->syncUserSubscriptionFromStripe($user, $reactivatedSubscription);
 
                 return response()->json([
-                    'url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=reactivated',
+                    'url' => $frontendUrl . '/perfil/suscripcion?status=reactivated',
                 ]);
             }
 
             if ($this->shouldRedirectToPortal($existingSubscription)) {
                 $portalSession = BillingPortalSession::create([
                     'customer' => $user->stripe_id,
-                    'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
+                    'return_url' => $frontendUrl . '/perfil/suscripcion',
                 ]);
 
                 return response()->json([
@@ -580,8 +570,8 @@ class StripeController extends Controller
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
             'line_items' => [['price' => $request->plan_id, 'quantity' => 1]],
-            'success_url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=success',
-            'cancel_url' => config('app.front_url_psicologo') . '/perfil/suscripcion?status=canceled',
+            'success_url' => $frontendUrl . '/perfil/suscripcion?status=success',
+            'cancel_url' => $frontendUrl . '/perfil/suscripcion?status=canceled',
             'metadata' => ['user_id' => $user->id],
             'locale' => 'es-419',
         ];
@@ -607,10 +597,11 @@ class StripeController extends Controller
         if (!$user->stripe_id) {
             return response()->json(['error' => 'Usuario no tiene cliente de Stripe.'], 400);
         }
+        $frontendUrl = $this->resolvePsychologistFrontendUrl();
 
         $portalSession = BillingPortalSession::create([
             'customer' => $user->stripe_id,
-            'return_url' => config('app.front_url_psicologo') . '/perfil/suscripcion',
+            'return_url' => $frontendUrl . '/perfil/suscripcion',
         ]);
 
         return response()->json(['url' => $portalSession->url]);
@@ -742,10 +733,55 @@ class StripeController extends Controller
             'limit' => 20,
         ])->data;
 
-        foreach ($subscriptions as $subscription) {
-            if (in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true)) {
-                return $subscription;
+        foreach ([['active', 'trialing'], ['past_due', 'unpaid', 'paused'], ['incomplete']] as $statusGroup) {
+            foreach ($subscriptions as $subscription) {
+                if (in_array($subscription->status, $statusGroup, true)) {
+                    return $subscription;
+                }
             }
+        }
+
+        return null;
+    }
+
+    protected function syncUserSubscriptionFromStripe(User $user, mixed $stripeSubscription): Subscription
+    {
+        $subscription = Subscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_id' => $stripeSubscription->id,
+                'stripe_plan' => data_get($stripeSubscription, 'items.data.0.price.id')
+                    ?: data_get($stripeSubscription, 'items.data.0.plan.id'),
+                'stripe_status' => $stripeSubscription->status,
+                'trial_ends_at' => $stripeSubscription->trial_end
+                    ? Carbon::createFromTimestamp($stripeSubscription->trial_end)
+                    : null,
+                'ends_at' => $this->resolveStripeSubscriptionEndsAt($stripeSubscription),
+            ]
+        );
+
+        Log::info('Stripe subscription reconciled before checkout', [
+            'user_id' => $user->id,
+            'stripe_customer_id' => $user->stripe_id,
+            'stripe_subscription_id' => $stripeSubscription->id,
+            'stripe_status' => $stripeSubscription->status,
+        ]);
+
+        return $subscription;
+    }
+
+    protected function resolveStripeSubscriptionEndsAt(mixed $stripeSubscription): ?Carbon
+    {
+        if (!empty($stripeSubscription->ended_at)) {
+            return Carbon::createFromTimestamp($stripeSubscription->ended_at);
+        }
+
+        if (!empty($stripeSubscription->cancel_at_period_end) && !empty($stripeSubscription->current_period_end)) {
+            return Carbon::createFromTimestamp($stripeSubscription->current_period_end);
+        }
+
+        if (!empty($stripeSubscription->cancel_at)) {
+            return Carbon::createFromTimestamp($stripeSubscription->cancel_at);
         }
 
         return null;
@@ -760,6 +796,71 @@ class StripeController extends Controller
     protected function shouldRedirectToPortal($subscription): bool
     {
         return in_array($subscription->status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'], true);
+    }
+
+    protected function resolvePsychologistFrontendUrl(): string
+    {
+        $candidates = [
+            config('app.front_url_psicologo'),
+            app()->environment('local') ? 'http://localhost:5173' : null,
+            config('app.front_url_user'),
+            config('app.front_url'),
+            config('app.frontend_url'),
+            'https://minder.mindmeet.com.mx',
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeAbsoluteUrl($candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return app()->environment('local') ? 'http://localhost:5173' : 'https://minder.mindmeet.com.mx';
+    }
+
+    protected function resolvePatientFrontendUrl(): string
+    {
+        $candidates = [
+            config('app.front_url'),
+            config('app.front_url_user'),
+            config('app.frontend_url'),
+            config('app.url'),
+            app()->environment('local') ? 'http://localhost:5173' : null,
+            'https://mindmeet.com.mx',
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeAbsoluteUrl($candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return app()->environment('local') ? 'http://localhost:5173' : 'https://mindmeet.com.mx';
+    }
+
+    protected function normalizeAbsoluteUrl(?string $url): ?string
+    {
+        $url = trim((string) $url);
+
+        if ($url === '') {
+            return null;
+        }
+
+        if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
+            if (str_starts_with($url, 'localhost') || str_starts_with($url, '127.0.0.1')) {
+                $url = 'http://' . ltrim($url, '/');
+            } else {
+                $url = 'https://' . ltrim($url, '/');
+            }
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        return rtrim($url, '/');
     }
 
     // ── MindBoost ─────────────────────────────────────────────────────────────

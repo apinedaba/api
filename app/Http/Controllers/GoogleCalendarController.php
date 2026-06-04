@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\GoogleAccount;
@@ -57,8 +58,17 @@ class GoogleCalendarController extends Controller
                 ]
             );
 
+            $notifyEachAppointment = $appointments->count() <= 1;
+
             foreach ($appointments as $appointment) {
-                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create');
+                SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'create', $notifyEachAppointment);
+            }
+
+            if (!$notifyEachAppointment) {
+                event(new NewNotification(
+                    "user.{$user->id}",
+                    "Se estan sincronizando {$appointments->count()} sesiones recurrentes con Google Meet. Te notificamos solo una vez para evitar duplicados."
+                ));
             }
 
             return redirect(config('app.front_url_psicologo') . '/agenda?success=google_sync_complete');

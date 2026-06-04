@@ -21,6 +21,8 @@ jobs:
           node-version: 20
 
       - name: Install NPM dependencies
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
         run: npm ci
 
       - name: Build admin assets
@@ -73,12 +75,45 @@ jobs:
             mkdir -p bootstrap/cache
             mkdir -p storage/framework/{cache,sessions,views}
             mkdir -p storage/app/
+            mkdir -p storage/app/browsershot/chrome-profile
+            mkdir -p storage/app/browsershot/{home,cache,config,data,crashpad}
             cp ~/jsons/* storage/app/
 
             # Permisos correctos
             sudo chown -R ${{secrets.VPS_USER}}:www-data storage bootstrap/cache
             sudo chown -R ${{secrets.VPS_USER}}:www-data ./*
             sudo chmod -R 775 storage bootstrap/cache
+
+            # Dependencias Node requeridas por Browsershot/Puppeteer en produccion.
+            # Usamos Google Chrome estable porque chromium-browser en Ubuntu suele ser Snap
+            # y Snap falla cuando se ejecuta desde php-fpm en /var/www.
+            if ! command -v google-chrome >/dev/null 2>&1; then
+              sudo install -d -m 0755 /etc/apt/keyrings
+              wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-linux-signing-keyring.gpg
+              echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-linux-signing-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
+              sudo apt-get update
+              sudo apt-get install -y google-chrome-stable
+            fi
+
+            CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || true)"
+            if [ -z "$CHROME_PATH" ]; then
+              echo "No se encontro Google Chrome en el servidor."
+              exit 1
+            fi
+
+            PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev --no-audit --no-fund
+
+            if grep -q '^BROWSERSHOT_CHROME_PATH=' .env; then
+              sed -i "s|^BROWSERSHOT_CHROME_PATH=.*|BROWSERSHOT_CHROME_PATH=$CHROME_PATH|" .env
+            else
+              echo "BROWSERSHOT_CHROME_PATH=$CHROME_PATH" >> .env
+            fi
+
+            if grep -q '^BROWSERSHOT_NODE_MODULE_PATH=' .env; then
+              sed -i "s|^BROWSERSHOT_NODE_MODULE_PATH=.*|BROWSERSHOT_NODE_MODULE_PATH=/var/www/mindmeet/api/node_modules|" .env
+            else
+              echo "BROWSERSHOT_NODE_MODULE_PATH=/var/www/mindmeet/api/node_modules" >> .env
+            fi
             
             # Laravel cleanup seguro
             php artisan optimize:clear
@@ -86,3 +121,12 @@ jobs:
             # Opcional (solo si quieres cachear en prod)
             php artisan config:cache
             php artisan route:cache
+
+            # Recargar PHP-FPM para limpiar OPcache y usar el codigo recien desplegado.
+            if systemctl list-units --type=service --all | grep -q 'php8.2-fpm.service'; then
+              sudo systemctl reload php8.2-fpm
+            elif systemctl list-units --type=service --all | grep -q 'php8.3-fpm.service'; then
+              sudo systemctl reload php8.3-fpm
+            elif systemctl list-units --type=service --all | grep -q 'php-fpm.service'; then
+              sudo systemctl reload php-fpm
+            fi

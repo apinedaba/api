@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\PatientUserController;
 use App\Models\Patient;
 use App\Models\PatientUser;
+use App\Models\Expediente;
 use App\Notifications\PatientAssignedEmailNotification;
+use App\Notifications\PatientConsentSignedNotification;
 use App\Notifications\SendEmail;
 use App\Support\PatientIdentity;
 use Cloudinary\Api\Upload\UploadApi;
@@ -14,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use App\Models\User;
 use Cloudinary\Configuration\Configuration;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -130,6 +134,7 @@ class PatientController extends Controller
         $validationRules = [
             'email' => ['nullable', 'email'],
             'contacto.telefono' => ['nullable', 'string', 'max:20'],
+            'organization_id' => ['nullable', 'exists:organizations,id'],
         ];
 
         if (!$email && !$telefono) {
@@ -164,8 +169,13 @@ class PatientController extends Controller
 
         if ($isNewPatient) {
             $passwordSeed = $request->input('password') ?: $telefono ?: $email;
+            $historiaClinica = array_merge($request->input('historiaClinica', []) ?? [], [
+                'clinical_intake' => $request->input('clinical_intake', data_get($data, 'historiaClinica.clinical_intake', [])),
+            ]);
             $data = array_merge($data, $attributes, [
+                'organization_id' => $request->input('organization_id') ?: $request->attributes->get('active_organization')?->id,
                 'password' => Hash::make($passwordSeed),
+                'historiaClinica' => $historiaClinica,
             ]);
 
             $patient = new Patient();
@@ -173,6 +183,12 @@ class PatientController extends Controller
             $patient->save();
         } else {
             $dirty = false;
+            $organizationId = $request->input('organization_id') ?: $request->attributes->get('active_organization')?->id;
+
+            if (!$patient->organization_id && $organizationId) {
+                $patient->organization_id = $organizationId;
+                $dirty = true;
+            }
 
             if (!$patient->email && $email) {
                 $patient->email = $email;
@@ -194,6 +210,9 @@ class PatientController extends Controller
                 $patient->save();
             }
         }
+
+        $this->saveInitialClinicalIntake($request, $patient);
+        $this->saveConsentFromRequest($request, $patient);
 
         $user = Auth::user();
 
@@ -246,6 +265,13 @@ class PatientController extends Controller
 
     public function updateRelationships(Request $request, $id)
     {
+        if ($this->patientArchivedForCurrentUser($id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para modificar sus relaciones.',
+                'type' => 'error',
+            ], 423);
+        }
+
         $patient = Patient::findOrFail($id);
 
         $validated = $request->validate([
@@ -267,6 +293,168 @@ class PatientController extends Controller
             ],
             200
         );
+    }
+
+    public function updateConsent(Request $request, $id)
+    {
+        if ($this->patientArchivedForCurrentUser($id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para modificar el consentimiento.',
+                'type' => 'error',
+            ], 423);
+        }
+
+        $patient = Patient::findOrFail($id);
+        $patientUser = PatientUser::where('patient', $patient->id)
+            ->where('user', auth()->id())
+            ->firstOrFail();
+
+        $this->saveConsentFromRequest($request, $patient, true);
+        $freshPatient = $patient->fresh();
+        $freshPatient->setAttribute('patient_user', $patientUser->fresh());
+
+        return response()->json([
+            'message' => 'Consentimiento actualizado',
+            'type' => 'success',
+            'patient' => $freshPatient,
+        ]);
+    }
+
+    public function generateConsentLink(Request $request, $id): JsonResponse
+    {
+        if ($this->patientArchivedForCurrentUser($id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para generar el enlace de consentimiento.',
+                'type' => 'error',
+            ], 423);
+        }
+
+        $patient = Patient::findOrFail($id);
+        PatientUser::where('patient', $patient->id)
+            ->where('user', auth()->id())
+            ->firstOrFail();
+
+        $token = Str::random(72);
+        $consent = array_merge($patient->consentimiento ?? [], [
+            'status' => data_get($patient->consentimiento, 'status', 'pending'),
+            'type' => data_get($patient->consentimiento, 'type', 'pending'),
+            'public_token' => $token,
+            'public_generated_by' => auth()->id(),
+            'public_generated_at' => now()->toIso8601String(),
+            'public_expires_at' => now()->addDays(30)->toIso8601String(),
+            'source' => 'mindmeet_consent_v1',
+            'updated_at' => now()->toIso8601String(),
+        ]);
+
+        $patient->consentimiento = $consent;
+        $patient->save();
+
+        $frontUrl = rtrim((string) config('app.front_url_psicologo'), '/');
+        $originUrl = rtrim((string) $request->headers->get('origin'), '/');
+        $fallbackUrl = rtrim((string) config('app.front_url'), '/');
+        $baseUrl = $frontUrl ?: $originUrl ?: $fallbackUrl;
+
+        return response()->json([
+            'message' => 'Enlace de consentimiento generado',
+            'type' => 'success',
+            'token' => $token,
+            'url' => "{$baseUrl}/consentimiento/{$token}",
+            'expires_at' => $consent['public_expires_at'],
+        ]);
+    }
+
+    public function showPublicConsent(string $token): JsonResponse
+    {
+        $patient = Patient::query()
+            ->where('consentimiento->public_token', $token)
+            ->firstOrFail();
+
+        $consent = $patient->consentimiento ?? [];
+        if ($this->publicConsentExpired($consent)) {
+            return response()->json([
+                'message' => 'Este enlace de consentimiento expiro. Solicita uno nuevo a tu psicologo.',
+                'type' => 'error',
+            ], 410);
+        }
+
+        $professionalId = data_get($consent, 'public_generated_by');
+        $professional = $professionalId
+            ? \App\Models\User::query()->select('id', 'name', 'contacto', 'configurations')->find($professionalId)
+            : null;
+
+        return response()->json([
+            'patient' => [
+                'name' => $patient->name,
+            ],
+            'professional' => $professional ? [
+                'name' => data_get($professional->contacto, 'publicName') ?: $professional->name,
+                'document_logo_url' => data_get($professional->configurations, 'expediente_logo_url'),
+            ] : null,
+            'consent' => [
+                'status' => data_get($consent, 'status', 'pending'),
+                'signed_at' => data_get($consent, 'signed_at'),
+                'expires_at' => data_get($consent, 'public_expires_at'),
+            ],
+        ]);
+    }
+
+    public function signPublicConsent(Request $request, string $token): JsonResponse
+    {
+        $request->validate([
+            'consent_signature_data_url' => ['required', 'string'],
+            'patient_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $patient = Patient::query()
+            ->where('consentimiento->public_token', $token)
+            ->firstOrFail();
+
+        $consent = $patient->consentimiento ?? [];
+        if ($this->publicConsentExpired($consent)) {
+            return response()->json([
+                'message' => 'Este enlace de consentimiento expiro. Solicita uno nuevo a tu psicologo.',
+                'type' => 'error',
+            ], 410);
+        }
+
+        $patient->consentimiento = array_merge($consent, [
+            'status' => 'signed',
+            'type' => 'digital',
+            'signature_data_url' => $request->input('consent_signature_data_url'),
+            'signed_patient_name' => $request->input('patient_name'),
+            'signed_at' => now()->toIso8601String(),
+            'public_signed_at' => now()->toIso8601String(),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+        $patient->save();
+        $this->notifyConsentSigned($patient);
+
+        return response()->json([
+            'message' => 'Consentimiento firmado correctamente',
+            'type' => 'success',
+            'consent' => [
+                'status' => 'signed',
+                'signed_at' => data_get($patient->consentimiento, 'signed_at'),
+            ],
+        ]);
+    }
+
+    protected function notifyConsentSigned(Patient $patient): void
+    {
+        $consent = $patient->consentimiento ?? [];
+        $professionalIds = collect([data_get($consent, 'public_generated_by')])
+            ->filter()
+            ->merge(
+                PatientUser::where('patient', $patient->id)
+                    ->where('activo', true)
+                    ->pluck('user')
+            )
+            ->unique()
+            ->values();
+
+        User::whereIn('id', $professionalIds)->get()->each(function (User $professional) use ($patient, $consent) {
+            $professional->notify(new PatientConsentSignedNotification($patient, $consent));
+        });
     }
 
     public function sendNotificacionEmailByUser($user, $patient, $enlace)
@@ -348,6 +536,7 @@ class PatientController extends Controller
         $user = auth()->user();
         $isPatientToUser = PatientUser::where('patient', $patient->id)->where('user', $user->id)->first();
         if ($isPatientToUser) {
+            $patient->setAttribute('patient_user', $isPatientToUser);
             return response()->json($patient, 200);
         }
         return response()->json([
@@ -492,6 +681,13 @@ class PatientController extends Controller
     }
     public function update(Request $request, Patient $patient)
     {
+        if ($this->patientArchivedForCurrentUser($patient->id)) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo para editar su informacion.',
+                'type' => 'error',
+            ], 423);
+        }
+
         try {
             $patient->update($request->all());
             $response = [
@@ -514,4 +710,121 @@ class PatientController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(Patient $patient) {}
+
+    private function patientArchivedForCurrentUser($patientId): bool
+    {
+        return PatientUser::where('patient', $patientId)
+            ->where('user', auth()->id())
+            ->whereNotNull('archived_at')
+            ->exists();
+    }
+
+    private function saveInitialClinicalIntake(Request $request, Patient $patient): void
+    {
+        $motivoConsulta = $request->input('motivoConsulta');
+        $clinicalIntake = $request->input('clinical_intake', []);
+
+        if (!$motivoConsulta && empty(array_filter($clinicalIntake ?? []))) {
+            return;
+        }
+
+        $historiaClinica = $patient->historiaClinica ?? [];
+        if (!empty($clinicalIntake)) {
+            $historiaClinica['clinical_intake'] = $clinicalIntake;
+            $patient->historiaClinica = $historiaClinica;
+            $patient->save();
+        }
+
+        if ($motivoConsulta) {
+            Expediente::updateOrCreate(
+                [
+                    'patient_id' => $patient->id,
+                    'user_id' => auth()->id(),
+                ],
+                [
+                    'motivoConsulta' => $motivoConsulta,
+                ]
+            );
+        }
+    }
+
+    private function saveConsentFromRequest(Request $request, Patient $patient, bool $forcePending = false): void
+    {
+        $signatureDataUrl = $request->input('consent_signature_data_url');
+        $consent = $request->input('consentimiento', []);
+        $fileUrl = $request->input('consent_file_url', data_get($consent, 'file_url'));
+        $type = $request->input('consent_type', data_get($consent, 'type'));
+
+        if (!$forcePending && !$signatureDataUrl && !$fileUrl && !$type && empty($consent)) {
+            return;
+        }
+
+        $nextConsent = [
+            'status' => 'pending',
+            'type' => $type ?: 'pending',
+            'source' => 'mindmeet_consent_v1',
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        if ($fileUrl) {
+            $nextConsent = array_merge($nextConsent, [
+                'status' => 'uploaded',
+                'type' => 'uploaded',
+                'file_url' => $fileUrl,
+                'uploaded_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        if ($signatureDataUrl) {
+            $nextConsent = array_merge($nextConsent, [
+                'status' => 'signed',
+                'type' => 'digital',
+                'signature_data_url' => $signatureDataUrl,
+                'signed_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        if ($type === 'physical') {
+            $nextConsent = array_merge($nextConsent, [
+                'status' => 'physical',
+                'type' => 'physical',
+                'signed_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        $patient->consentimiento = array_merge($patient->consentimiento ?? [], $nextConsent);
+        $patient->save();
+    }
+
+    private function publicConsentExpired(array $consent): bool
+    {
+        $expiresAt = data_get($consent, 'public_expires_at');
+        return $expiresAt ? now()->greaterThan($expiresAt) : false;
+    }
+
+    private function configureCloudinary(): void
+    {
+        $cloudName = config('cloudinary.cloud_name');
+        $apiKey = config('cloudinary.api_key');
+        $apiSecret = config('cloudinary.api_secret');
+        $cloudinaryUrl = config('cloudinary.url');
+
+        if ($cloudName && $apiKey && $apiSecret) {
+            Configuration::instance()->init([
+                'cloud' => [
+                    'cloud_name' => $cloudName,
+                    'api_key' => $apiKey,
+                    'api_secret' => $apiSecret,
+                ],
+            ]);
+            return;
+        }
+
+        if ($cloudinaryUrl) {
+            Configuration::instance()->init($cloudinaryUrl);
+            return;
+        }
+
+        throw new \RuntimeException('Cloudinary no esta configurado');
+    }
 }

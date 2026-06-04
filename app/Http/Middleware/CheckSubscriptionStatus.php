@@ -14,7 +14,7 @@ class CheckSubscriptionStatus
         if ($user && $user->has_lifetime_access) {
             return $next($request); // Sí, permitir acceso.
         }
-        if ($user && $user->subscription && $user->subscription->stripe_status === 'active') {
+        if ($user && $user->subscription && in_array($user->subscription->stripe_status, ['active', 'trial', 'trialing', 'clinic_managed'], true)) {
             return $next($request);
         }
         return response()->json(['error' => 'Acceso denegado. Se requiere una suscripción activa.'], 403);

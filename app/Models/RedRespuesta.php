@@ -18,10 +18,12 @@ class RedRespuesta extends Model
         'user_id',
         'contenido',
         'is_deleted',
+        'edited_at',
     ];
 
     protected $casts = [
         'is_deleted' => 'boolean',
+        'edited_at' => 'datetime',
     ];
 
     // ─── Relaciones ───────────────────────────────────────────────

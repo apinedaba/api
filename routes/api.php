@@ -1,32 +1,34 @@
 <?php
 
-use App\Events\NewNotification;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\AddressController;
+use App\Http\Controllers\AiDiagnoseController;
+use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\AppointmentCartController;
+use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\Auth\UserAuthController;
-use App\Http\Controllers\AddressController;
-use App\Http\Controllers\AiDiagnoseController;
-use App\Http\Controllers\AppointmentCartController;
-use App\Http\Controllers\AppointmentController;
-use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
 use App\Http\Controllers\ClinicalRecordPdfController;
+use App\Http\Controllers\ClinicWorkspaceController;
+use App\Http\Controllers\ConsultaContactoController;
+use App\Http\Controllers\DiscountCouponController;
+use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\GoogleCalendarController;
+use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
-use App\Http\Controllers\ConsultaContactoController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
@@ -36,27 +38,22 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireLinkController;
+use App\Http\Controllers\SessionPackageController;
 use App\Http\Controllers\SintomasController;
 use App\Http\Controllers\StripeController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\TestWhatsAppController;
 use App\Http\Controllers\UserStepsController;
-use App\Http\Controllers\DocumentacionController;
-use App\Http\Controllers\DiscountCouponController;
-use App\Http\Controllers\HelpCenterController;
-use App\Http\Controllers\SessionPackageController;
-use App\Http\Controllers\Api\OrganizationController;
-use App\Http\Controllers\ClinicWorkspaceController;
-use App\Http\Middleware\HandleInvalidToken;
-use App\Models\Sintomas;
+use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\URL;
-
 
 // Rutas publicas
+Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::post('webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle']);
+Route::post('test/whatsapp', TestWhatsAppController::class);
+
 Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::get('pages/home', [HomeController::class, 'getImages']);
@@ -91,7 +88,7 @@ Route::post('patient/reset-password', [PasswordResetController::class, 'resetPas
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 
-    if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
         return response()->json(['message' => 'Enlace inválido'], 400);
     }
 
@@ -134,7 +131,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
         $user = $request->user()->load('subscription');
 
         return [
-            'active' => optional($user->subscription)->stripe_status === 'active'
+            'active' => optional($user->subscription)->stripe_status === 'active',
         ];
     });
     Route::post('user/logout', [UserAuthController::class, 'logout']);
@@ -300,17 +297,15 @@ Route::get('patient/auth/{provider}/callback/patient', [SocialiteController::cla
 Route::get('patient/numberPatients', [PatientController::class, 'getNumberPatient']);
 Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'store']);
 
-
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 
-
-require __DIR__ . '/api/catalogos.php';
-require __DIR__ . '/api/contratos.php';
-require __DIR__ . '/api/professional.php';
-require __DIR__ . '/api/deviceToken.php';
-require __DIR__ . '/api/timeline.php';
-require __DIR__ . '/api/attachments.php';
-require __DIR__ . '/api/minder.php';
-require __DIR__ . '/api/red.php';
+require __DIR__.'/api/catalogos.php';
+require __DIR__.'/api/contratos.php';
+require __DIR__.'/api/professional.php';
+require __DIR__.'/api/deviceToken.php';
+require __DIR__.'/api/timeline.php';
+require __DIR__.'/api/attachments.php';
+require __DIR__.'/api/minder.php';
+require __DIR__.'/api/red.php';

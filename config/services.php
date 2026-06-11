@@ -69,4 +69,19 @@ return [
         'enabled' => env('TWILIO_WHATSAPP_ENABLED', false),
     ],
 
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+    ],
+
+    'browsershot' => [
+        'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
+        'node_binary' => env('BROWSERSHOT_NODE_BINARY'),
+        'npm_binary' => env('BROWSERSHOT_NPM_BINARY'),
+        'node_module_path' => env('BROWSERSHOT_NODE_MODULE_PATH'),
+        'include_path' => env('BROWSERSHOT_INCLUDE_PATH'),
+    ],
+
 ];

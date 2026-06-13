@@ -194,6 +194,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);
     Route::patch('user/catalog/patients/{patient}/reactivate', [PatientUserController::class, 'reactivate']);
+    Route::patch('user/catalog/patients/{patient}/activate-manually', [PatientUserController::class, 'activateManually']);
     Route::resource('user/catalog/patients', PatientUserController::class);
     Route::prefix('user/patients/{patient}/medications')->group(function () {
         Route::get('/', [PatientMedicationController::class, 'index']);

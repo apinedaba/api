@@ -8,9 +8,12 @@ use App\Models\RedPregunta;
 use App\Models\RedRespuesta;
 use App\Models\User;
 use App\Notifications\NuevaPreguntaEnRed;
+use App\Rules\NoIdentifiableContact;
+use App\Services\RedReputationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\Rule;
 
 class RedPreguntaController extends Controller
 {
@@ -23,17 +26,36 @@ class RedPreguntaController extends Controller
         $user   = $request->user();
         $q      = $request->string('q')->trim()->toString();
         $tag    = $request->string('tag')->trim()->toString();
+        $category = $request->integer('category');
+        $status = $request->string('status')->trim()->toString();
+        $answers = $request->string('answers')->trim()->toString();
         $orden  = $request->string('orden', 'reciente')->toString();
         $solo_mias = $request->boolean('solo_mias', false); // Nuevo filtro
+        $collection = $request->string('collection')->toString();
         $perPage = min((int) $request->integer('per_page', 20), 50);
 
         $query = RedPregunta::where('is_active', true)
-            ->with(['autor:id,name,image,personales'])
-            ->withCount(['respuestas']);
+            ->with(['autor:id,name,image,personales', 'category'])
+            ->withCount(['respuestas', 'votos'])
+            ->withMax(['respuestas as ultima_respuesta_at'], 'created_at')
+            ->withExists([
+                'preferencias as is_saved' => fn($query) => $query
+                    ->where('user_id', $user->id)
+                    ->where('is_saved', true),
+                'preferencias as is_following' => fn($query) => $query
+                    ->where('user_id', $user->id)
+                    ->where('is_following', true),
+            ]);
 
         // Filtro: solo mis preguntas
         if ($solo_mias) {
             $query->where('user_id', $user->id);
+        }
+
+        if ($collection === 'library') {
+            $query->whereHas('preferencias', fn($preference) => $preference
+                ->where('user_id', $user->id)
+                ->where(fn($flags) => $flags->where('is_saved', true)->orWhere('is_following', true)));
         }
 
         // Búsqueda por texto
@@ -49,21 +71,31 @@ class RedPreguntaController extends Controller
             $query->whereJsonContains('tags', $tag);
         }
 
+        if ($category) {
+            $query->where('category_id', $category);
+        }
+
+        if (in_array($status, ['open', 'closed'], true)) {
+            $query->where('status', $status);
+        }
+
+        match ($answers) {
+            'answered' => $query->whereHas('respuestas'),
+            'unanswered' => $query->whereDoesntHave('respuestas'),
+            'accepted' => $query->whereNotNull('mejor_respuesta_id'),
+            default => null,
+        };
+
         // Ordenamiento
         match ($orden) {
             'actividad'     => $query->orderByDesc(
                 RedRespuesta::selectRaw('MAX(created_at)')
                     ->whereColumn('pregunta_id', 'red_preguntas.id')
+                    ->where('is_deleted', false)
                     ->toBase()
             ),
             'sin_respuesta' => $query->whereDoesntHave('respuestas')->latest(),
-            'mas_votadas'   => $query->orderByDesc(
-                RedRespuesta::selectRaw('COALESCE(SUM(v.id),0)')
-                    ->from('red_respuestas as r2')
-                    ->join('red_votos as v', 'v.respuesta_id', '=', 'r2.id')
-                    ->whereColumn('r2.pregunta_id', 'red_preguntas.id')
-                    ->toBase()
-            ),
+            'mas_votadas'   => $query->orderByDesc('votos_count'),
             default         => $query->latest(),   // 'reciente'
         };
 
@@ -90,20 +122,24 @@ class RedPreguntaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'titulo'      => 'required|string|min:10|max:200',
-            'descripcion' => 'required|string|min:20|max:5000',
+            'titulo'      => ['required', 'string', 'min:10', 'max:200', new NoIdentifiableContact],
+            'descripcion' => ['required', 'string', 'min:20', 'max:5000', new NoIdentifiableContact],
+            'category_id' => ['required', 'integer', Rule::exists('red_categories', 'id')->where('is_active', true)],
             'tags'        => 'nullable|array|max:5',
-            'tags.*'      => 'string|max:40',
+            'tags.*'      => ['string', 'max:40', Rule::exists('red_tags', 'name')->where('is_active', true)],
+            'privacy_acknowledged' => 'accepted',
         ]);
 
         $pregunta = RedPregunta::create([
             'user_id'     => $request->user()->id,
+            'category_id' => $validated['category_id'],
             'titulo'      => $validated['titulo'],
             'descripcion' => $validated['descripcion'],
             'tags'        => $validated['tags'] ?? [],
         ]);
+        app(RedReputationService::class)->forget($request->user()->id);
 
-        $pregunta->load('autor:id,name,image,personales');
+        $pregunta->load(['autor:id,name,image,personales', 'category']);
         $pregunta->loadCount('respuestas');
 
         // Notificar a todos los psicólogos verificados (excepto al autor)
@@ -122,6 +158,63 @@ class RedPreguntaController extends Controller
         ], 201);
     }
 
+    public function update(Request $request, RedPregunta $pregunta): JsonResponse
+    {
+        abort_if($pregunta->user_id !== $request->user()->id, 403, 'No puedes editar esta pregunta.');
+
+        $validated = $request->validate([
+            'titulo' => ['required', 'string', 'min:10', 'max:200', new NoIdentifiableContact],
+            'descripcion' => ['required', 'string', 'min:20', 'max:5000', new NoIdentifiableContact],
+            'category_id' => ['required', 'integer', Rule::exists('red_categories', 'id')->where('is_active', true)],
+            'tags' => 'nullable|array|max:5',
+            'tags.*' => ['string', 'max:40', Rule::exists('red_tags', 'name')->where('is_active', true)],
+            'privacy_acknowledged' => 'accepted',
+        ]);
+
+        $pregunta->update([
+            'titulo' => $validated['titulo'],
+            'descripcion' => $validated['descripcion'],
+            'category_id' => $validated['category_id'],
+            'tags' => $validated['tags'] ?? [],
+            'edited_at' => now(),
+        ]);
+
+        return response()->json(['data' => $this->formatPregunta($pregunta->fresh(['autor', 'category']), $request->user()->id, true)]);
+    }
+
+    public function close(Request $request, RedPregunta $pregunta): JsonResponse
+    {
+        abort_if($pregunta->user_id !== $request->user()->id, 403, 'No puedes cerrar esta pregunta.');
+
+        $validated = $request->validate([
+            'reason' => 'required|in:resolved,duplicate,outdated,other',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $pregunta->update([
+            'status' => 'closed',
+            'close_reason' => $validated['reason'],
+            'close_note' => $validated['note'] ?? null,
+            'closed_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Pregunta cerrada.']);
+    }
+
+    public function reopen(Request $request, RedPregunta $pregunta): JsonResponse
+    {
+        abort_if($pregunta->user_id !== $request->user()->id, 403, 'No puedes reabrir esta pregunta.');
+
+        $pregunta->update([
+            'status' => 'open',
+            'close_reason' => null,
+            'close_note' => null,
+            'closed_at' => null,
+        ]);
+
+        return response()->json(['message' => 'Pregunta reabierta.']);
+    }
+
     /**
      * GET /user/red/preguntas/{pregunta}
      * Detalle con respuestas ordenadas (mejor primero, luego por votos)
@@ -137,13 +230,24 @@ class RedPreguntaController extends Controller
             $pregunta->increment('views_count');
         }
 
-        $pregunta->load(['autor:id,name,image,personales']);
+        $pregunta->load(['autor:id,name,image,personales', 'category']);
         $pregunta->loadCount('respuestas');
+        $pregunta->loadCount('votos');
+        $pregunta->loadMax('respuestas as ultima_respuesta_at', 'created_at');
+        $pregunta->loadExists([
+            'preferencias as is_saved' => fn($query) => $query
+                ->where('user_id', $user->id)
+                ->where('is_saved', true),
+            'preferencias as is_following' => fn($query) => $query
+                ->where('user_id', $user->id)
+                ->where('is_following', true),
+        ]);
 
         // Respuestas con votos y autor
         $respuestas = $pregunta->respuestas()
             ->with(['autor:id,name,image,personales'])
             ->withCount('votos')
+            ->withExists(['votos as yo_vote' => fn($query) => $query->where('user_id', $user->id)])
             ->get()
             ->map(function (RedRespuesta $r) use ($pregunta, $user) {
                 return $this->formatRespuesta($r, $user->id, $pregunta->mejor_respuesta_id);
@@ -171,7 +275,9 @@ class RedPreguntaController extends Controller
         abort_if($pregunta->user_id !== $request->user()->id, 403, 'No puedes eliminar esta pregunta.');
 
         $preguntaId = $pregunta->id;
+        $authorId = $pregunta->user_id;
         $pregunta->delete();
+        app(RedReputationService::class)->forget($authorId);
 
         broadcast(new RedPreguntaActualizada('pregunta_eliminada', $preguntaId));
 
@@ -191,7 +297,12 @@ class RedPreguntaController extends Controller
         abort_if($respuesta->pregunta_id !== $pregunta->id, 422, 'La respuesta no pertenece a esta pregunta.');
         abort_if($respuesta->is_deleted, 422, 'No se puede marcar una respuesta eliminada.');
 
+        $previousAnswerUserId = $pregunta->mejorRespuesta?->user_id;
         $pregunta->update(['mejor_respuesta_id' => $respuesta->id]);
+        if ($previousAnswerUserId && $previousAnswerUserId !== $respuesta->user_id) {
+            app(RedReputationService::class)->forget($previousAnswerUserId);
+        }
+        app(RedReputationService::class)->forget($respuesta->user_id);
 
         broadcast(new RedPreguntaActualizada('mejor_respuesta', $pregunta->id));
 
@@ -213,23 +324,31 @@ class RedPreguntaController extends Controller
             $especialidad = $personales['especialidad'] ?? null;
         }
 
-        $ultima = $p->todasRespuestas()->latest()->value('created_at');
-
         $data = [
             'id'                  => $p->id,
             'titulo'              => $p->titulo,
             'tags'                => $p->tags ?? [],
+            'category'            => $p->category ? $p->category->only(['id', 'name', 'slug', 'color']) : null,
             'mejor_respuesta_id'  => $p->mejor_respuesta_id,
             'views_count'         => $p->views_count,
             'respuestas_count'    => $p->respuestas_count ?? 0,
-            'ultima_respuesta_at' => $ultima,
+            'ultima_respuesta_at' => $p->ultima_respuesta_at,
+            'votos_count'         => $p->votos_count ?? 0,
+            'is_saved'            => (bool) ($p->is_saved ?? false),
+            'is_following'        => (bool) ($p->is_following ?? false),
             'created_at'          => $p->created_at,
+            'status'              => $p->status ?? 'open',
+            'close_reason'        => $p->close_reason,
+            'close_note'          => $p->close_note,
+            'closed_at'           => $p->closed_at,
+            'edited_at'           => $p->edited_at,
             'es_autor'            => $p->user_id === $userId,
             'autor' => $autor ? [
                 'id'           => $autor->id,
                 'nombre'       => $autor->name,
                 'imagen'       => $autor->image,
                 'especialidad' => $especialidad,
+                'reputation' => app(RedReputationService::class)->summary($autor->id),
             ] : null,
         ];
 
@@ -249,7 +368,7 @@ class RedPreguntaController extends Controller
             'id'                 => $r->id,
             'contenido'          => $r->contenido,
             'votos_count'        => $r->votos_count ?? 0,
-            'yo_vote'            => $r->votos()->where('user_id', $userId)->exists(),
+            'yo_vote'            => (bool) ($r->yo_vote ?? false),
             'es_mejor_respuesta' => $r->id === $mejorRespuestaId,
             'es_autor'           => $r->user_id === $userId,
             'created_at'         => $r->created_at,
@@ -258,6 +377,7 @@ class RedPreguntaController extends Controller
                 'nombre'       => $autor->name,
                 'imagen'       => $autor->image,
                 'especialidad' => $personales['especialidad'] ?? null,
+                'reputation' => app(RedReputationService::class)->summary($autor->id),
             ] : null,
         ];
     }

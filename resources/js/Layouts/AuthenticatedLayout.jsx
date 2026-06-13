@@ -40,7 +40,9 @@ const navigationGroups = [
     {
         title: 'Comunidad',
         items: [
-            { label: 'Comunidad Minder', href: 'minder.groups.index', match: ['minder.*'] },
+            { label: 'Mentes en Red', href: 'minder.forum-reports.index', match: ['minder.forum-reports.*', 'minder.forum-taxonomy.*'] },
+            { label: 'Soporte MindMeet', href: 'minder.support.index', match: ['minder.support.*', 'minder.support-appointments.*'] },
+            { label: 'Comunidad Minder', href: 'minder.groups.index', match: ['minder.groups.*', 'minder.reports.*', 'minder.metrics.*'] },
         ],
     },
 ];

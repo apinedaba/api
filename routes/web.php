@@ -8,6 +8,9 @@ use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderMetricsController;
 use App\Http\Controllers\Admin\AdminMarketingController;
 use App\Http\Controllers\Admin\AdminMinderSupportController;
+use App\Http\Controllers\Admin\AdminMinderSupportAppointmentController;
+use App\Http\Controllers\Admin\AdminRedReportController;
+use App\Http\Controllers\Admin\AdminRedTaxonomyController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
@@ -224,6 +227,15 @@ Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () 
     // Reportes
     Route::get('/reports', [AdminMinderReportController::class, 'index'])->name('reports.index');
     Route::patch('/reports/{report}/resolve', [AdminMinderReportController::class, 'resolve'])->name('reports.resolve');
+    Route::get('/forum-reports', [AdminRedReportController::class, 'index'])->name('forum-reports.index');
+    Route::patch('/forum-reports/{report}/resolve', [AdminRedReportController::class, 'resolve'])->name('forum-reports.resolve');
+    Route::get('/forum-taxonomy', [AdminRedTaxonomyController::class, 'index'])->name('forum-taxonomy.index');
+    Route::post('/forum-taxonomy/categories', [AdminRedTaxonomyController::class, 'storeCategory'])->name('forum-taxonomy.categories.store');
+    Route::put('/forum-taxonomy/categories/{category}', [AdminRedTaxonomyController::class, 'updateCategory'])->name('forum-taxonomy.categories.update');
+    Route::delete('/forum-taxonomy/categories/{category}', [AdminRedTaxonomyController::class, 'destroyCategory'])->name('forum-taxonomy.categories.destroy');
+    Route::post('/forum-taxonomy/tags', [AdminRedTaxonomyController::class, 'storeTag'])->name('forum-taxonomy.tags.store');
+    Route::put('/forum-taxonomy/tags/{tag}', [AdminRedTaxonomyController::class, 'updateTag'])->name('forum-taxonomy.tags.update');
+    Route::delete('/forum-taxonomy/tags/{tag}', [AdminRedTaxonomyController::class, 'destroyTag'])->name('forum-taxonomy.tags.destroy');
 
     // Métricas
     Route::get('/metrics', [AdminMinderMetricsController::class, 'index'])->name('metrics.index');
@@ -233,6 +245,9 @@ Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () 
     Route::get('/support/{thread}', [AdminMinderSupportController::class, 'show'])->name('support.show');
     Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
     Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
+    Route::get('/support-appointments', [AdminMinderSupportAppointmentController::class, 'index'])->name('support-appointments.index');
+    Route::put('/support-appointments/settings', [AdminMinderSupportAppointmentController::class, 'updateSettings'])->name('support-appointments.settings');
+    Route::patch('/support-appointments/{appointment}', [AdminMinderSupportAppointmentController::class, 'update'])->name('support-appointments.update');
 });
 
 // ─ Fake Stripe Checkout (Para testing con STRIPE_MODE=fake) ─────────────────────

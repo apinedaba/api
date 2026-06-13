@@ -8,17 +8,15 @@ export default function MinderSupport({ auth, threads }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={
-                <div className="flex items-center gap-3">
-                    <Link href={route('minder.groups.index')} className="text-sm text-blue-600 hover:underline">← Grupos</Link>
-                    <span className="text-gray-400">/</span>
-                    <h2 className="font-semibold text-xl text-gray-800">Soporte — Mensajes de psicólogos</h2>
-                </div>
-            }
+            header={<h2 className="font-semibold text-xl text-gray-800">Soporte MindMeet</h2>}
         >
             <Head title="Soporte Minder" />
             <div className="py-8">
                 <div className="max-w-3xl mx-auto sm:px-6 lg:px-8">
+                    <div className="mb-5 flex gap-2 border-b border-slate-200">
+                        <span className="border-b-2 border-blue-600 px-4 py-2 text-sm font-semibold text-blue-700">Mensajes</span>
+                        <Link href={route('minder.support-appointments.index')} className="px-4 py-2 text-sm text-slate-500">Sesiones de apoyo</Link>
+                    </div>
                     <div className="bg-white shadow sm:rounded-lg divide-y divide-gray-100">
                         {items.length === 0 && (
                             <p className="py-10 text-center text-sm text-slate-400">Sin hilos de soporte.</p>

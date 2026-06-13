@@ -8,6 +8,7 @@ use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 
 
 class PatientUserController extends Controller
@@ -73,6 +74,39 @@ class PatientUserController extends Controller
         ], 200);
     }
 
+    public function activateManually($patient): JsonResponse
+    {
+        $relation = $this->resolveRelation($patient);
+
+        if (!$relation) {
+            return response()->json([
+                'message' => 'Paciente no encontrado en tu directorio',
+                'type' => 'error',
+            ], 404);
+        }
+
+        if ($relation->archived_at) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo antes de activar el vinculo.',
+                'type' => 'error',
+            ], 423);
+        }
+
+        if (!$relation->activo) {
+            $relation->update([
+                'activo' => true,
+                'status' => 'Activado por psicologo',
+                'video_call_room' => $relation->video_call_room ?: 'mindmeet-room-' . Str::uuid(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Paciente activado correctamente',
+            'type' => 'success',
+            'data' => $relation->fresh(['patient', 'expediente']),
+        ], 200);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
@@ -103,7 +137,10 @@ class PatientUserController extends Controller
 
         $enlace = PatientUser::create([
             'user' => $user->id,
-            'patient' => $patient
+            'patient' => $patient,
+            'activo' => true,
+            'status' => 'Vinculado',
+            'video_call_room' => 'mindmeet-room-' . Str::uuid(),
         ]);
 
         if ($enlace) {
@@ -164,7 +201,7 @@ class PatientUserController extends Controller
                 'email.cuenta-activada-paciente',
                 [
                     'name' => $patient->name,
-                    'url' => config('app.frontend_url') . '/iniciar-sesion'
+                    'url' => rtrim(config('app.perfil_paciente_url') ?: 'https://paciente.mindmeet.com.mx', '/') . '/iniciar-sesion'
                 ]
             );
             $response = [

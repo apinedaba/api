@@ -242,8 +242,8 @@ class PatientController extends Controller
             $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace);
 
             $successMessage = $isNewPatient
-                ? 'El paciente se creó y se le envió una invitación con éxito. Espera a que acepte la invitación para poder agendarle citas.'
-                : 'El paciente existente fue enlazado con éxito a tu cuenta. Se le envió una notificación. Espera a que la acepte para poder agendarle citas.';
+                ? 'El paciente se creó y quedó activo en tu directorio. Se le envió un correo para iniciar sesión en su portal de paciente.'
+                : 'El paciente existente fue enlazado y quedó activo en tu directorio. Se le envió un correo para iniciar sesión en su portal de paciente.';
 
             return response()->json(
                 [

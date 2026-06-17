@@ -212,18 +212,14 @@
                                                                     style="color:#101112;direction:ltr;font-family:Arial, 'Helvetica Neue', Helvetica, sans-serif;font-size:16px;font-weight:400;letter-spacing:0px;line-height:120%;text-align:left;mso-line-height-alt:19.2px;">
                                                                     <p style="margin: 0; margin-bottom: 16px;">¡Hola
                                                                         {{ $paciente->name }}!, {{ $usuario->name }} te
-                                                                        agrego asu lista de pacientes en <span
+                                                                        agrego a su lista de pacientes en <span
                                                                             style="word-break: break-word; color: #000000;"><strong><a
                                                                                     href="https://mindmeet.com.mx"
                                                                                     target="_blank"
                                                                                     style="text-decoration: none; color: #7747FF;"
                                                                                     rel="noopener"><strong><strong>MindMeet</strong></strong></a></strong></span>.
                                                                     </p>
-                                                                    <p style="margin: 0;">&nbsp;Recuerda que cada uno
-                                                                        de los profesionales registrados en mindmeet son
-                                                                        evaluados exaustivamente para poder brindarte la
-                                                                        seguridad de que estas trabajando con personas
-                                                                        capacitadas.</p>
+                                                                    <p style="margin: 0;">Ya puedes entrar a tu portal de paciente para consultar tus sesiones, ejercicios, diario y comunicacion relacionada con tu proceso terapeutico.</p>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -242,9 +238,7 @@
 <![endif]-->
                                                                     <a class="button" href="{{$url}}"
                                                                         style="background-color: #00c3b7; border-bottom: 0px solid transparent; border-left: 0px solid transparent; border-radius: 4px; border-right: 0px solid transparent; border-top: 0px solid transparent; color: #ffffff; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; font-weight: 400; mso-border-alt: none; padding-bottom: 5px; padding-top: 5px; padding-left: 20px; padding-right: 20px; text-align: center; width: auto; word-break: keep-all; letter-spacing: normal;"><span
-                                                                            style="word-break: break-word; line-height: 32px;">Quiero
-                                                                            trabajar con
-                                                                            {{ $usuario->name }}
+                                                                            style="word-break: break-word; line-height: 32px;">Iniciar sesion como paciente
                                                                         </span>
 																																			</a><!--[if mso]></center></v:textbox></v:roundrect><![endif]-->
                                                                 </div>
@@ -260,7 +254,7 @@
                                                                 <div
                                                                     style="color:#101112;direction:ltr;font-family:Arial, 'Helvetica Neue', Helvetica, sans-serif;font-size:16px;font-weight:400;letter-spacing:0px;line-height:120%;text-align:left;mso-line-height-alt:19.2px;">
                                                                     <p style="margin: 0; margin-bottom: 16px;">Si no
-                                                                        reconoces este registro, ignora este mensaje.
+                                                                        reconoces este registro, puedes ignorar este mensaje o escribirnos para revisarlo.
                                                                     </p>
                                                                     <p style="margin: 0;"><strong>Con
                                                                             emoción.<br></strong>El equipo de <span

@@ -46,20 +46,19 @@ class PatientAssignedEmailNotification extends Notification
         $asunto = 'Nuevo paciente registrado en MindMeet';
         $cuerpo = "Nuevo registro de paciente:\n\nNombre: {$this->patient->name}\nCorreo: {$this->patient->email}\n\nRegistrado por el psicólogo: {$this->user->name} ({$this->user->email})";
         $this->enviarNotificacionInterna($this->patient, $asunto, $cuerpo);
-        $url = config('app.front_url') . "/invitation/enlace/" . base64_encode(json_encode(
-            ['usuario' => $this->user->id, 'paciente' => $this->patient->id, 'enlace' => $this->enlace->id]
-        ));
+        $url = rtrim(config('app.perfil_paciente_url') ?: 'https://paciente.mindmeet.com.mx', '/') . '/iniciar-sesion';
+
         return (new MailMessage)
-            ->subject($this->user->name . " esta esperando tu confirmación")
+            ->subject($this->user->name . " te agrego a MindMeet")
             ->view('email.acceptInvitation', ['usuario' => $this->user, 'paciente' => $this->patient, 'url' => $url]);
     }
     public function toArray(object $notifiable): array
     {
         return [
-            'title' => 'Tu psicologo te envio una invitacion',
-            'body' => "{$this->user->name} esta esperando que confirmes el enlace de tu cuenta.",
-            'action_url' => rtrim(config('app.perfil_paciente_url'), '/') . '/ajustes-paciente',
-            'action_label' => 'Ver perfil',
+            'title' => 'Tu psicologo te agrego a MindMeet',
+            'body' => "{$this->user->name} ya esta disponible como tu profesional asignado.",
+            'action_url' => rtrim(config('app.perfil_paciente_url') ?: 'https://paciente.mindmeet.com.mx', '/') . '/iniciar-sesion',
+            'action_label' => 'Iniciar sesion',
             'kind' => 'patient-link',
         ];
     }

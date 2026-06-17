@@ -456,7 +456,7 @@ class AppointmentController extends Controller
                     $cartPayload['formato'] = $request->input('formato');
                 }
                 if ($request->filled('payment_status')) {
-                    $cartPayload['estado'] = $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente';
+                    $cartPayload['estado'] = $request->input('payment_status') === 'paid' ? 'pagado' : 'pendiente';
                 }
                 if (!empty($cartPayload)) {
                     $appointment->cart->update($cartPayload);
@@ -558,7 +558,8 @@ class AppointmentController extends Controller
             'tipoSesion' => $request->input('tipoSesion'),
             'formato' => $request->input('formato', 'online'),
             'precio' => $request->input('costo', 0),
-            'estado' => $request->input('payment_status') === 'paid' ? 'Pagado' : 'Pendiente',
+            'estado' => $request->input('payment_status') === 'paid' ? 'pagado' : 'pendiente',
+            'source' => 'panel',
             'patient_id' => $appointment->patient,
             'user_id' => $appointment->user,
             'duracion' => (string) $duration,

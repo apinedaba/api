@@ -1,0 +1,44 @@
+<?php
+
+namespace App\Notifications;
+
+use App\Models\Appointment;
+use Carbon\Carbon;
+use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Notification;
+
+class AppointmentCreatedWhatsAppNotification extends Notification
+{
+    use Queueable;
+
+    public function __construct(protected Appointment $appointment)
+    {
+    }
+
+    public function via(object $notifiable): array
+    {
+        return ['whatsapp'];
+    }
+
+    public function toWhatsApp(object $notifiable): array
+    {
+        $this->appointment->loadMissing(['patient', 'user']);
+        $professional = $this->appointment->user()->first();
+        $start = Carbon::parse($this->appointment->start)->timezone(config('app.timezone'));
+
+        return [
+            'message_type' => 'template',
+            'phone' => $notifiable->phone,
+            'template' => 'appointment_created',
+            'language' => 'es_MX',
+            'parameters' => [
+                $notifiable->name ?? 'paciente',
+                $start->format('d/m/Y H:i'),
+                $professional?->name ?: 'tu profesional',
+            ],
+            'context' => [
+                'appointment_id' => $this->appointment->id,
+            ],
+        ];
+    }
+}

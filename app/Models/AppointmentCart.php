@@ -20,7 +20,10 @@ class AppointmentCart extends Model
         'estado',
         'formato', // Nueva columna agregada
         'payment_intent_id',
+        'stripe_session_id',
+        'stripe_payment_status',
         'appointment_id',
+        'source',
         'discount',
         'discountType',
         'originalPrice',
@@ -45,6 +48,11 @@ class AppointmentCart extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class, 'appointment_id');
     }
 
     protected $casts = [

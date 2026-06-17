@@ -16,12 +16,64 @@ class PaymentsController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $payments = Payment::where('user_id', $user->id)->with(['appointment', 'patient']);
+        $payments = Payment::where('user_id', $user->id)
+            ->with(['appointment', 'patient'])
+            ->get()
+            ->map(function (Payment $payment) {
+                $payment->collected_by_mindmeet = $this->isMindMeetCollectedPayment($payment);
+                $payment->is_withdrawable = $payment->collected_by_mindmeet && $payment->status === 'completed';
+                $payment->gross_amount = round((float) $payment->amount, 2);
+                $payment->mindmeet_fee_amount = $this->mindmeetFeeAmount($payment);
+                $payment->net_psychologist_amount = $this->netPsychologistAmount($payment);
+
+                return $payment;
+            });
+
         return response()->json([
-            'payments'=> $payments->get(),
-            'total' => $payments->sum('amount')
+            'payments'=> $payments,
+            'total' => round($payments->sum('net_psychologist_amount'), 2),
+            'gross_total' => round($payments->sum('gross_amount'), 2),
+            'mindmeet_fee_total' => round($payments->sum('mindmeet_fee_amount'), 2),
+            'net_total' => round($payments->sum('net_psychologist_amount'), 2),
+            'withdrawable_total' => round($payments->where('is_withdrawable', true)->sum('net_psychologist_amount'), 2),
+            'manual_total' => round($payments->where('collected_by_mindmeet', false)->sum('net_psychologist_amount'), 2),
+            'platform_fee_rate' => (float) config('services.checkout.platform_fee_rate', 0.06),
         ], 200);
 
+    }
+
+    private function netPsychologistAmount(Payment $payment): float
+    {
+        if ($payment->psychologist_amount !== null) {
+            return round((float) $payment->psychologist_amount, 2);
+        }
+
+        if ($payment->platform_fee_amount !== null) {
+            return round(max((float) $payment->amount - (float) $payment->platform_fee_amount, 0), 2);
+        }
+
+        if ($this->isMindMeetCollectedPayment($payment)) {
+            $feeRate = (float) config('services.checkout.platform_fee_rate', 0.06);
+
+            return round(((float) $payment->amount) / (1 + $feeRate), 2);
+        }
+
+        return round((float) $payment->amount, 2);
+    }
+
+    private function mindmeetFeeAmount(Payment $payment): float
+    {
+        if ($payment->platform_fee_amount !== null) {
+            return round((float) $payment->platform_fee_amount, 2);
+        }
+
+        return round(max((float) $payment->amount - $this->netPsychologistAmount($payment), 0), 2);
+    }
+
+    private function isMindMeetCollectedPayment(Payment $payment): bool
+    {
+        return filled($payment->stripe_payment_id)
+            && in_array(strtolower((string) $payment->payment_method), ['card', 'oxxo', 'stripe'], true);
     }
 
     /**

@@ -37,6 +37,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'plan',
         'image',
         'stripe_id',
+        'stripe_connect_account_id',
+        'stripe_connect_onboarding_completed_at',
+        'stripe_connect_charges_enabled',
+        'stripe_connect_payouts_enabled',
         'verification_code',
         'code_expires_at',
         'has_lifetime_access',
@@ -74,6 +78,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'isProfileComplete' => 'boolean',
         'activo' => 'boolean',
         'has_lifetime_access' => 'boolean',
+        'stripe_connect_onboarding_completed_at' => 'datetime',
+        'stripe_connect_charges_enabled' => 'boolean',
+        'stripe_connect_payouts_enabled' => 'boolean',
     ];
     public function patientUsers()
     {
@@ -311,6 +318,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function facebookCatalogItem(): HasOne
     {
         return $this->hasOne(FacebookCatalogItem::class);
+    }
+
+    public function withdrawals(): HasMany
+    {
+        return $this->hasMany(ProfessionalWithdrawal::class);
     }
 
     public function notificationBroadcastChannel(): string

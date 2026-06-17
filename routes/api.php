@@ -34,6 +34,7 @@ use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PhotoUploadController;
+use App\Http\Controllers\ProfessionalPayoutController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
@@ -175,6 +176,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
     Route::post('user/subscription/change-plan', [StripeController::class, 'changeSubscriptionPlan']);
     Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
+    Route::get('user/payouts/summary', [ProfessionalPayoutController::class, 'summary']);
+    Route::post('user/payouts/connect/onboarding-link', [ProfessionalPayoutController::class, 'onboardingLink']);
+    Route::post('user/payouts/connect/refresh', [ProfessionalPayoutController::class, 'refreshStatus']);
+    Route::post('user/payouts/withdraw', [ProfessionalPayoutController::class, 'withdraw']);
     Route::get('user/cart-pays', [AppointmentCartController::class, 'pays']);
     Route::resource('user/payments', PaymentsController::class);
     Route::get('user/session-packages', [SessionPackageController::class, 'index']);

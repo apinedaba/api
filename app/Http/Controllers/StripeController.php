@@ -519,6 +519,16 @@ class StripeController extends Controller
                     }
                     break;
                 }
+            case 'account.updated':
+            case 'transfer.created':
+            case 'transfer.reversed':
+            case 'transfer.failed':
+            case 'payout.created':
+            case 'payout.paid':
+            case 'payout.failed': {
+                    app(ProfessionalPayoutController::class)->handleStripeConnectEvent($event);
+                    break;
+                }
         }
 
         return response()->json(['received' => true]);

@@ -49,6 +49,13 @@ class Payment extends Model
         return $this->belongsTo(Patient::class, 'patient_id');
     }
 
+    public function withdrawals()
+    {
+        return $this->belongsToMany(ProfessionalWithdrawal::class, 'professional_withdrawal_payments')
+            ->withPivot('amount')
+            ->withTimestamps();
+    }
+
     protected $casts = [
         'amount' => 'float',
         'session_base_amount' => 'float',

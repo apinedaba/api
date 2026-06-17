@@ -14,14 +14,27 @@ class TestWhatsAppController extends Controller
 
         $data = $request->validate([
             'phone' => ['required', 'string'],
-            'message' => ['required', 'string', 'max:4096'],
+            'message' => ['nullable', 'required_without:template', 'string', 'max:4096'],
+            'template' => ['nullable', 'string'],
+            'language' => ['nullable', 'string'],
+            'parameters' => ['nullable', 'array'],
         ]);
 
-        SendWhatsAppMessageJob::dispatch([
-            'message_type' => 'text',
-            'phone' => $data['phone'],
-            'message' => $data['message'],
-        ]);
+        if (! empty($data['template'])) {
+            SendWhatsAppMessageJob::dispatch([
+                'message_type' => 'template',
+                'phone' => $data['phone'],
+                'template' => $data['template'],
+                'language' => $data['language'] ?? 'es_MX',
+                'parameters' => $data['parameters'] ?? [],
+            ]);
+        } else {
+            SendWhatsAppMessageJob::dispatch([
+                'message_type' => 'text',
+                'phone' => $data['phone'],
+                'message' => $data['message'],
+            ]);
+        }
 
         return response()->json([
             'message' => 'Mensaje WhatsApp encolado para envio.',

@@ -32,11 +32,105 @@ class AppointmentCartController extends Controller
 
     public function getAllCarts()
     {
-        $carts = AppointmentCart::with('user')->with('patient')->get();
+        $source = request('source', 'website');
+        $source = in_array($source, ['website', 'panel', 'all'], true) ? $source : 'website';
+
+        $carts = AppointmentCart::with(['user', 'patient', 'appointment.payments'])
+            ->when($source !== 'all', fn ($query) => $query->where('source', $source))
+            ->latest()
+            ->get()
+            ->map(fn (AppointmentCart $cart) => $this->mapAdminCart($cart));
+
+        $stats = [
+            'total' => $carts->count(),
+            'pagado' => $carts->where('admin_payment_status', 'paid')->count(),
+            'pendiente' => $carts->whereIn('admin_payment_status', ['pending', 'requires_payment_method', 'processing', 'voucher_generated'])->count(),
+            'fallido' => $carts->whereIn('admin_payment_status', ['failed', 'expired', 'canceled'])->count(),
+        ];
+
         return Inertia::render('Carts', [
             'carts' => $carts,
+            'filters' => ['source' => $source],
+            'stats' => $stats,
             'status' => session('status'),
         ]);
+    }
+
+    private function mapAdminCart(AppointmentCart $cart): array
+    {
+        $payment = $cart->appointment?->payments
+            ?->sortByDesc('created_at')
+            ->first(fn ($payment) => filled($payment->stripe_payment_id))
+            ?: $cart->appointment?->payments?->sortByDesc('created_at')->first();
+
+        $adminStatus = $this->resolveAdminPaymentStatus($cart, $payment);
+
+        return $cart->toArray() + [
+            'payment' => $payment?->only([
+                'id',
+                'amount',
+                'currency',
+                'payment_method',
+                'status',
+                'stripe_payment_id',
+                'receipt_url',
+                'concepto',
+                'created_at',
+            ]),
+            'admin_payment_status' => $adminStatus,
+            'admin_payment_label' => $this->paymentStatusLabel($adminStatus),
+            'admin_payment_method' => $payment?->payment_method ?: $this->inferPaymentMethod($cart),
+            'admin_amount' => $payment?->amount ?: ($cart->total_charge_amount ?: $cart->precio),
+            'admin_stripe_reference' => $payment?->stripe_payment_id ?: ($cart->payment_intent_id ?: $cart->stripe_session_id),
+        ];
+    }
+
+    private function resolveAdminPaymentStatus(AppointmentCart $cart, mixed $payment): string
+    {
+        if ($payment?->status === 'completed' || $cart->estado === 'pagado') {
+            return 'paid';
+        }
+
+        if (filled($cart->stripe_payment_status)) {
+            return $cart->stripe_payment_status;
+        }
+
+        return match ($cart->estado) {
+            'voucher_generado' => 'voucher_generated',
+            'pendientePago', 'pendiente' => filled($cart->payment_intent_id) || filled($cart->stripe_session_id)
+                ? 'processing'
+                : 'pending',
+            'expirado' => 'expired',
+            'cancelado' => 'canceled',
+            default => 'pending',
+        };
+    }
+
+    private function paymentStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'paid', 'succeeded', 'completed' => 'Pagado',
+            'processing' => 'Procesando',
+            'voucher_generated' => 'Voucher generado',
+            'requires_payment_method', 'requires_action' => 'Requiere accion',
+            'failed', 'payment_failed' => 'Fallido',
+            'expired' => 'Expirado',
+            'canceled', 'cancelled' => 'Cancelado',
+            default => 'Pendiente',
+        };
+    }
+
+    private function inferPaymentMethod(AppointmentCart $cart): ?string
+    {
+        if (filled($cart->stripe_session_id)) {
+            return 'oxxo';
+        }
+
+        if (filled($cart->payment_intent_id)) {
+            return 'stripe';
+        }
+
+        return null;
     }
 
     public function getCartById($id)
@@ -100,6 +194,7 @@ class AppointmentCartController extends Controller
             'categoria' => $this->firstScalar($request->input('categoria')),
             'patient_id' => $patient->id,
             'estado' => $estado,
+            'source' => 'website',
         ];
 
         $cart = AppointmentCart::updateOrCreate(

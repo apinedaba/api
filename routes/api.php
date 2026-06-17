@@ -29,6 +29,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\PatientExerciseAiController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
@@ -187,6 +188,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
     Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
+    Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index']);
+    Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate']);
     Route::post('user/patients/{id}/consent-link', [PatientController::class, 'generateConsentLink']);
     Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);

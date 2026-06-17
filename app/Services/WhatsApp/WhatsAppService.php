@@ -17,7 +17,7 @@ class WhatsAppService
     {
         $payload = [
             'messaging_product' => 'whatsapp',
-            'to' => PhoneNormalizer::toE164($phone),
+            'to' => $this->toMetaPhoneNumber($phone),
             'type' => 'text',
             'text' => [
                 'preview_url' => false,
@@ -37,7 +37,7 @@ class WhatsAppService
     ): array {
         $payload = [
             'messaging_product' => 'whatsapp',
-            'to' => PhoneNormalizer::toE164($phone),
+            'to' => $this->toMetaPhoneNumber($phone),
             'type' => 'template',
             'template' => [
                 'name' => $template,
@@ -215,9 +215,15 @@ class WhatsAppService
     protected function messagesEndpoint(): string
     {
         return sprintf(
-            'https://graph.facebook.com/v23.0/%s/messages',
+            'https://graph.facebook.com/%s/%s/messages',
+            config('services.whatsapp.api_version', 'v25.0'),
             config('services.whatsapp.phone_number_id')
         );
+    }
+
+    protected function toMetaPhoneNumber(string $phone): string
+    {
+        return ltrim(PhoneNormalizer::toE164($phone), '+');
     }
 
     protected function validateConfiguration(): void

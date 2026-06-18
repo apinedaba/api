@@ -21,6 +21,7 @@ use App\Http\Controllers\ConsultaContactoController;
 use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\EducationUserController;
+use App\Http\Controllers\ElenaAssistantController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\GoogleCalendarController;
@@ -250,6 +251,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/documentacion/{driveId}/download', [DocumentacionController::class, 'download']);
     Route::get('user/documentacion/{driveId}/preview', [DocumentacionController::class, 'preview']);
     Route::get('user/help-center', [HelpCenterController::class, 'index']);
+    Route::post('user/assistant/adel/message', [ElenaAssistantController::class, 'message']);
+    Route::post('user/assistant/adel/confirm', [ElenaAssistantController::class, 'confirm']);
+    Route::post('user/assistant/elena/message', [ElenaAssistantController::class, 'message']);
+    Route::post('user/assistant/elena/confirm', [ElenaAssistantController::class, 'confirm']);
 });
 Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
 

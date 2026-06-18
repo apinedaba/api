@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
-use App\Models\AppointmentCart;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
@@ -33,6 +32,7 @@ class ElenaAssistantController extends Controller
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:800'],
             'selected_patient_id' => ['nullable', 'integer'],
+            'pending_intent' => ['nullable', 'array'],
         ]);
 
         $user = $request->user();
@@ -41,7 +41,9 @@ class ElenaAssistantController extends Controller
         $intent = $this->assistant->interpret($validated['message'], [
             'now' => $now->toIso8601String(),
             'timezone' => $timezone,
+            'previous_intent' => $validated['pending_intent'] ?? null,
         ]);
+        $intent = $this->mergePendingIntent($validated['pending_intent'] ?? null, $intent);
 
         $selectedPatientId = $validated['selected_patient_id'] ?? null;
         if ($selectedPatientId) {
@@ -105,47 +107,76 @@ class ElenaAssistantController extends Controller
 
         $relation = $this->appointments->ensureRelationshipAndRoom($request->user()->id, $patient->id, $relation->clinic_id);
 
-        $appointment = Appointment::create([
-            'organization_id' => $request->attributes->get('active_organization')?->id ?: $patient->organization_id,
-            'user' => $request->user()->id,
-            'patient' => $patient->id,
-            'clinic_id' => $relation->clinic_id,
-            'title' => $payload['title'] ?: "Sesion con {$patient->name}",
-            'start' => $start,
-            'end' => $end,
-            'comments' => 'Creada por Adel Assistant',
-            'payment_status' => 'pending',
-            'video_call_room' => $relation->video_call_room,
-            'extendedProps' => [
-                'tipoSesion' => $payload['session_type'] ?? null,
-                'formato' => $payload['format'] ?? 'online',
-            ],
-            'notification_meta' => [
-                'source' => 'adel_assistant',
-            ],
-        ]);
+        $isRecurrent = (bool) ($payload['is_recurrent'] ?? false);
+        $frequency = $payload['recurrence_frequency'] ?? null;
+        $until = $payload['recurrence_until'] ?? null;
+        $interval = max(1, (int) ($payload['recurrence_interval'] ?? 1));
+        $recurrenceId = $isRecurrent ? (string) Str::uuid() : null;
+        try {
+            $occurrences = $isRecurrent
+                ? $this->buildRecurringOccurrences($start, $end, $frequency, $until, $interval)
+                : [[
+                    'start' => $start,
+                    'end' => $end,
+                    'position' => 1,
+                ]];
+        } catch (\Throwable) {
+            return response()->json([
+                'message' => 'No pude crear la recurrencia con esos datos. Vuelve a pedirle a Adel que prepare la sesion.',
+            ], 422);
+        }
 
-        $duration = max($start->diffInMinutes($end), 1);
-        $cart = AppointmentCart::create([
-            'appointment_id' => $appointment->id,
-            'patient_id' => $patient->id,
-            'user_id' => $request->user()->id,
-            'tipoSesion' => $payload['session_type'] ?? null,
-            'formato' => $payload['format'] ?? 'online',
-            'precio' => $payload['price'] ?? 0,
-            'estado' => 'pendiente',
-            'source' => 'adel',
-            'duracion' => (string) $duration,
-        ]);
+        foreach ($occurrences as $occurrence) {
+            if ($this->hasConflict($request->user()->id, $occurrence['start'], $occurrence['end'])) {
+                return response()->json([
+                    'message' => 'Una de las sesiones recurrentes choca con otra sesion existente. Adel no creo la serie.',
+                    'type' => 'conflict',
+                ], 409);
+            }
+        }
 
-        $appointment->cart_id = $cart->id;
-        $appointment->save();
+        $created = [];
+
+        foreach ($occurrences as $occurrence) {
+            $created[] = Appointment::create([
+                'organization_id' => $request->attributes->get('active_organization')?->id ?: $patient->organization_id,
+                'user' => $request->user()->id,
+                'patient' => $patient->id,
+                'clinic_id' => $relation->clinic_id,
+                'title' => $payload['title'] ?: "Sesion con {$patient->name}",
+                'start' => $occurrence['start'],
+                'end' => $occurrence['end'],
+                'comments' => 'Creada por Adel Assistant',
+                'payment_status' => $payload['payment_status'] ?? 'pending',
+                'video_call_room' => $relation->video_call_room,
+                'recurrence_id' => $recurrenceId,
+                'recurrence_frequency' => $isRecurrent ? $frequency : null,
+                'recurrence_interval' => $isRecurrent ? $interval : null,
+                'recurrence_until' => $isRecurrent ? Carbon::parse($until)->toDateString() : null,
+                'recurrence_position' => $occurrence['position'],
+                'extendedProps' => [
+                    'tipoSesion' => $payload['session_type'],
+                    'formato' => $payload['format'] ?? 'online',
+                    'precio' => $payload['price'] ?? null,
+                    'is_recurrent' => $isRecurrent,
+                ],
+                'notification_meta' => [
+                    'source' => 'adel_assistant',
+                ],
+            ]);
+        }
+
+        $appointment = $created[0];
+
         $this->notifyAppointmentCreated($appointment->fresh(['patient', 'user']));
 
         return response()->json([
             'type' => 'appointment_created',
-            'message' => "Listo, agende la sesion con {$patient->name} para {$this->humanDate($start)}.",
-            'appointment' => $appointment->fresh(['patient', 'cart']),
+            'message' => $isRecurrent
+                ? "Listo, agende {$this->formatCount(count($created), 'sesion', 'sesiones')} recurrentes con {$patient->name} desde {$this->humanDate($start)}."
+                : "Listo, agende la sesion con {$patient->name} para {$this->humanDate($start)}.",
+            'appointment' => $appointment->fresh(['patient']),
+            'appointments' => collect($created)->map(fn (Appointment $item) => $item->fresh(['patient']))->values(),
         ]);
     }
 
@@ -253,6 +284,19 @@ class ElenaAssistantController extends Controller
             ], 409);
         }
 
+        $intent['selected_patient_id'] = $patient->id;
+        $intent['patient_name'] = $patient->name;
+
+        $missingFields = $this->missingScheduleFields($intent);
+        if (! empty($missingFields)) {
+            return $this->scheduleMissingFieldsResponse($patient, $intent, $start, $missingFields);
+        }
+
+        $isRecurrent = (bool) $intent['is_recurrent'];
+        $frequency = $isRecurrent ? $intent['recurrence_frequency'] : null;
+        $until = $isRecurrent ? $intent['recurrence_until'] : null;
+        $interval = $isRecurrent ? max(1, (int) ($intent['recurrence_interval'] ?: 1)) : null;
+
         $payload = [
             'action' => 'create_appointment',
             'user_id' => $user->id,
@@ -261,7 +305,12 @@ class ElenaAssistantController extends Controller
             'start' => $start->toIso8601String(),
             'end' => $end->toIso8601String(),
             'session_type' => $intent['session_type'],
-            'format' => $intent['format'] ?: 'online',
+            'format' => $intent['format'],
+            'is_recurrent' => $isRecurrent,
+            'recurrence_frequency' => $frequency,
+            'recurrence_until' => $until,
+            'recurrence_interval' => $interval,
+            'payment_status' => $intent['payment_status'],
             'price' => $intent['price'],
         ];
 
@@ -278,9 +327,96 @@ class ElenaAssistantController extends Controller
                     'human_start' => $this->humanDate($start),
                     'duration_minutes' => $duration,
                     'format' => $payload['format'],
+                    'session_type' => $payload['session_type'],
+                    'payment_status' => $payload['payment_status'],
+                    'price' => $payload['price'],
+                    'is_recurrent' => $payload['is_recurrent'],
+                    'recurrence_frequency' => $payload['recurrence_frequency'],
+                    'recurrence_until' => $payload['recurrence_until'],
+                    'recurrence_interval' => $payload['recurrence_interval'],
                 ],
             ],
         ]);
+    }
+
+    private function mergePendingIntent(?array $previous, array $current): array
+    {
+        if (! $previous) {
+            return $current;
+        }
+
+        $merged = $previous;
+        foreach ($current as $key => $value) {
+            if ($key === 'intent' && in_array($value, ['unknown', 'help'], true)) {
+                continue;
+            }
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $merged[$key] = $value;
+        }
+
+        return $merged;
+    }
+
+    private function missingScheduleFields(array $intent): array
+    {
+        $missing = [];
+
+        if (empty($intent['session_type'])) {
+            $missing[] = 'session_type';
+        }
+        if (empty($intent['format'])) {
+            $missing[] = 'format';
+        }
+        if (! array_key_exists('is_recurrent', $intent) || $intent['is_recurrent'] === null) {
+            $missing[] = 'is_recurrent';
+        }
+        if (($intent['is_recurrent'] ?? false) === true && empty($intent['recurrence_frequency'])) {
+            $missing[] = 'recurrence_frequency';
+        }
+        if (($intent['is_recurrent'] ?? false) === true && empty($intent['recurrence_until'])) {
+            $missing[] = 'recurrence_until';
+        }
+        if (empty($intent['payment_status'])) {
+            $missing[] = 'payment_status';
+        }
+        if (! array_key_exists('price', $intent) || $intent['price'] === null || $intent['price'] === '') {
+            $missing[] = 'price';
+        }
+
+        return $missing;
+    }
+
+    private function scheduleMissingFieldsResponse(Patient $patient, array $intent, Carbon $start, array $missingFields): JsonResponse
+    {
+        $labels = collect($missingFields)
+            ->map(fn (string $field) => $this->scheduleFieldLabel($field))
+            ->implode(', ');
+
+        return response()->json([
+            'type' => 'missing_fields',
+            'message' => "Tengo a {$patient->name} para {$this->humanDate($start)}. Para dejar completa la sesion dime: {$labels}. Puedes responder en una frase, por ejemplo: individual, online, no recurrente, pago pendiente, \$700.",
+            'missing_fields' => $missingFields,
+            'pending_intent' => $intent,
+            'intent' => $intent,
+        ]);
+    }
+
+    private function scheduleFieldLabel(string $field): string
+    {
+        return match ($field) {
+            'session_type' => 'tipo de sesion',
+            'format' => 'formato',
+            'is_recurrent' => 'si es recurrente',
+            'recurrence_frequency' => 'frecuencia de recurrencia',
+            'recurrence_until' => 'hasta cuando se repite',
+            'payment_status' => 'si ya pago o queda pendiente',
+            'price' => 'costo',
+            default => $field,
+        };
     }
 
     private function resolveSinglePatient(int $userId, ?string $name, ?int $selectedPatientId = null, ?array $intent = null)
@@ -420,6 +556,46 @@ class ElenaAssistantController extends Controller
         } catch (\Throwable $exception) {
             Log::warning('Adel appointment notification failed: ' . $exception->getMessage());
         }
+    }
+
+    private function buildRecurringOccurrences(Carbon $start, Carbon $end, ?string $frequency, ?string $until, int $interval): array
+    {
+        if (! in_array($frequency, ['DAILY', 'WEEKLY', 'MONTHLY'], true) || ! $until) {
+            throw new \RuntimeException('Recurrencia incompleta.');
+        }
+
+        $occurrences = [];
+        $currentStart = $start->copy();
+        $duration = max($start->diffInMinutes($end), 1);
+        $untilDate = Carbon::parse($until)->endOfDay();
+        $position = 1;
+
+        while ($currentStart->lte($untilDate)) {
+            $occurrences[] = [
+                'start' => $currentStart->copy(),
+                'end' => $currentStart->copy()->addMinutes($duration),
+                'position' => $position,
+            ];
+
+            $currentStart = match ($frequency) {
+                'DAILY' => $currentStart->copy()->addDays($interval),
+                'MONTHLY' => $currentStart->copy()->addMonthsNoOverflow($interval),
+                default => $currentStart->copy()->addWeeks($interval),
+            };
+
+            $position++;
+        }
+
+        if (empty($occurrences)) {
+            throw new \RuntimeException('La recurrencia no genero ocurrencias validas.');
+        }
+
+        return $occurrences;
+    }
+
+    private function formatCount(int $count, string $singular, string $plural): string
+    {
+        return $count === 1 ? "1 {$singular}" : "{$count} {$plural}";
     }
 
     private function helpResponse(): array

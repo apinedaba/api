@@ -67,9 +67,15 @@ class ElenaAssistantService
                     'duration_minutes: integer|null, usa 50 si es sesion y no se especifica',
                     'format: online|presencial|mixto|null',
                     'session_type: string|null',
+                    'is_recurrent: boolean|null',
+                    'recurrence_frequency: DAILY|WEEKLY|MONTHLY|null',
+                    'recurrence_until: string|null, formato YYYY-MM-DD',
+                    'recurrence_interval: integer|null, usa 1 si no se especifica',
+                    'payment_status: paid|pending|null',
                     'price: number|null',
                     'confidence: number de 0 a 1',
                     'reply: string breve en espanol.',
+                    'Si recibes previous_intent, completa los campos faltantes con el mensaje nuevo y conserva la intencion original.',
                 ]),
             ],
             [
@@ -78,6 +84,7 @@ class ElenaAssistantService
                     'mensaje' => $message,
                     'fecha_actual' => Arr::get($context, 'now'),
                     'timezone' => Arr::get($context, 'timezone'),
+                    'previous_intent' => Arr::get($context, 'previous_intent'),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ],
         ];
@@ -97,6 +104,11 @@ class ElenaAssistantService
             'duration_minutes' => $this->duration(Arr::get($decoded, 'duration_minutes')),
             'format' => $this->normalizeFormat(Arr::get($decoded, 'format')),
             'session_type' => $this->nullableString(Arr::get($decoded, 'session_type')),
+            'is_recurrent' => $this->nullableBoolean(Arr::get($decoded, 'is_recurrent')),
+            'recurrence_frequency' => $this->normalizeFrequency(Arr::get($decoded, 'recurrence_frequency')),
+            'recurrence_until' => $this->nullableString(Arr::get($decoded, 'recurrence_until')),
+            'recurrence_interval' => is_numeric(Arr::get($decoded, 'recurrence_interval')) ? max(1, (int) Arr::get($decoded, 'recurrence_interval')) : null,
+            'payment_status' => $this->normalizePaymentStatus(Arr::get($decoded, 'payment_status')),
             'price' => is_numeric(Arr::get($decoded, 'price')) ? (float) Arr::get($decoded, 'price') : null,
             'confidence' => max(0, min(1, (float) Arr::get($decoded, 'confidence', 0))),
             'reply' => Str::limit((string) Arr::get($decoded, 'reply', ''), 260, ''),
@@ -123,9 +135,14 @@ class ElenaAssistantService
             'patient_name' => $this->guessPatientName($message),
             'datetime_iso' => null,
             'duration_minutes' => $intent === 'schedule_session' ? 50 : null,
-            'format' => null,
-            'session_type' => null,
-            'price' => null,
+            'format' => $this->guessFormat($normalized),
+            'session_type' => $this->guessSessionType($message),
+            'is_recurrent' => $this->guessRecurrence($normalized),
+            'recurrence_frequency' => $this->guessFrequency($normalized),
+            'recurrence_until' => null,
+            'recurrence_interval' => 1,
+            'payment_status' => $this->guessPaymentStatus($normalized),
+            'price' => $this->guessPrice($message),
             'confidence' => $intent === 'unknown' ? 0 : 0.45,
             'reply' => '',
         ];
@@ -144,6 +161,120 @@ class ElenaAssistantService
     {
         $value = Str::lower(trim((string) $value));
         return in_array($value, ['online', 'presencial', 'mixto'], true) ? $value : null;
+    }
+
+    private function normalizeFrequency($value): ?string
+    {
+        $value = Str::upper(trim((string) $value));
+        return in_array($value, ['DAILY', 'WEEKLY', 'MONTHLY'], true) ? $value : null;
+    }
+
+    private function normalizePaymentStatus($value): ?string
+    {
+        $value = Str::lower(trim((string) $value));
+        return in_array($value, ['paid', 'pending'], true) ? $value : null;
+    }
+
+    private function nullableBoolean($value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = Str::lower(trim((string) $value));
+        if (in_array($value, ['true', '1', 'si', 'sí', 'yes'], true)) {
+            return true;
+        }
+        if (in_array($value, ['false', '0', 'no'], true)) {
+            return false;
+        }
+
+        return null;
+    }
+
+    private function guessFormat(string $normalized): ?string
+    {
+        if (Str::contains($normalized, ['presencial', 'consultorio'])) {
+            return 'presencial';
+        }
+        if (Str::contains($normalized, ['mixto'])) {
+            return 'mixto';
+        }
+        if (Str::contains($normalized, ['online', 'virtual', 'videollamada', 'zoom'])) {
+            return 'online';
+        }
+
+        return null;
+    }
+
+    private function guessSessionType(string $message): ?string
+    {
+        if (preg_match('/(?:tipo(?: de)? sesion|sesion)\s+(individual|pareja|familiar|infantil|adolescente|primera vez|seguimiento)/iu', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        if (preg_match('/\b(individual|pareja|familiar|infantil|adolescente|primera vez|seguimiento)\b/iu', $message, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
+    }
+
+    private function guessRecurrence(string $normalized): ?bool
+    {
+        if (Str::contains($normalized, ['no recurrente', 'sin recurrencia', 'solo una vez', 'unica', 'única'])) {
+            return false;
+        }
+        if (Str::contains($normalized, ['recurrente', 'cada semana', 'semanal', 'mensual', 'diaria', 'diario'])) {
+            return true;
+        }
+
+        return null;
+    }
+
+    private function guessFrequency(string $normalized): ?string
+    {
+        if (Str::contains($normalized, ['diaria', 'diario', 'cada dia', 'cada día'])) {
+            return 'DAILY';
+        }
+        if (Str::contains($normalized, ['mensual', 'cada mes'])) {
+            return 'MONTHLY';
+        }
+        if (Str::contains($normalized, ['semanal', 'cada semana'])) {
+            return 'WEEKLY';
+        }
+
+        return null;
+    }
+
+    private function guessPaymentStatus(string $normalized): ?string
+    {
+        if (Str::contains($normalized, ['ya pago', 'ya pagó', 'pagado', 'pago completo', 'pagó'])) {
+            return 'paid';
+        }
+        if (Str::contains($normalized, ['pendiente', 'no pago', 'no pagó', 'por pagar'])) {
+            return 'pending';
+        }
+
+        return null;
+    }
+
+    private function guessPrice(string $message): ?float
+    {
+        if (preg_match('/(?:\$|mxn\s*)\s*([0-9]+(?:[.,][0-9]+)?)/iu', $message, $matches)) {
+            return (float) str_replace(',', '.', $matches[1]);
+        }
+        if (preg_match('/([0-9]+(?:[.,][0-9]+)?)\s*(?:pesos|mxn)/iu', $message, $matches)) {
+            return (float) str_replace(',', '.', $matches[1]);
+        }
+        if (preg_match('/gratis|sin costo|costo cero/iu', $message)) {
+            return 0.0;
+        }
+
+        return null;
     }
 
     private function duration($value): ?int

@@ -6,7 +6,6 @@ use App\Events\AppointmentCreated;
 use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
-use App\Models\AppointmentCart;
 use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
 use App\Models\Patient;
@@ -236,7 +235,6 @@ class AppointmentController extends Controller
 
         $start = Carbon::parse($request->input('start'));
         $end = Carbon::parse($request->input('end'));
-        $duration = max($start->diffInMinutes($end), 1);
         $isRecurrent = $request->boolean('is_recurrent');
         $frequency = strtoupper((string) $request->input('frequency', data_get($request->input('recurrence', []), 'frequency', '')));
         $until = $request->input('until', data_get($request->input('recurrence', []), 'until'));
@@ -293,13 +291,7 @@ class AppointmentController extends Controller
                 'notification_meta' => [],
             ]);
 
-            $cart = $this->createAppointmentCart($appointment, $request, $duration);
-            if ($cart) {
-                $appointment->cart_id = $cart->id;
-                $appointment->save();
-            }
-
-            $appointments[] = $appointment->fresh(['patient', 'user', 'cart']);
+            $appointments[] = $appointment->fresh(['patient', 'user']);
 
             if (!$isRecurrent) {
                 $this->sendNotificacionCreateAppoimentEmail($appointment);
@@ -549,21 +541,6 @@ class AppointmentController extends Controller
         }
 
         return $occurrences;
-    }
-
-    private function createAppointmentCart(Appointment $appointment, Request $request, int $duration): AppointmentCart
-    {
-        return AppointmentCart::create([
-            'appointment_id' => $appointment->id,
-            'tipoSesion' => $request->input('tipoSesion'),
-            'formato' => $request->input('formato', 'online'),
-            'precio' => $request->input('costo', 0),
-            'estado' => $request->input('payment_status') === 'paid' ? 'pagado' : 'pendiente',
-            'source' => 'panel',
-            'patient_id' => $appointment->patient,
-            'user_id' => $appointment->user,
-            'duracion' => (string) $duration,
-        ]);
     }
 
     private function handleGoogleSyncRequest(array $appointments): ?JsonResponse

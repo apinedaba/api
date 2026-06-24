@@ -693,14 +693,21 @@ class PatientController extends Controller
             $response = [
                 'rasson' => 'El usuario se a actualizado correctamente',
                 'message' => 'Usuario actulizado ',
-                'type' => 'success'
+                'type' => 'success',
+                'patient' => $patient->fresh(['connections', 'connections.user']),
             ];
         } catch (\Throwable $th) {
+            Log::error('Error updating patient: ' . $th->getMessage(), [
+                'patient_id' => $patient->id,
+            ]);
+
             $response = [
                 'rasson' => 'El usuario no se a actualizado correctamente',
                 'message' => 'Usuario no actulizado',
                 'type' => 'error'
             ];
+
+            return response()->json($response, 500);
         }
 
         return response()->json($response, 200);

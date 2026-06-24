@@ -82,6 +82,12 @@ return [
         'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
         'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
         'api_version' => env('WHATSAPP_API_VERSION', 'v25.0'),
+        'templates' => [
+            'appointment_created' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CREATED', 'confirm_session'),
+            'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirm_session'),
+            'appointment_cancelled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CANCELLED', 'confirm_session'),
+            'patient_invitation' => env('WHATSAPP_TEMPLATE_PATIENT_INVITATION', 'patient_invitation'),
+        ],
     ],
 
     'browsershot' => [

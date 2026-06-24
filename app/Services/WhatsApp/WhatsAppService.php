@@ -35,6 +35,24 @@ class WhatsAppService
         string $language = 'es_MX',
         array $context = []
     ): array {
+        $bodyComponent = $this->bodyParametersComponent($parameters);
+
+        return $this->sendTemplateWithComponents(
+            $phone,
+            $template,
+            $bodyComponent === [] ? [] : [$bodyComponent],
+            $language,
+            $context
+        );
+    }
+
+    public function sendTemplateWithComponents(
+        string $phone,
+        string $template,
+        array $components = [],
+        string $language = 'es_MX',
+        array $context = []
+    ): array {
         $payload = [
             'messaging_product' => 'whatsapp',
             'to' => $this->toMetaPhoneNumber($phone),
@@ -47,22 +65,59 @@ class WhatsAppService
             ],
         ];
 
-        if ($parameters !== []) {
-            $payload['template']['components'] = [
-                [
-                    'type' => 'body',
-                    'parameters' => array_map(
-                        fn ($parameter): array => [
-                            'type' => 'text',
-                            'text' => (string) $parameter,
-                        ],
-                        array_values($parameters)
-                    ),
-                ],
-            ];
+        if ($components !== []) {
+            $payload['template']['components'] = array_values($components);
         }
 
         return $this->send($payload, 'template', $template, $context);
+    }
+
+    public function sendInteractiveButtons(
+        string $phone,
+        string $body,
+        array $buttons,
+        array $context = [],
+        ?string $header = null,
+        ?string $footer = null
+    ): array {
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $this->toMetaPhoneNumber($phone),
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => [
+                    'text' => $body,
+                ],
+                'action' => [
+                    'buttons' => array_map(
+                        fn (array $button): array => [
+                            'type' => 'reply',
+                            'reply' => [
+                                'id' => (string) $button['id'],
+                                'title' => (string) $button['title'],
+                            ],
+                        ],
+                        array_slice($buttons, 0, 3)
+                    ),
+                ],
+            ],
+        ];
+
+        if ($header) {
+            $payload['interactive']['header'] = [
+                'type' => 'text',
+                'text' => $header,
+            ];
+        }
+
+        if ($footer) {
+            $payload['interactive']['footer'] = [
+                'text' => $footer,
+            ];
+        }
+
+        return $this->send($payload, 'interactive', null, $context);
     }
 
     public function sendAppointmentReminder(Appointment $appointment): array
@@ -73,7 +128,7 @@ class WhatsAppService
 
         return $this->sendTemplate(
             (string) $patient?->phone,
-            'appointment_reminder',
+            $this->templateName('appointment_reminder'),
             [
                 $patient?->name ?: 'paciente',
                 optional($appointment->start)->timezone(config('app.timezone'))->format('d/m/Y H:i'),
@@ -96,7 +151,7 @@ class WhatsAppService
 
         return $this->sendTemplate(
             (string) $patient?->phone,
-            'appointment_created',
+            $this->templateName('appointment_created'),
             [
                 $patient?->name ?: 'paciente',
                 optional($appointment->start)->timezone(config('app.timezone'))->format('d/m/Y H:i'),
@@ -115,7 +170,7 @@ class WhatsAppService
     {
         return $this->sendTemplate(
             (string) $patient->phone,
-            'patient_invitation',
+            $this->templateName('patient_invitation'),
             [
                 $patient->name,
                 rtrim(config('app.perfil_paciente_url'), '/').'/dashboard',
@@ -179,6 +234,68 @@ class WhatsAppService
                 'error' => $exception->getMessage(),
             ];
         }
+    }
+
+    public function appointmentTemplateComponents(Appointment $appointment, array $buttons = []): array
+    {
+        $appointment->loadMissing(['patient', 'user']);
+        $patient = $appointment->patient()->first();
+        $professional = $appointment->user()->first();
+        $start = optional($appointment->start)->timezone(config('app.timezone'));
+
+        $bodyParameters = [
+            $patient?->name ?: 'paciente',
+            $professional?->name ?: 'tu profesional',
+            $start?->format('d/m/Y') ?: '',
+            $start?->format('H:i') ?: '',
+        ];
+
+        return array_values(array_filter([
+            $this->bodyParametersComponent($bodyParameters),
+            ...$this->buttonComponents($buttons),
+        ]));
+    }
+
+    public function bodyParametersComponent(array $parameters): array
+    {
+        if ($parameters === []) {
+            return [];
+        }
+
+        return [
+            'type' => 'body',
+            'parameters' => array_map(
+                fn ($parameter): array => [
+                    'type' => 'text',
+                    'text' => (string) $parameter,
+                ],
+                array_values($parameters)
+            ),
+        ];
+    }
+
+    public function buttonComponents(array $buttons): array
+    {
+        return array_map(
+            fn (array $button, int $index): array => [
+                'type' => 'button',
+                'sub_type' => $button['sub_type'] ?? 'quick_reply',
+                'index' => (string) $index,
+                'parameters' => [
+                    [
+                        'type' => $button['parameter_type'] ?? 'payload',
+                        $button['parameter_type'] ?? 'payload' => (string) ($button['payload'] ?? $button['text'] ?? $button['id'] ?? ''),
+                    ],
+                ],
+            ],
+            array_values($buttons),
+            array_keys(array_values($buttons))
+        );
+    }
+
+    public function templateName(string $key): string
+    {
+        return (string) config("services.whatsapp.templates.{$key}", $key);
     }
 
     protected function handleResponse(WhatsAppMessage $audit, Response $response): array

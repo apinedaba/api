@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\AppointmentCart;
 use App\Models\Patient;
 use App\Models\PatientUser;
 use App\Models\User;
@@ -138,7 +139,7 @@ class ElenaAssistantController extends Controller
         $created = [];
 
         foreach ($occurrences as $occurrence) {
-            $created[] = Appointment::create([
+            $appointment = Appointment::create([
                 'organization_id' => $request->attributes->get('active_organization')?->id ?: $patient->organization_id,
                 'user' => $request->user()->id,
                 'patient' => $patient->id,
@@ -164,6 +165,9 @@ class ElenaAssistantController extends Controller
                     'source' => 'adel_assistant',
                 ],
             ]);
+
+            $this->createAppointmentCart($appointment, $payload);
+            $created[] = $appointment->fresh(['patient', 'user', 'cart']);
         }
 
         $appointment = $created[0];
@@ -591,6 +595,30 @@ class ElenaAssistantController extends Controller
         }
 
         return $occurrences;
+    }
+
+    private function createAppointmentCart(Appointment $appointment, array $payload): AppointmentCart
+    {
+        $start = Carbon::parse($appointment->start);
+        $duration = max(Carbon::parse($appointment->start)->diffInMinutes(Carbon::parse($appointment->end)), 1);
+
+        $cart = AppointmentCart::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $appointment->patient,
+            'user_id' => $appointment->user,
+            'fecha' => $start->toDateString(),
+            'hora' => $start->format('H:i:s'),
+            'tipoSesion' => $payload['session_type'],
+            'duracion' => (string) $duration,
+            'precio' => (int) $payload['price'],
+            'estado' => ($payload['payment_status'] ?? 'pending') === 'paid' ? 'pagado' : 'pendiente',
+            'formato' => $payload['format'] ?? 'online',
+            'source' => 'adel',
+        ]);
+
+        $appointment->forceFill(['cart_id' => $cart->id])->save();
+
+        return $cart;
     }
 
     private function formatCount(int $count, string $singular, string $plural): string

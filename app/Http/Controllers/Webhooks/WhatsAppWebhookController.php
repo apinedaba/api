@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\WhatsAppMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,17 +65,68 @@ class WhatsAppWebhookController extends Controller
         }
 
         foreach (data_get($value, 'messages', []) as $message) {
+            $buttonPayload = data_get($message, 'button.payload')
+                ?: data_get($message, 'interactive.button_reply.id');
+
             WhatsAppMessage::create([
                 'phone' => (string) data_get($message, 'from'),
                 'template' => null,
-                'message_type' => 'incoming',
+                'message_type' => $buttonPayload ? 'button_reply' : 'incoming',
                 'meta_message_id' => data_get($message, 'id'),
                 'status' => 'received',
                 'payload' => $message,
                 'response' => $value,
                 'sent_at' => null,
             ]);
+
+            if ($buttonPayload) {
+                $this->handleButtonPayload((string) $buttonPayload, $message);
+            }
         }
+    }
+
+    protected function handleButtonPayload(string $payload, array $message): void
+    {
+        if (! preg_match('/^appointment:(\d+):(confirm|postpone|cancel)$/', $payload, $matches)) {
+            Log::channel('whatsapp')->debug('WhatsApp button payload ignored', [
+                'payload' => $payload,
+                'message_id' => data_get($message, 'id'),
+            ]);
+
+            return;
+        }
+
+        $appointment = Appointment::find((int) $matches[1]);
+
+        if (! $appointment) {
+            Log::channel('whatsapp')->warning('WhatsApp button appointment not found', [
+                'payload' => $payload,
+                'message_id' => data_get($message, 'id'),
+            ]);
+
+            return;
+        }
+
+        match ($matches[2]) {
+            'confirm' => $appointment->forceFill([
+                'statusPatient' => 'Confirmed',
+                'state' => 'Confirmada',
+            ])->save(),
+            'postpone' => $appointment->forceFill([
+                'statusPatient' => 'Reschedule Requested',
+                'state' => 'Reprogramacion solicitada',
+            ])->save(),
+            'cancel' => $appointment->forceFill([
+                'statusPatient' => 'Cancel',
+                'state' => 'Cancelada',
+            ])->save(),
+        };
+
+        Log::channel('whatsapp')->info('WhatsApp appointment action applied', [
+            'appointment_id' => $appointment->id,
+            'action' => $matches[2],
+            'message_id' => data_get($message, 'id'),
+        ]);
     }
 
     protected function updateMessageStatus(array $status): void

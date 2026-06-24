@@ -31,13 +31,25 @@ class AppointmentReminderWhatsAppNotification extends Notification
         return [
             'message_type' => 'template',
             'phone' => $notifiable->phone,
-            'template' => 'appointment_reminder',
+            'template' => config('services.whatsapp.templates.appointment_reminder', 'appointment_reminder'),
             'language' => 'es_MX',
             'parameters' => [
                 $notifiable->name ?? 'paciente',
-                $start->format('d/m/Y H:i'),
                 $professional?->name ?: 'tu profesional',
-                $this->humanReminderLabel(),
+                $start->format('d/m/Y'),
+                $start->format('H:i'),
+            ],
+            'components' => [
+                [
+                    'type' => 'body',
+                    'parameters' => [
+                        ['type' => 'text', 'text' => $notifiable->name ?? 'paciente'],
+                        ['type' => 'text', 'text' => $professional?->name ?: 'tu profesional'],
+                        ['type' => 'text', 'text' => $start->format('d/m/Y')],
+                        ['type' => 'text', 'text' => $start->format('H:i')],
+                    ],
+                ],
+                ...$this->buttonComponents(),
             ],
             'context' => [
                 'appointment_id' => $this->appointment->id,
@@ -53,5 +65,29 @@ class AppointmentReminderWhatsAppNotification extends Notification
             '30m' => 'en 30 minutos',
             default => 'proximamente',
         };
+    }
+
+    protected function buttonComponents(): array
+    {
+        return [
+            $this->buttonComponent(0, "appointment:{$this->appointment->id}:confirm"),
+            $this->buttonComponent(1, "appointment:{$this->appointment->id}:postpone"),
+            $this->buttonComponent(2, "appointment:{$this->appointment->id}:cancel"),
+        ];
+    }
+
+    protected function buttonComponent(int $index, string $payload): array
+    {
+        return [
+            'type' => 'button',
+            'sub_type' => 'quick_reply',
+            'index' => (string) $index,
+            'parameters' => [
+                [
+                    'type' => 'payload',
+                    'payload' => $payload,
+                ],
+            ],
+        ];
     }
 }

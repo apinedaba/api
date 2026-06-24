@@ -10,6 +10,8 @@ class WhatsAppMessage extends Model
 {
     use HasFactory;
 
+    protected $table = 'whatsapp_messages';
+
     protected $fillable = [
         'user_id',
         'patient_id',

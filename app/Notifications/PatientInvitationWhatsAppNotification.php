@@ -26,7 +26,7 @@ class PatientInvitationWhatsAppNotification extends Notification
         return [
             'message_type' => 'template',
             'phone' => $notifiable->phone ?? $this->patient->phone,
-            'template' => 'patient_invitation',
+            'template' => config('services.whatsapp.templates.patient_invitation', 'patient_invitation'),
             'language' => 'es_MX',
             'parameters' => [
                 $this->patient->name,

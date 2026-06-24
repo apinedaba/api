@@ -25,12 +25,35 @@ class SendWhatsAppMessageJob implements ShouldQueue
         $context = $this->message['context'] ?? [];
 
         if ($type === 'template') {
-            $whatsApp->sendTemplate(
+            if (! empty($this->message['components'])) {
+                $whatsApp->sendTemplateWithComponents(
+                    (string) $this->message['phone'],
+                    (string) $this->message['template'],
+                    $this->message['components'],
+                    $this->message['language'] ?? 'es_MX',
+                    $context
+                );
+            } else {
+                $whatsApp->sendTemplate(
+                    (string) $this->message['phone'],
+                    (string) $this->message['template'],
+                    $this->message['parameters'] ?? [],
+                    $this->message['language'] ?? 'es_MX',
+                    $context
+                );
+            }
+
+            return;
+        }
+
+        if ($type === 'interactive_buttons') {
+            $whatsApp->sendInteractiveButtons(
                 (string) $this->message['phone'],
-                (string) $this->message['template'],
-                $this->message['parameters'] ?? [],
-                $this->message['language'] ?? 'es_MX',
-                $context
+                (string) $this->message['body'],
+                $this->message['buttons'] ?? [],
+                $context,
+                $this->message['header'] ?? null,
+                $this->message['footer'] ?? null
             );
 
             return;

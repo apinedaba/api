@@ -6,6 +6,7 @@ use App\Events\AppointmentCreated;
 use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
+use App\Models\AppointmentCart;
 use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
 use App\Models\Patient;
@@ -291,6 +292,8 @@ class AppointmentController extends Controller
                 'notification_meta' => [],
             ]);
 
+            $this->createAppointmentCart($appointment, $request);
+
             $appointments[] = $appointment->fresh(['patient', 'user']);
 
             if (!$isRecurrent) {
@@ -319,6 +322,32 @@ class AppointmentController extends Controller
             'type' => 'success',
             'appointments' => $appointments,
         ], 200);
+    }
+
+    private function createAppointmentCart(Appointment $appointment, Request $request): ?AppointmentCart
+    {
+        if (! $request->filled('tipoSesion') || ! $request->filled('costo')) {
+            return null;
+        }
+
+        $start = Carbon::parse($appointment->start);
+        $cart = AppointmentCart::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $appointment->patient,
+            'user_id' => $appointment->user,
+            'fecha' => $start->toDateString(),
+            'hora' => $start->format('H:i:s'),
+            'tipoSesion' => $request->input('tipoSesion'),
+            'duracion' => (string) max(Carbon::parse($appointment->start)->diffInMinutes(Carbon::parse($appointment->end)), 1),
+            'precio' => (int) $request->input('costo'),
+            'estado' => $request->input('payment_status') === 'paid' ? 'pagado' : 'pendiente',
+            'formato' => $request->input('formato'),
+            'source' => 'admin',
+        ]);
+
+        $appointment->forceFill(['cart_id' => $cart->id])->save();
+
+        return $cart;
     }
 
     private function canAssignOrganizationProfessional(

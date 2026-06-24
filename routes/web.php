@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderMetricsController;
 use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\Admin\AdminMinderSupportAppointmentController;
+use App\Http\Controllers\Admin\AdminMindmeetFeedbackController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
 use App\Http\Controllers\AppointmentCartController;
@@ -62,6 +63,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/analytics', [ProfessionalAnalyticsController::class, 'adminIndex'])->name('analytics');
+    Route::get('/mindmeet-feedback', [AdminMindmeetFeedbackController::class, 'index'])->name('mindmeet-feedback.index');
     Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/coupons', [DiscountCouponController::class, 'adminIndex'])->name('coupons');

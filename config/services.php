@@ -82,6 +82,7 @@ return [
         'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
         'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
         'api_version' => env('WHATSAPP_API_VERSION', 'v25.0'),
+        'webhook_url' => env('WHATSAPP_WEBHOOK_URL'),
         'templates' => [
             'appointment_created' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CREATED', 'confirm_session'),
             'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirm_session'),

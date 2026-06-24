@@ -195,6 +195,13 @@ class WhatsAppService
             'response' => null,
         ]);
 
+        Log::channel('whatsapp')->info('WhatsApp audit record created', [
+            'whatsapp_message_id' => $audit->id,
+            'message_type' => $messageType,
+            'template' => $template,
+            'context' => $context,
+        ]);
+
         try {
             $this->validateConfiguration();
 

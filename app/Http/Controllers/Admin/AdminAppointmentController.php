@@ -4,20 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
-use App\Models\ClinicMembership;
-use App\Models\Patient;
-use App\Models\User;
 use App\Models\Availabiliti;
+use App\Models\ClinicMembership;
 use App\Notifications\CreateAppoinmentMail;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\StateAppoinmentMail;
 use App\Services\AppointmentDeletionService;
+use App\Services\WhatsApp\AppointmentWhatsAppNotifier;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Validator;
 
 class AdminAppointmentController extends Controller
 {
@@ -33,6 +32,7 @@ class AdminAppointmentController extends Controller
                 ->get()
                 ->map(function ($appointment) {
                     $extendedProps = is_array($appointment->extendedProps) ? $appointment->extendedProps : [];
+
                     return [
                         'id' => $appointment->id,
                         'user_id' => $appointment->user,
@@ -50,14 +50,14 @@ class AdminAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments
+                'data' => $appointments,
             ], 200);
         } catch (\Exception $e) {
-            Log::error('Error fetching appointments: ' . $e->getMessage());
+            Log::error('Error fetching appointments: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener las citas'
+                'message' => 'Error al obtener las citas',
             ], 500);
         }
     }
@@ -76,14 +76,14 @@ class AdminAppointmentController extends Controller
             'state' => 'nullable|in:Creado,Confirmado,Completado,Cancelado,No asistió,programada,confirmada,completada,cancelada,no_asistio',
             'motivo' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string',
-            'link' => 'nullable|url'
+            'link' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -106,7 +106,7 @@ class AdminAppointmentController extends Controller
             if ($conflict) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El psicólogo ya tiene una cita en ese horario'
+                    'message' => 'El psicólogo ya tiene una cita en ese horario',
                 ], 422);
             }
 
@@ -122,7 +122,7 @@ class AdminAppointmentController extends Controller
                 'state' => $request->state ?? 'Creado',
                 'link' => $request->link,
                 'extendedProps' => [
-                    'tipo' => $request->tipo ?? 'virtual'
+                    'tipo' => $request->tipo ?? 'virtual',
                 ],
                 'statusUser' => 'pendiente',
                 'statusPatient' => 'pendiente',
@@ -132,19 +132,20 @@ class AdminAppointmentController extends Controller
 
             $appointment->load('user', 'patient');
             $this->notifyAppointmentCreated($appointment);
+            app(AppointmentWhatsAppNotifier::class)->appointmentCreated($appointment, 'admin.appointments.store');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Cita creada exitosamente',
-                'data' => $appointment
+                'data' => $appointment,
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating appointment: ' . $e->getMessage());
+            Log::error('Error creating appointment: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al crear la cita: ' . $e->getMessage()
+                'message' => 'Error al crear la cita: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -176,14 +177,14 @@ class AdminAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data' => $data,
             ], 200);
         } catch (\Exception $e) {
-            Log::error('Error fetching appointment: ' . $e->getMessage());
+            Log::error('Error fetching appointment: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Cita no encontrada'
+                'message' => 'Cita no encontrada',
             ], 404);
         }
     }
@@ -200,14 +201,14 @@ class AdminAppointmentController extends Controller
             'tipo' => 'nullable|in:presencial,virtual',
             'observaciones' => 'nullable|string',
             'motivo' => 'nullable|string|max:255',
-            'state' => 'nullable|in:Creado,Confirmado,Completado,Cancelado,No asistió,programada,confirmada,completada,cancelada,no_asistio'
+            'state' => 'nullable|in:Creado,Confirmado,Completado,Cancelado,No asistió,programada,confirmada,completada,cancelada,no_asistio',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -243,7 +244,7 @@ class AdminAppointmentController extends Controller
                 if ($conflict) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'El psicólogo ya tiene una cita en ese horario'
+                        'message' => 'El psicólogo ya tiene una cita en ese horario',
                     ], 422);
                 }
             }
@@ -291,15 +292,15 @@ class AdminAppointmentController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Cita actualizada exitosamente',
-                'data' => $appointment
+                'data' => $appointment,
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error updating appointment: ' . $e->getMessage());
+            Log::error('Error updating appointment: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al actualizar la cita'
+                'message' => 'Error al actualizar la cita',
             ], 500);
         }
     }
@@ -322,14 +323,14 @@ class AdminAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cita eliminada exitosamente'
+                'message' => 'Cita eliminada exitosamente',
             ], 200);
         } catch (\Exception $e) {
-            Log::error('Error canceling appointment: ' . $e->getMessage());
+            Log::error('Error canceling appointment: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al cancelar la cita'
+                'message' => 'Error al cancelar la cita',
             ], 500);
         }
     }
@@ -339,7 +340,7 @@ class AdminAppointmentController extends Controller
         $patient = $appointment->patient()->first();
         $professional = $appointment->user()->first();
 
-        if (!$patient) {
+        if (! $patient) {
             return;
         }
 
@@ -347,7 +348,7 @@ class AdminAppointmentController extends Controller
         $end = Carbon::parse($appointment->end);
         $interval = $start->diff($end);
         $fecha = $start->format('d/m/Y');
-        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+        $hora = $start->format('H:i').' - '.$end->format('H:i');
 
         $patient->notify(new CreateAppoinmentMail($appointment->loadMissing(['user', 'patient']), $patient, $hora, $fecha, $interval));
 
@@ -365,7 +366,7 @@ class AdminAppointmentController extends Controller
         $start = Carbon::parse($appointment->start);
         $end = Carbon::parse($appointment->end);
         $fecha = $start->format('d/m/Y');
-        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+        $hora = $start->format('H:i').' - '.$end->format('H:i');
         $patientStatus = $this->resolveAppointmentStatusValue($appointment->statusUser, $appointment->state);
         $professionalStatus = $this->resolveAppointmentStatusValue($appointment->statusPatient, $appointment->state);
         $patientStatusChanged = $originalAppointment
@@ -440,15 +441,15 @@ class AdminAppointmentController extends Controller
                 'data' => [
                     'availability' => $availability,
                     'appointments' => $appointments,
-                    'date' => $date
-                ]
+                    'date' => $date,
+                ],
             ], 200);
         } catch (\Exception $e) {
-            Log::error('Error fetching availability: ' . $e->getMessage());
+            Log::error('Error fetching availability: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener disponibilidad'
+                'message' => 'Error al obtener disponibilidad',
             ], 500);
         }
     }
@@ -475,19 +476,19 @@ class AdminAppointmentController extends Controller
                     ->whereNotIn('state', ['Cancelado', 'cancelada'])
                     ->orderBy('start', 'asc')
                     ->with('user')
-                    ->first()
+                    ->first(),
             ];
 
             return response()->json([
                 'success' => true,
-                'data' => $stats
+                'data' => $stats,
             ], 200);
         } catch (\Exception $e) {
-            Log::error('Error fetching appointment stats: ' . $e->getMessage());
+            Log::error('Error fetching appointment stats: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener estadísticas'
+                'message' => 'Error al obtener estadísticas',
             ], 500);
         }
     }

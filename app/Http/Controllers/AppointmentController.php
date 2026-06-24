@@ -20,6 +20,7 @@ use App\Notifications\StateAppoinmentMail;
 use App\Services\AppointmentDeletionService;
 use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
+use App\Services\WhatsApp\AppointmentWhatsAppNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,15 +33,16 @@ use Illuminate\Support\Str;
 class AppointmentController extends Controller
 {
     protected AppointmentService $service;
+
     protected GoogleCalendarService $googleCalendarService;
+
     protected AppointmentDeletionService $appointmentDeletionService;
 
     public function __construct(
         AppointmentService $service,
         GoogleCalendarService $googleCalendarService,
         AppointmentDeletionService $appointmentDeletionService
-    )
-    {
+    ) {
         $this->service = $service;
         $this->googleCalendarService = $googleCalendarService;
         $this->appointmentDeletionService = $appointmentDeletionService;
@@ -102,6 +104,7 @@ class AppointmentController extends Controller
 
             if (empty($workingHours[$weekday])) {
                 $current->addDay();
+
                 continue;
             }
 
@@ -123,7 +126,7 @@ class AppointmentController extends Controller
                         return $slotStart->lt($appointment->end) && $slotEnd->gt($appointment->start);
                     });
 
-                    if (!$empalme) {
+                    if (! $empalme) {
                         $slots[] = [
                             'date' => $fecha,
                             'hour' => $slotStart->format('H:i'),
@@ -217,7 +220,7 @@ class AppointmentController extends Controller
             ]);
         }
 
-        if (!$request->filled('user') || !$request->filled('patient')) {
+        if (! $request->filled('user') || ! $request->filled('patient')) {
             return response()->json([
                 'rasson' => 'La cita requiere un profesional y un paciente validos.',
                 'message' => 'Datos incompletos',
@@ -242,7 +245,7 @@ class AppointmentController extends Controller
         $interval = (int) $request->input('interval', data_get($request->input('recurrence', []), 'interval', 1));
         $syncWithGoogle = $request->boolean('syncWithGoogle');
 
-        if ($isRecurrent && (!$frequency || !$until)) {
+        if ($isRecurrent && (! $frequency || ! $until)) {
             return response()->json([
                 'rasson' => 'Las citas recurrentes requieren frecuencia y fecha limite.',
                 'message' => 'Recurrencia incompleta',
@@ -296,17 +299,19 @@ class AppointmentController extends Controller
 
             $appointments[] = $appointment->fresh(['patient', 'user']);
 
-            if (!$isRecurrent) {
+            if (! $isRecurrent) {
                 $this->sendNotificacionCreateAppoimentEmail($appointment);
+                app(AppointmentWhatsAppNotifier::class)->appointmentCreated($appointment, 'user.appointments.store');
             }
 
-            if (!$isRecurrent) {
+            if (! $isRecurrent) {
                 event(new AppointmentCreated($appointment->id, $appointment->user, $appointment->patient));
             }
         }
 
         if ($isRecurrent && count($appointments) > 0) {
             $this->sendRecurringSeriesNotification($appointments, $frequency, $until);
+            app(AppointmentWhatsAppNotifier::class)->appointmentCreated($appointments[0], 'user.appointments.store.recurring');
         }
 
         if ($syncWithGoogle && count($appointments) > 0) {
@@ -355,7 +360,7 @@ class AppointmentController extends Controller
         ?OrganizationMembership $membership,
         int $professionalId
     ): bool {
-        if (!$organizationId || !$membership || !$professionalId) {
+        if (! $organizationId || ! $membership || ! $professionalId) {
             return false;
         }
 
@@ -369,11 +374,11 @@ class AppointmentController extends Controller
             || in_array('appointments.create', $permissions, true)
             || in_array('appointments.manage', $permissions, true)
             || in_array('schedule.manage', $permissions, true)
-            || (is_array($permissions) && !empty($permissions['appointments.create']))
-            || (is_array($permissions) && !empty($permissions['appointments.manage']))
-            || (is_array($permissions) && !empty($permissions['schedule.manage']));
+            || (is_array($permissions) && ! empty($permissions['appointments.create']))
+            || (is_array($permissions) && ! empty($permissions['appointments.manage']))
+            || (is_array($permissions) && ! empty($permissions['schedule.manage']));
 
-        if (!$canManageSchedule) {
+        if (! $canManageSchedule) {
             return false;
         }
 
@@ -434,7 +439,7 @@ class AppointmentController extends Controller
         }
 
         foreach ($updatedData as $key => $value) {
-            if (!array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
+            if (! array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
                 continue;
             }
 
@@ -452,7 +457,7 @@ class AppointmentController extends Controller
             }
         }
 
-        if (empty($fieldsToUpdate) && !$request->hasAny(['costo', 'tipoSesion', 'formato'])) {
+        if (empty($fieldsToUpdate) && ! $request->hasAny(['costo', 'tipoSesion', 'formato'])) {
             return response()->json([
                 'rasson' => 'No se detectaron cambios en la cita',
                 'message' => 'Sin modificaciones',
@@ -461,7 +466,7 @@ class AppointmentController extends Controller
         }
 
         try {
-            if (!empty($fieldsToUpdate)) {
+            if (! empty($fieldsToUpdate)) {
                 $appointment->update($fieldsToUpdate);
             }
 
@@ -479,7 +484,7 @@ class AppointmentController extends Controller
                 if ($request->filled('payment_status')) {
                     $cartPayload['estado'] = $request->input('payment_status') === 'paid' ? 'pagado' : 'pendiente';
                 }
-                if (!empty($cartPayload)) {
+                if (! empty($cartPayload)) {
                     $appointment->cart->update($cartPayload);
                 }
             }
@@ -502,7 +507,7 @@ class AppointmentController extends Controller
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
-                'rasson' => 'No se logro cambiar la cita con exito. ' . $th->getMessage(),
+                'rasson' => 'No se logro cambiar la cita con exito. '.$th->getMessage(),
                 'message' => 'Cita no modificada',
                 'type' => 'error',
             ], 400);
@@ -576,7 +581,7 @@ class AppointmentController extends Controller
     {
         $owner = User::find($appointments[0]->user);
 
-        if (!$owner) {
+        if (! $owner) {
             return null;
         }
 
@@ -587,10 +592,10 @@ class AppointmentController extends Controller
                 SyncAppointmentToGoogleCalendar::dispatch($appointment, $owner, 'create', $notifyEachAppointment);
             }
 
-            if (!$notifyEachAppointment) {
+            if (! $notifyEachAppointment) {
                 event(new NewNotification(
                     "user.{$owner->id}",
-                    "Se estan sincronizando " . count($appointments) . " sesiones recurrentes con Google Meet. Te notificamos solo una vez para evitar duplicados."
+                    'Se estan sincronizando '.count($appointments).' sesiones recurrentes con Google Meet. Te notificamos solo una vez para evitar duplicados.'
                 ));
             }
 
@@ -613,7 +618,7 @@ class AppointmentController extends Controller
 
     private function resolveCancellationTargets(Appointment $appointment, string $scope)
     {
-        if (!$appointment->recurrence_id || $scope === 'single') {
+        if (! $appointment->recurrence_id || $scope === 'single') {
             return collect([$appointment->load('cart')]);
         }
 
@@ -655,7 +660,7 @@ class AppointmentController extends Controller
             ]
         );
 
-        if (!$patient->organization_id && $organizationId) {
+        if (! $patient->organization_id && $organizationId) {
             $patient->organization_id = $organizationId;
             $patient->save();
         }
@@ -664,14 +669,14 @@ class AppointmentController extends Controller
             ->where('patient', $patient->id)
             ->exists();
 
-        if (!$relacionExiste) {
+        if (! $relacionExiste) {
             PatientUser::create([
                 'user' => $userId,
                 'patient' => $patient->id,
                 'clinic_id' => $clinicId ?: $this->resolveClinicContext(null, $userId, $patient->id),
                 'activo' => true,
                 'status' => 'Vinculado',
-                'video_call_room' => 'mindmeet-room-' . Str::uuid(),
+                'video_call_room' => 'mindmeet-room-'.Str::uuid(),
             ]);
             Log::info("Relacion creada: psicologo #{$userId} -> paciente #{$patient->id}");
         }
@@ -707,14 +712,14 @@ class AppointmentController extends Controller
         try {
             $patient = Patient::find($appointment->patient);
             $professional = User::find($appointment->user);
-            if (!$patient && !$professional) {
+            if (! $patient && ! $professional) {
                 return false;
             }
 
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
             $fecha = $start->format('d/m/Y');
-            $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+            $hora = $start->format('H:i').' - '.$end->format('H:i');
             $patientStatus = $this->resolveAppointmentStatusValue(
                 $appointment->statusUser,
                 $appointment->state
@@ -744,6 +749,7 @@ class AppointmentController extends Controller
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
+
             return false;
         }
     }
@@ -754,12 +760,12 @@ class AppointmentController extends Controller
         $end = Carbon::parse($appointment->end);
         $interval = $start->diff($end);
         $fecha = $start->format('d/m/Y');
-        $hora = $start->format('H:i') . ' - ' . $end->format('H:i');
+        $hora = $start->format('H:i').' - '.$end->format('H:i');
 
         try {
             $patient = Patient::find($appointment->patient);
             $professional = User::find($appointment->user);
-            if (!$patient) {
+            if (! $patient) {
                 return false;
             }
 
@@ -769,9 +775,11 @@ class AppointmentController extends Controller
                     $appointment->loadMissing(['patient', 'user'])
                 ));
             }
+
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
+
             return false;
         }
     }
@@ -798,7 +806,7 @@ class AppointmentController extends Controller
     {
         try {
             $firstAppointment = collect($appointments)->sortBy('start')->first();
-            if (!$firstAppointment) {
+            if (! $firstAppointment) {
                 return false;
             }
 
@@ -825,6 +833,7 @@ class AppointmentController extends Controller
             return true;
         } catch (\Throwable $th) {
             Log::error($th->getMessage());
+
             return false;
         }
     }
@@ -834,18 +843,18 @@ class AppointmentController extends Controller
         $hash = $request->input('hash');
         $status = $request->input('status', 'Confirmed');
 
-        if (!$hash) {
+        if (! $hash) {
             return response()->json(['rasson' => 'Hash requerido', 'message' => 'Hash missing', 'type' => 'error'], 400);
         }
 
         try {
             $decoded = json_decode(base64_decode($hash), true);
-            if (!is_array($decoded) || !isset($decoded['id'])) {
+            if (! is_array($decoded) || ! isset($decoded['id'])) {
                 return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
             }
 
             $appointment = Appointment::find($decoded['id']);
-            if (!$appointment) {
+            if (! $appointment) {
                 return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
             }
 
@@ -855,7 +864,8 @@ class AppointmentController extends Controller
 
             return response()->json(['rasson' => 'Cita confirmada', 'message' => 'Appointment confirmed', 'type' => 'success'], 200);
         } catch (\Throwable $th) {
-            Log::error('publicConfirm error: ' . $th->getMessage());
+            Log::error('publicConfirm error: '.$th->getMessage());
+
             return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
         }
     }
@@ -864,12 +874,12 @@ class AppointmentController extends Controller
     {
         try {
             $decoded = json_decode(base64_decode($hash), true);
-            if (!is_array($decoded) || !isset($decoded['id'])) {
+            if (! is_array($decoded) || ! isset($decoded['id'])) {
                 return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
             }
 
             $appointment = Appointment::where('id', $decoded['id'])->with('user')->first();
-            if (!$appointment) {
+            if (! $appointment) {
                 return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
             }
 
@@ -878,14 +888,15 @@ class AppointmentController extends Controller
             $data = [
                 'professional' => $appointment->user?->name,
                 'fecha' => $start->format('d/m/Y'),
-                'hora' => $start->format('H:i') . ' - ' . $end->format('H:i'),
+                'hora' => $start->format('H:i').' - '.$end->format('H:i'),
                 'duration' => $start->diff($end)->format('%h horas %i minutos'),
                 'statusPatient' => $appointment->statusPatient,
             ];
 
             return response()->json($data, 200);
         } catch (\Throwable $th) {
-            Log::error('publicShow error: ' . $th->getMessage());
+            Log::error('publicShow error: '.$th->getMessage());
+
             return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
         }
     }

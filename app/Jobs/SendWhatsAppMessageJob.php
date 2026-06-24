@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class SendWhatsAppMessageJob implements ShouldQueue
 {
@@ -23,6 +24,13 @@ class SendWhatsAppMessageJob implements ShouldQueue
     {
         $type = $this->message['message_type'] ?? $this->message['type'] ?? 'text';
         $context = $this->message['context'] ?? [];
+
+        Log::channel('whatsapp')->info('WhatsApp job started', [
+            'message_type' => $type,
+            'template' => $this->message['template'] ?? null,
+            'context' => $context,
+            'has_phone' => ! empty($this->message['phone']),
+        ]);
 
         if ($type === 'template') {
             if (! empty($this->message['components'])) {
@@ -43,6 +51,11 @@ class SendWhatsAppMessageJob implements ShouldQueue
                 );
             }
 
+            Log::channel('whatsapp')->info('WhatsApp template job finished', [
+                'template' => $this->message['template'] ?? null,
+                'context' => $context,
+            ]);
+
             return;
         }
 
@@ -56,6 +69,10 @@ class SendWhatsAppMessageJob implements ShouldQueue
                 $this->message['footer'] ?? null
             );
 
+            Log::channel('whatsapp')->info('WhatsApp interactive buttons job finished', [
+                'context' => $context,
+            ]);
+
             return;
         }
 
@@ -64,5 +81,9 @@ class SendWhatsAppMessageJob implements ShouldQueue
             (string) $this->message['message'],
             $context
         );
+
+        Log::channel('whatsapp')->info('WhatsApp text job finished', [
+            'context' => $context,
+        ]);
     }
 }

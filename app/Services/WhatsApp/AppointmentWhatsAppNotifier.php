@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp;
 
 use App\Jobs\SendWhatsAppMessageJob;
 use App\Models\Appointment;
+use App\Models\WhatsAppNotificationRule;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Support\Facades\Log;
 
@@ -32,16 +33,33 @@ class AppointmentWhatsAppNotifier
     {
         $appointment->loadMissing(['patient', 'user']);
         $patient = $appointment->patient()->first();
+        $rule = $this->notificationRule($templateKey);
+        $resolvedTemplateKey = $rule?->whatsapp_template_key ?: $templateKey;
 
         Log::channel('whatsapp')->info('WhatsApp appointment notification flow started', [
             'source' => $source,
             'event' => $templateKey,
+            'resolved_template_key' => $resolvedTemplateKey,
             'appointment_id' => $appointment->id,
             'patient_id' => $appointment->patient,
             'user_id' => $appointment->user,
             'has_patient' => (bool) $patient,
             'has_patient_phone' => filled($patient?->phone),
+            'rule_active' => $rule?->is_active,
+            'rule_channels' => $rule?->channels,
         ]);
+
+        if ($rule && ! $rule->sendsTo('whatsapp')) {
+            Log::channel('whatsapp')->info('WhatsApp appointment notification skipped by rule', [
+                'source' => $source,
+                'event' => $templateKey,
+                'appointment_id' => $appointment->id,
+                'rule_id' => $rule->id,
+                'channels' => $rule->channels,
+            ]);
+
+            return false;
+        }
 
         if (! $patient) {
             Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: patient not found', [
@@ -64,8 +82,8 @@ class AppointmentWhatsAppNotifier
             return false;
         }
 
-        $template = $this->whatsApp->templateName($templateKey);
-        $templateConfig = $this->templateConfig($templateKey);
+        $template = $this->whatsApp->templateName($resolvedTemplateKey);
+        $templateConfig = $this->templateConfig($resolvedTemplateKey);
         $buttons = $templateConfig?->buttons ?: $this->defaultAppointmentButtons($appointment);
 
         SendWhatsAppMessageJob::dispatch([
@@ -82,6 +100,7 @@ class AppointmentWhatsAppNotifier
                 'patient_id' => $patient->id,
                 'user_id' => $appointment->user,
                 'event' => $templateKey,
+                'template_key' => $resolvedTemplateKey,
                 'source' => $source,
             ],
         ]);
@@ -95,6 +114,17 @@ class AppointmentWhatsAppNotifier
         ]);
 
         return true;
+    }
+
+    protected function notificationRule(string $templateKey): ?WhatsAppNotificationRule
+    {
+        try {
+            return WhatsAppNotificationRule::query()
+                ->where('event_key', $templateKey)
+                ->first();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     protected function templateConfig(string $templateKey): ?WhatsAppTemplate

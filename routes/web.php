@@ -1,16 +1,16 @@
 <?php
 
-use App\Events\NewNotification;
 use App\Http\Controllers\Admin\AdminAppointmentController;
-use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminMinderGroupController;
-use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderMetricsController;
-use App\Http\Controllers\Admin\AdminMinderSupportController;
+use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderSupportAppointmentController;
+use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\Admin\AdminMindmeetFeedbackController;
+use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
+use App\Http\Controllers\AdminWhatsAppAutomationController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
@@ -18,17 +18,17 @@ use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\FacebookCatalogController;
 use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\HomeContentController;
-use App\Http\Controllers\TemporalityController;
-use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerCommissionController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\TemporalityContentController;
+use App\Http\Controllers\TemporalityController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\VendedorController;
 use App\Http\Controllers\Vendedor\VendedorAuthController;
 use App\Http\Controllers\Vendedor\VendedorDashboardController;
+use App\Http\Controllers\VendedorController;
 use App\Jobs\TestNotificacionJob;
 use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
@@ -48,9 +48,8 @@ use Inertia\Inertia;
  */
 
 Route::get('/', function () {
-    return redirect("https://mindmeet.com.mx");
+    return redirect('https://mindmeet.com.mx');
 });
-
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
@@ -66,6 +65,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/mindmeet-feedback', [AdminMindmeetFeedbackController::class, 'index'])->name('mindmeet-feedback.index');
     Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
+    Route::get('/whatsapp-automation', [AdminWhatsAppAutomationController::class, 'index'])->name('whatsapp-automation.index');
+    Route::post('/whatsapp-automation/templates', [AdminWhatsAppAutomationController::class, 'storeTemplate'])->name('whatsapp-automation.templates.store');
+    Route::put('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'updateTemplate'])->name('whatsapp-automation.templates.update');
+    Route::delete('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'destroyTemplate'])->name('whatsapp-automation.templates.destroy');
+    Route::put('/whatsapp-automation/rules/{rule}', [AdminWhatsAppAutomationController::class, 'updateRule'])->name('whatsapp-automation.rules.update');
     Route::get('/coupons', [DiscountCouponController::class, 'adminIndex'])->name('coupons');
     Route::post('/coupons', [DiscountCouponController::class, 'adminStore'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
@@ -156,7 +160,7 @@ Route::get('/share/profesional/{id}/{slug?}', [ShareController::class, 'professi
     ->whereNumber('id')
     ->name('share.professional');
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
 
 // ──────────────────────────────────────────────
 // Panel de Vendedores
@@ -185,11 +189,10 @@ Route::get('/registro', function (Request $request) {
     ]);
 })->name('registro.publico');
 
-
-
 Route::post('patient/login', [PatientAuthController::class, 'login']);
 Route::get('enviar-prueba', function () {
     TestNotificacionJob::dispatch();
+
     return response()->json(['status' => 'Job Dispatched']);
 });
 

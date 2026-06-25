@@ -26,6 +26,7 @@ const navigationGroups = [
         title: 'Growth',
         items: [
             { label: 'Catalogo Facebook', href: 'facebook-catalog.index', match: ['facebook-catalog.*'] },
+            { label: 'WhatsApp automation', href: 'whatsapp-automation.index', match: ['whatsapp-automation.*'] },
             { label: 'Cupones', href: 'coupons', match: ['coupons', 'coupons.*'] },
             { label: 'Vendedores', href: 'vendedores', match: ['vendedores', 'vendedores.*'] },
             { label: 'Pagos vendedores', href: 'seller-commissions', match: ['seller-commissions', 'seller-commissions.*'] },

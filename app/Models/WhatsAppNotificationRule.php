@@ -9,6 +9,8 @@ class WhatsAppNotificationRule extends Model
 {
     use HasFactory;
 
+    protected $table = 'whatsapp_notification_rules';
+
     protected $fillable = [
         'event_key',
         'label',

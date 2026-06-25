@@ -251,6 +251,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
     Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
     Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
+    Route::patch('user/posibles-pacientes/{lead}/status', [ConsultaContactoController::class, 'updateStatus']);
 
     // Documentación Drive
     Route::get('user/documentacion', [DocumentacionController::class, 'index']);

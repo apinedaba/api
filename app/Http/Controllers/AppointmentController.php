@@ -213,10 +213,11 @@ class AppointmentController extends Controller
         );
         $organizationId = $request->input('organization_id')
             ?: $request->attributes->get('active_organization')?->id;
+        $leadId = $request->filled('lead') ? (int) $request->input('lead') : null;
 
-        if ($request->filled('lead') && in_array('user', $middlewares, true)) {
+        if ($leadId && in_array('user', $middlewares, true)) {
             $request->merge([
-                'patient' => $this->resolveLeadToPatient((int) $request->input('lead'), (int) $request->input('user'), $clinicId, $organizationId),
+                'patient' => $this->resolveLeadToPatient($leadId, (int) $request->input('user'), $clinicId, $organizationId),
             ]);
         }
 
@@ -312,6 +313,15 @@ class AppointmentController extends Controller
         if ($isRecurrent && count($appointments) > 0) {
             $this->sendRecurringSeriesNotification($appointments, $frequency, $until);
             app(AppointmentWhatsAppNotifier::class)->appointmentCreated($appointments[0], 'user.appointments.store.recurring');
+        }
+
+        if ($leadId && count($appointments) > 0) {
+            $this->markLeadAsConverted(
+                $leadId,
+                (int) $request->input('user'),
+                (int) $request->input('patient'),
+                (int) $appointments[0]->id
+            );
         }
 
         if ($syncWithGoogle && count($appointments) > 0) {
@@ -682,6 +692,22 @@ class AppointmentController extends Controller
         }
 
         return $patient->id;
+    }
+
+    private function markLeadAsConverted(int $leadId, int $userId, int $patientId, int $appointmentId): void
+    {
+        ConsultaContacto::query()
+            ->whereKey($leadId)
+            ->where('user_id', $userId)
+            ->update([
+                'status' => ConsultaContacto::STATUS_CONVERTED,
+                'patient_id' => $patientId,
+                'appointment_id' => $appointmentId,
+                'viewed_at' => now(),
+                'contacted_at' => now(),
+                'converted_at' => now(),
+                'discarded_at' => null,
+            ]);
     }
 
     private function resolveClinicContext($requestedClinicId, int $userId, ?int $patientId = null): ?int

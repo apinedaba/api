@@ -49,6 +49,7 @@ use App\Http\Controllers\TestWhatsAppController;
 use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\WhatsAppNotificationController;
+use App\Http\Controllers\WhatsAppTemplateController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
@@ -225,6 +226,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);
     Route::post('user/whatsapp/template', [WhatsAppNotificationController::class, 'template']);
     Route::post('user/whatsapp/interactive-buttons', [WhatsAppNotificationController::class, 'interactiveButtons']);
+    Route::apiResource('user/whatsapp/templates', WhatsAppTemplateController::class)
+        ->parameters(['templates' => 'whatsappTemplate']);
     // Solicitudes de citas: consultar pendientes y actualizar estado (approved/rejected)
     Route::get('psychologists/{id}/appointment-requests', [AppointmentRequestController::class, 'indexByPsychologist']);
     Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);

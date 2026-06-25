@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp;
 
 use App\Jobs\SendWhatsAppMessageJob;
 use App\Models\Appointment;
+use App\Models\WhatsAppTemplate;
 use Illuminate\Support\Facades\Log;
 
 class AppointmentWhatsAppNotifier
@@ -64,15 +65,17 @@ class AppointmentWhatsAppNotifier
         }
 
         $template = $this->whatsApp->templateName($templateKey);
+        $templateConfig = $this->templateConfig($templateKey);
+        $buttons = $templateConfig?->buttons ?: $this->defaultAppointmentButtons($appointment);
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
             'phone' => $patient->phone,
             'template' => $template,
-            'language' => 'es_MX',
+            'language' => $templateConfig?->language ?: 'es_MX',
             'components' => $this->whatsApp->appointmentTemplateComponents(
                 $appointment,
-                $this->defaultAppointmentButtons($appointment)
+                $buttons
             ),
             'context' => [
                 'appointment_id' => $appointment->id,
@@ -92,6 +95,18 @@ class AppointmentWhatsAppNotifier
         ]);
 
         return true;
+    }
+
+    protected function templateConfig(string $templateKey): ?WhatsAppTemplate
+    {
+        try {
+            return WhatsAppTemplate::query()
+                ->active()
+                ->where('key', $templateKey)
+                ->first();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     protected function defaultAppointmentButtons(Appointment $appointment): array

@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\WhatsAppMessage;
+use App\Models\WhatsAppTemplate;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -302,6 +303,22 @@ class WhatsAppService
 
     public function templateName(string $key): string
     {
+        try {
+            $template = WhatsAppTemplate::query()
+                ->active()
+                ->where('key', $key)
+                ->value('template_name');
+
+            if (filled($template)) {
+                return (string) $template;
+            }
+        } catch (Throwable $exception) {
+            Log::channel('whatsapp')->debug('WhatsApp template DB lookup skipped', [
+                'key' => $key,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
         return (string) config("services.whatsapp.templates.{$key}", $key);
     }
 

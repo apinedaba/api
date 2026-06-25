@@ -54,8 +54,8 @@
               </p>
 
               <div style="margin-top:28px;">
-                <a href="{{ $dashboardUrl }}" style="display:inline-block;background:#0f6bdc;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:999px;font-size:15px;font-weight:bold;">
-                  Ver sesion en MindMeet
+                <a href="{{ $publicAppointmentUrl }}" style="display:inline-block;background:#0f6bdc;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:999px;font-size:15px;font-weight:bold;">
+                  Ver o reprogramar sesion
                 </a>
               </div>
             </td>

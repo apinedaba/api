@@ -55,6 +55,7 @@ class CreateAppoinmentMail extends Notification
                 'formato' => ucfirst($formato),
                 'isOnline' => strtolower((string) $formato) === 'online',
                 'dashboardUrl' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+                'publicAppointmentUrl' => $this->publicAppointmentUrl(),
             ]);
     }
 
@@ -69,6 +70,14 @@ class CreateAppoinmentMail extends Notification
             'action_label' => 'Ver sesion',
             'kind' => 'appointment-created',
             'appointment_id' => $this->appointment->id,
+            'public_appointment_url' => $this->publicAppointmentUrl(),
         ];
+    }
+
+    protected function publicAppointmentUrl(): string
+    {
+        return rtrim(config('app.frontend_url', 'https://mindmeet.com.mx'), '/')
+            .'/appointments/'
+            .$this->appointment->public_uuid;
     }
 }

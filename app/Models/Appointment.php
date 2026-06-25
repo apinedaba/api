@@ -10,6 +10,7 @@ use App\Models\SessionAttachment;
 use App\Models\SessionNote;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
@@ -17,6 +18,7 @@ class Appointment extends Model
 
     protected $fillable = [
         'organization_id',
+        'public_uuid',
         'user',
         'patient',
         'clinic_id',
@@ -47,6 +49,15 @@ class Appointment extends Model
         'extendedProps',
         'notification_meta',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Appointment $appointment) {
+            if (! $appointment->public_uuid) {
+                $appointment->public_uuid = (string) Str::uuid();
+            }
+        });
+    }
 
     protected $casts = [
         'start' => 'datetime',

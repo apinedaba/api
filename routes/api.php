@@ -75,6 +75,7 @@ Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController:
     ->name('questionnaire.public.show.patient');
 // Endpoint público para confirmar citas desde links enviados por email
 Route::post('public/appointments/confirm', [AppointmentController::class, 'publicConfirm']);
+Route::post('public/appointments/{uuid}/reschedule', [AppointmentController::class, 'publicReschedule']);
 // Endpoint público para obtener datos legibles de la cita (no expone id)
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
 Route::get('public/consents/{token}', [PatientController::class, 'showPublicConsent']);

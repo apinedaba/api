@@ -866,25 +866,23 @@ class AppointmentController extends Controller
 
     public function publicConfirm(Request $request): JsonResponse
     {
-        $hash = $request->input('hash');
+        $hash = $request->input('hash') ?: $request->input('uuid');
         $status = $request->input('status', 'Confirmed');
 
         if (! $hash) {
-            return response()->json(['rasson' => 'Hash requerido', 'message' => 'Hash missing', 'type' => 'error'], 400);
+            return response()->json(['rasson' => 'Identificador requerido', 'message' => 'Identifier missing', 'type' => 'error'], 400);
         }
 
         try {
-            $decoded = json_decode(base64_decode($hash), true);
-            if (! is_array($decoded) || ! isset($decoded['id'])) {
-                return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
-            }
-
-            $appointment = Appointment::find($decoded['id']);
+            $appointment = $this->resolvePublicAppointment($hash);
             if (! $appointment) {
                 return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
             }
 
             $appointment->statusPatient = $status;
+            if ($status === 'Confirmed') {
+                $appointment->state = 'Confirmada';
+            }
             $appointment->save();
             $this->sendNotificacionStatusEmail($appointment);
 
@@ -899,12 +897,7 @@ class AppointmentController extends Controller
     public function publicShow($hash): JsonResponse
     {
         try {
-            $decoded = json_decode(base64_decode($hash), true);
-            if (! is_array($decoded) || ! isset($decoded['id'])) {
-                return response()->json(['rasson' => 'Hash invalido', 'message' => 'Invalid hash payload', 'type' => 'error'], 400);
-            }
-
-            $appointment = Appointment::where('id', $decoded['id'])->with('user')->first();
+            $appointment = $this->resolvePublicAppointment($hash, ['user', 'cart']);
             if (! $appointment) {
                 return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
             }
@@ -912,11 +905,18 @@ class AppointmentController extends Controller
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
             $data = [
+                'uuid' => $appointment->public_uuid,
                 'professional' => $appointment->user?->name,
+                'title' => $appointment->title,
                 'fecha' => $start->format('d/m/Y'),
                 'hora' => $start->format('H:i').' - '.$end->format('H:i'),
+                'start' => $start->toIso8601String(),
+                'end' => $end->toIso8601String(),
                 'duration' => $start->diff($end)->format('%h horas %i minutos'),
                 'statusPatient' => $appointment->statusPatient,
+                'state' => $appointment->state,
+                'formato' => $appointment->cart?->formato ?: data_get($appointment->extendedProps, 'formato'),
+                'tipoSesion' => $appointment->cart?->tipoSesion ?: data_get($appointment->extendedProps, 'tipoSesion'),
             ];
 
             return response()->json($data, 200);
@@ -925,5 +925,71 @@ class AppointmentController extends Controller
 
             return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
         }
+    }
+
+    public function publicReschedule(Request $request, string $uuid): JsonResponse
+    {
+        $validated = $request->validate([
+            'preferred_date' => 'required|date',
+            'preferred_time' => 'required|date_format:H:i',
+            'alternative_date' => 'nullable|date',
+            'alternative_time' => 'nullable|date_format:H:i',
+            'comments' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $appointment = $this->resolvePublicAppointment($uuid);
+            if (! $appointment) {
+                return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
+            }
+
+            $meta = $appointment->notification_meta ?: [];
+            $meta['reschedule_request'] = [
+                'preferred_date' => $validated['preferred_date'],
+                'preferred_time' => $validated['preferred_time'],
+                'alternative_date' => $validated['alternative_date'] ?? null,
+                'alternative_time' => $validated['alternative_time'] ?? null,
+                'comments' => $validated['comments'] ?? null,
+                'requested_at' => now()->toIso8601String(),
+            ];
+
+            $originalAppointment = clone $appointment;
+            $appointment->forceFill([
+                'statusPatient' => 'Reschedule Requested',
+                'state' => 'Reprogramacion solicitada',
+                'notification_meta' => $meta,
+            ])->save();
+
+            $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+
+            return response()->json([
+                'rasson' => 'Solicitud de reprogramacion recibida',
+                'message' => 'Reschedule request received',
+                'type' => 'success',
+            ], 200);
+        } catch (\Throwable $th) {
+            Log::error('publicReschedule error: '.$th->getMessage());
+
+            return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
+        }
+    }
+
+    private function resolvePublicAppointment(string $identifier, array $with = []): ?Appointment
+    {
+        $query = Appointment::query();
+        if (! empty($with)) {
+            $query->with($with);
+        }
+
+        if (Str::isUuid($identifier)) {
+            return $query->where('public_uuid', $identifier)->first();
+        }
+
+        $decoded = json_decode(base64_decode($identifier, true) ?: '', true);
+        if (is_array($decoded) && isset($decoded['id'])) {
+            return $query->where('id', $decoded['id'])->first();
+        }
+
+        return null;
     }
 }

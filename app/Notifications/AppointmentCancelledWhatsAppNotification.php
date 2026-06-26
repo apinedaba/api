@@ -47,34 +47,9 @@ class AppointmentCancelledWhatsAppNotification extends Notification
                         ['type' => 'text', 'text' => $professional?->name ?: 'tu profesional'],
                     ],
                 ],
-                ...$this->buttonComponents(),
             ],
             'context' => [
                 'appointment_id' => $this->appointment->id,
-            ],
-        ];
-    }
-
-    protected function buttonComponents(): array
-    {
-        return [
-            $this->buttonComponent(0, "appointment:{$this->appointment->id}:confirm"),
-            $this->buttonComponent(1, "appointment:{$this->appointment->id}:postpone"),
-            $this->buttonComponent(2, "appointment:{$this->appointment->id}:cancel"),
-        ];
-    }
-
-    protected function buttonComponent(int $index, string $payload): array
-    {
-        return [
-            'type' => 'button',
-            'sub_type' => 'quick_reply',
-            'index' => (string) $index,
-            'parameters' => [
-                [
-                    'type' => 'payload',
-                    'payload' => $payload,
-                ],
             ],
         ];
     }

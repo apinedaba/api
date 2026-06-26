@@ -84,7 +84,7 @@ class AppointmentWhatsAppNotifier
 
         $template = $this->whatsApp->templateName($resolvedTemplateKey);
         $templateConfig = $this->templateConfig($resolvedTemplateKey);
-        $buttons = $templateConfig?->buttons ?: $this->defaultAppointmentButtons($appointment);
+        $buttons = $templateConfig?->buttons ?: [];
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
@@ -137,23 +137,5 @@ class AppointmentWhatsAppNotifier
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    protected function defaultAppointmentButtons(Appointment $appointment): array
-    {
-        return [
-            [
-                'id' => "appointment_{$appointment->id}_confirm",
-                'payload' => "appointment:{$appointment->id}:confirm",
-            ],
-            [
-                'id' => "appointment_{$appointment->id}_postpone",
-                'payload' => "appointment:{$appointment->id}:postpone",
-            ],
-            [
-                'id' => "appointment_{$appointment->id}_cancel",
-                'payload' => "appointment:{$appointment->id}:cancel",
-            ],
-        ];
     }
 }

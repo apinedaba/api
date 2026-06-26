@@ -84,7 +84,7 @@ class AppointmentWhatsAppNotifier
 
         $template = $this->whatsApp->templateName($resolvedTemplateKey);
         $templateConfig = $this->templateConfig($resolvedTemplateKey);
-        $buttons = $templateConfig?->buttons ?: [];
+        $buttons = $templateConfig?->buttons ?: $this->defaultAppointmentUrlButton($appointment);
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
@@ -137,5 +137,16 @@ class AppointmentWhatsAppNotifier
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    protected function defaultAppointmentUrlButton(Appointment $appointment): array
+    {
+        return [
+            [
+                'sub_type' => 'url',
+                'parameter_type' => 'text',
+                'text' => $appointment->public_uuid ?: (string) $appointment->id,
+            ],
+        ];
     }
 }

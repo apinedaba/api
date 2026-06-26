@@ -144,7 +144,7 @@ class WhatsAppNotificationController extends Controller
             'language' => $data['language'] ?? 'es_MX',
             'components' => $whatsApp->appointmentTemplateComponents(
                 $appointment,
-                $data['buttons'] ?? $this->defaultAppointmentButtons($appointment)
+                $data['buttons'] ?? $this->defaultAppointmentUrlButton($appointment)
             ),
             'context' => [
                 'appointment_id' => $appointment->id,
@@ -164,20 +164,13 @@ class WhatsAppNotificationController extends Controller
         abort_unless($user && (int) $appointment->user === (int) $user->id, 403);
     }
 
-    protected function defaultAppointmentButtons(Appointment $appointment): array
+    protected function defaultAppointmentUrlButton(Appointment $appointment): array
     {
         return [
             [
-                'id' => "appointment_{$appointment->id}_confirm",
-                'payload' => "appointment:{$appointment->id}:confirm",
-            ],
-            [
-                'id' => "appointment_{$appointment->id}_postpone",
-                'payload' => "appointment:{$appointment->id}:postpone",
-            ],
-            [
-                'id' => "appointment_{$appointment->id}_cancel",
-                'payload' => "appointment:{$appointment->id}:cancel",
+                'sub_type' => 'url',
+                'parameter_type' => 'text',
+                'text' => $appointment->public_uuid ?: (string) $appointment->id,
             ],
         ];
     }

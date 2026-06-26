@@ -49,6 +49,7 @@ class AppointmentReminderWhatsAppNotification extends Notification
                         ['type' => 'text', 'text' => $professional?->name ?: 'tu profesional'],
                     ],
                 ],
+                $this->urlButtonComponent(),
             ],
             'context' => [
                 'appointment_id' => $this->appointment->id,
@@ -64,5 +65,20 @@ class AppointmentReminderWhatsAppNotification extends Notification
             '30m' => 'en 30 minutos',
             default => 'proximamente',
         };
+    }
+
+    protected function urlButtonComponent(): array
+    {
+        return [
+            'type' => 'button',
+            'sub_type' => 'url',
+            'index' => '0',
+            'parameters' => [
+                [
+                    'type' => 'text',
+                    'text' => $this->appointment->public_uuid ?: (string) $this->appointment->id,
+                ],
+            ],
+        ];
     }
 }

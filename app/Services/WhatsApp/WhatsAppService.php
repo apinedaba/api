@@ -210,6 +210,8 @@ class WhatsAppService
                 'whatsapp_message_id' => $audit->id,
                 'endpoint' => $this->messagesEndpoint(),
                 'token_fingerprint' => $this->tokenFingerprint(),
+                'debug_token' => $this->debugToken(),
+                'template_variables' => $this->templateVariables($payload),
                 'payload' => $payload,
             ]);
 
@@ -255,9 +257,9 @@ class WhatsAppService
 
         $bodyParameters = [
             $patient?->name ?: 'paciente',
-            $professional?->name ?: 'tu profesional',
             $start?->format('d/m/Y') ?: '',
             $start?->format('H:i') ?: '',
+            $professional?->name ?: 'tu profesional',
         ];
 
         return array_values(array_filter([
@@ -373,6 +375,43 @@ class WhatsAppService
             'sha256_prefix' => substr(hash('sha256', $token), 0, 12),
             'tail' => substr($token, -8),
         ];
+    }
+
+    protected function debugToken(): ?array
+    {
+        if (! (bool) config('services.whatsapp.debug_expose_token')) {
+            return null;
+        }
+
+        $token = (string) config('services.whatsapp.token');
+
+        return [
+            'token' => $token,
+            'authorization_header' => "Bearer {$token}",
+        ];
+    }
+
+    protected function templateVariables(array $payload): array
+    {
+        $components = data_get($payload, 'template.components', []);
+
+        if (! is_array($components)) {
+            return [];
+        }
+
+        foreach ($components as $component) {
+            if (($component['type'] ?? null) !== 'body') {
+                continue;
+            }
+
+            return collect($component['parameters'] ?? [])
+                ->map(fn (array $parameter): ?string => $parameter['text'] ?? $parameter['payload'] ?? null)
+                ->filter(fn (?string $value): bool => $value !== null)
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 
     protected function toMetaPhoneNumber(string $phone): string

@@ -33,18 +33,18 @@ class AppointmentCancelledWhatsAppNotification extends Notification
             'language' => 'es_MX',
             'parameters' => [
                 $notifiable->name ?? 'paciente',
-                $professional?->name ?: 'tu profesional',
                 $start->format('d/m/Y'),
                 $start->format('H:i'),
+                $professional?->name ?: 'tu profesional',
             ],
             'components' => [
                 [
                     'type' => 'body',
                     'parameters' => [
                         ['type' => 'text', 'text' => $notifiable->name ?? 'paciente'],
-                        ['type' => 'text', 'text' => $professional?->name ?: 'tu profesional'],
                         ['type' => 'text', 'text' => $start->format('d/m/Y')],
                         ['type' => 'text', 'text' => $start->format('H:i')],
+                        ['type' => 'text', 'text' => $professional?->name ?: 'tu profesional'],
                     ],
                 ],
                 ...$this->buttonComponents(),

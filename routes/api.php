@@ -229,6 +229,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::apiResource('user/whatsapp/templates', WhatsAppTemplateController::class)
         ->parameters(['templates' => 'whatsappTemplate']);
     // Solicitudes de citas: consultar pendientes y actualizar estado (approved/rejected)
+    Route::get('user/appointment-requests', [AppointmentRequestController::class, 'indexForAuthenticatedPsychologist']);
+    Route::patch('user/appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
     Route::get('psychologists/{id}/appointment-requests', [AppointmentRequestController::class, 'indexByPsychologist']);
     Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
 
@@ -289,6 +291,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
     // Solicitud de cita creada por el paciente
+    Route::get('appointment-requests', [AppointmentRequestController::class, 'indexByPatient']);
     Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('logout', [PatientAuthController::class, 'logout']);

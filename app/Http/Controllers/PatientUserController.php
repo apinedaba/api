@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientUser;
 use App\Models\Patient;
+use App\Models\Appointment;
 use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -166,7 +167,36 @@ class PatientUserController extends Controller
                 'type' => "error"
             ]);
         }
-        $currentRelation = PatientUser::where('patient', $user->id)->with('user')->get();
+        $currentRelation = PatientUser::where('patient', $user->id)
+            ->where('activo', true)
+            ->whereNull('archived_at')
+            ->with('user')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(1)
+            ->get();
+
+        if ($currentRelation->isEmpty()) {
+            $nextAppointment = Appointment::query()
+                ->with('user')
+                ->where('patient', $user->id)
+                ->where('start', '>=', now())
+                ->orderBy('start')
+                ->first();
+
+            if ($nextAppointment?->user) {
+                return response()->json(data: [[
+                    'id' => 'appointment-'.$nextAppointment->id,
+                    'user' => $nextAppointment->user,
+                    'patient' => $user->id,
+                    'activo' => true,
+                    'status' => 'Cita programada',
+                    'archived_at' => null,
+                    'video_call_room' => $nextAppointment->video_call_room,
+                ]], status: 200);
+            }
+        }
+
         return response()->json(data: $currentRelation, status: 200);
     }
 

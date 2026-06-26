@@ -65,7 +65,7 @@ return new class extends Migration
                 'language' => 'es_MX',
                 'category' => 'patients',
                 'description' => 'Invitacion inicial de paciente.',
-                'body_parameters' => json_encode(['patient_name', 'url']),
+                'body_parameters' => json_encode(['patient_name', 'url', 'initial_password', 'professional_name']),
                 'buttons' => null,
                 'is_active' => true,
                 'created_at' => now(),

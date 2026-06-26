@@ -198,7 +198,7 @@
                                                             <td class="pad">
                                                                 <h1
                                                                     style="margin: 0; color: #000000; direction: ltr; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 23px; font-weight: 700; letter-spacing: normal; line-height: 120%; text-align: left; margin-top: 0; margin-bottom: 0; mso-line-height-alt: 27.599999999999998px;">
-                                                                    ¡Hola {{ $usuario->name }}!,</h1>
+                                                                    Hola {{ $paciente->name }},</h1>
                                                             </td>
                                                         </tr>
                                                     </table>
@@ -219,7 +219,16 @@
                                                                                     style="text-decoration: none; color: #7747FF;"
                                                                                     rel="noopener"><strong><strong>MindMeet</strong></strong></a></strong></span>.
                                                                     </p>
-                                                                    <p style="margin: 0;">Ya puedes entrar a tu portal de paciente para consultar tus sesiones, ejercicios, diario y comunicacion relacionada con tu proceso terapeutico.</p>
+                                                                    <p style="margin: 0; margin-bottom: 16px;">Ya puedes entrar a tu portal de paciente para consultar tus sesiones, ejercicios, diario y comunicacion relacionada con tu proceso terapeutico.</p>
+                                                                    <p style="margin: 0; margin-bottom: 10px;"><strong>Datos de acceso:</strong></p>
+                                                                    <p style="margin: 0; margin-bottom: 6px;">Portal: <a href="{{ $url }}" target="_blank" style="color: #7747FF;">{{ $url }}</a></p>
+                                                                    <p style="margin: 0; margin-bottom: 6px;">Usuario: {{ $loginEmail ?? ($paciente->email ?: $paciente->phone) }}</p>
+                                                                    @if(!empty($initialPassword))
+                                                                        <p style="margin: 0; margin-bottom: 16px;">Contrasena inicial: <strong>{{ $initialPassword }}</strong></p>
+                                                                        <p style="margin: 0;">Por seguridad, te recomendamos cambiarla despues de iniciar sesion por primera vez.</p>
+                                                                    @else
+                                                                        <p style="margin: 0;">Si ya tenias cuenta en MindMeet, usa tu contrasena actual o recuperala desde la pantalla de inicio de sesion.</p>
+                                                                    @endif
                                                                 </div>
                                                             </td>
                                                         </tr>

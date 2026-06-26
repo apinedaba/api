@@ -91,19 +91,15 @@ class AdminAppointmentController extends Controller
 
         try {
             // Verificar disponibilidad del psicólogo
-            $conflict = Appointment::where('user', $request->user_id)
-                ->where(function ($query) use ($request) {
-                    $query->whereBetween('start', [$request->fecha_inicio, $request->fecha_fin])
-                        ->orWhereBetween('end', [$request->fecha_inicio, $request->fecha_fin])
-                        ->orWhere(function ($q) use ($request) {
-                            $q->where('start', '<=', $request->fecha_inicio)
-                                ->where('end', '>=', $request->fecha_fin);
-                        });
-                })
-                ->whereNotIn('state', ['cancelada', 'Cancelado'])
-                ->exists();
+            $conflict = $this->findOverlappingAppointment(
+                (int) $request->user_id,
+                $request->fecha_inicio,
+                $request->fecha_fin
+            );
 
             if ($conflict) {
+                DB::rollBack();
+
                 return response()->json([
                     'success' => false,
                     'message' => 'El psicólogo ya tiene una cita en ese horario',
@@ -119,13 +115,13 @@ class AdminAppointmentController extends Controller
                 'start' => $request->fecha_inicio,
                 'end' => $request->fecha_fin,
                 'comments' => $request->observaciones,
-                'state' => $request->state ?? 'Creado',
+                'state' => $request->state ?? 'Pendiente de confirmacion del paciente',
                 'link' => $request->link,
                 'extendedProps' => [
                     'tipo' => $request->tipo ?? 'virtual',
                 ],
-                'statusUser' => 'pendiente',
-                'statusPatient' => 'pendiente',
+                'statusUser' => 'Confirmed',
+                'statusPatient' => 'Pending Approve',
             ]);
 
             DB::commit();
@@ -223,25 +219,16 @@ class AdminAppointmentController extends Controller
             }
 
             // Si se cambian las fechas, verificar disponibilidad
-            if ($request->has('fecha_inicio') || $request->has('fecha_fin')) {
+            if ($request->has('fecha_inicio') || $request->has('fecha_fin') || $request->has('user_id')) {
                 $start = $request->fecha_inicio ?? $appointment->start;
                 $end = $request->fecha_fin ?? $appointment->end;
                 $userId = $request->user_id ?? $appointment->user;
 
-                $conflict = Appointment::where('user', $userId)
-                    ->where('id', '!=', $id)
-                    ->where(function ($query) use ($start, $end) {
-                        $query->whereBetween('start', [$start, $end])
-                            ->orWhereBetween('end', [$start, $end])
-                            ->orWhere(function ($q) use ($start, $end) {
-                                $q->where('start', '<=', $start)
-                                    ->where('end', '>=', $end);
-                            });
-                    })
-                    ->whereNotIn('state', ['cancelada', 'Cancelado'])
-                    ->exists();
+                $conflict = $this->findOverlappingAppointment((int) $userId, $start, $end, (int) $id);
 
                 if ($conflict) {
+                    DB::rollBack();
+
                     return response()->json([
                         'success' => false,
                         'message' => 'El psicólogo ya tiene una cita en ese horario',
@@ -411,6 +398,29 @@ class AdminAppointmentController extends Controller
         $status = strtolower((string) $request->input('state', ''));
 
         return in_array($status, ['cancel', 'cancelado', 'cancelada'], true);
+    }
+
+    protected function findOverlappingAppointment(int $userId, $start, $end, ?int $excludeAppointmentId = null): ?Appointment
+    {
+        $start = Carbon::parse($start);
+        $end = Carbon::parse($end);
+
+        return Appointment::query()
+            ->where('user', $userId)
+            ->when($excludeAppointmentId, fn ($query) => $query->where('id', '!=', $excludeAppointmentId))
+            ->where('start', '<', $end)
+            ->where('end', '>', $start)
+            ->where(function ($query) {
+                $query->whereNull('statusUser')->orWhere('statusUser', '!=', 'Cancel');
+            })
+            ->where(function ($query) {
+                $query->whereNull('statusPatient')->orWhere('statusPatient', '!=', 'Cancel');
+            })
+            ->where(function ($query) {
+                $query->whereNull('state')->orWhereNotIn('state', ['Cancel', 'Cancelado', 'Cancelada', 'cancelado', 'cancelada', 'canceled']);
+            })
+            ->orderBy('start')
+            ->first();
     }
 
     /**

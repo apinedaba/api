@@ -86,14 +86,24 @@ class PatientTimelineController extends Controller
 
         $request->validate([
             'url' => 'required|string',
-            'public_id' => 'required|string'
+            'public_id' => 'required|string',
+            'filename' => 'nullable|string|max:255',
+            'extension' => 'nullable|string|max:20',
+            'size' => 'nullable|integer|min:0',
         ]);
+
+        $filename = $this->sanitizeAttachmentFilename(
+            $request->input('filename') ?: basename(parse_url($request->url, PHP_URL_PATH) ?: $request->url)
+        );
+        $extension = $request->input('extension') ?: pathinfo($filename, PATHINFO_EXTENSION);
 
         $attachment = SessionAttachment::create([
             'session_id' => $session->id,
-            'filename' => basename($request->url),
+            'filename' => $filename,
             'url' => $request->url,
             'public_id' => $request->public_id,
+            'extension' => strtolower($extension ?: ''),
+            'size' => $request->input('size'),
         ]);
 
         return response()->json($attachment);
@@ -102,6 +112,7 @@ class PatientTimelineController extends Controller
     public function deleteAttachment($id)
     {
         $attachment = SessionAttachment::findOrFail($id);
+        $this->authorizeAttachment($attachment, auth()->user());
 
         // Eliminar de Cloudinary
         Cloudinary::destroy($attachment->public_id);
@@ -129,7 +140,9 @@ class PatientTimelineController extends Controller
     public function streamAttachment($id)
     {
         $attachment = SessionAttachment::findOrFail($id);
-        // URL de Cloudinary (PDF)
+        $this->authorizeAttachment($attachment, auth()->user());
+
+        // URL de Cloudinary
         $url = $attachment->url;
 
         // Descargar el archivo desde Cloudinary
@@ -139,8 +152,12 @@ class PatientTimelineController extends Controller
             return response()->json(['error' => 'No se pudo cargar el archivo'], 400);
         }
 
+        $contentType = $response->header('Content-Type') ?: $this->mimeTypeForExtension($attachment->extension);
+        $filename = str_replace('"', '', $attachment->display_name ?: 'archivo');
+
         return response($response->body(), 200)
-            ->header('Content-Type', 'application/pdf');
+            ->header('Content-Type', $contentType)
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 
     /**
@@ -163,5 +180,38 @@ class PatientTimelineController extends Controller
         if ($isArchived) {
             abort(423, 'Paciente archivado. Reactivalo para modificar su expediente.');
         }
+    }
+
+    private function authorizeAttachment(SessionAttachment $attachment, $psychologist): void
+    {
+        $session = $attachment->session;
+
+        if (!$session) {
+            abort(404, 'Sesion no encontrada.');
+        }
+
+        $this->authorizeSession($session, $psychologist);
+    }
+
+    private function mimeTypeForExtension(?string $extension): string
+    {
+        return match (strtolower($extension ?? '')) {
+            'pdf' => 'application/pdf',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            default => 'application/octet-stream',
+        };
+    }
+
+    private function sanitizeAttachmentFilename(string $filename): string
+    {
+        $filename = trim(basename(str_replace('\\', '/', $filename)));
+        $filename = preg_replace('/[\r\n"]+/', '', $filename) ?: 'archivo';
+
+        return mb_substr($filename, 0, 255);
     }
 }

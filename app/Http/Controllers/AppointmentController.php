@@ -11,6 +11,7 @@ use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
 use App\Models\Patient;
 use App\Models\PatientUser;
+use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
@@ -28,6 +29,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
@@ -64,14 +66,17 @@ class AppointmentController extends Controller
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $user = request()->user();
 
-        if (in_array('user', $middlewares, true)) {
+        $createdByProfessional = in_array('user', $middlewares, true);
+        $createdByPatient = in_array('patient', $middlewares, true);
+
+        if ($createdByProfessional) {
             $appointments = Appointment::where('user', $user->id)
                 ->where('patient', $patient)
                 ->orderByDesc('id')
                 ->get();
         } else {
             $appointments = Appointment::where('patient', $user->id)
-                ->with(['user', 'payments'])
+                ->with(['user', 'payments', 'cart'])
                 ->orderBy('start')
                 ->get();
         }
@@ -154,6 +159,8 @@ class AppointmentController extends Controller
 
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $authUser = $request->user();
+        $createdByProfessional = in_array('user', $middlewares, true);
+        $createdByPatient = in_array('patient', $middlewares, true);
 
         $request->validate([
             'start' => 'required|date',
@@ -181,7 +188,7 @@ class AppointmentController extends Controller
             'organization_id' => 'nullable|exists:organizations,id',
         ]);
 
-        if (in_array('user', $middlewares, true)) {
+        if ($createdByProfessional) {
             $requestedProfessionalId = (int) $request->input('user', $authUser->id);
             $activeOrganization = $request->attributes->get('active_organization');
             $membership = $request->attributes->get('organization_membership');
@@ -196,7 +203,7 @@ class AppointmentController extends Controller
                     ? $requestedProfessionalId
                     : $authUser->id,
             ]);
-        } elseif (in_array('patient', $middlewares, true)) {
+        } elseif ($createdByPatient) {
             $request->merge(['patient' => $authUser->id]);
         } else {
             return response()->json([
@@ -215,7 +222,7 @@ class AppointmentController extends Controller
             ?: $request->attributes->get('active_organization')?->id;
         $leadId = $request->filled('lead') ? (int) $request->input('lead') : null;
 
-        if ($leadId && in_array('user', $middlewares, true)) {
+        if ($leadId && $createdByProfessional) {
             $request->merge([
                 'patient' => $this->resolveLeadToPatient($leadId, (int) $request->input('user'), $clinicId, $organizationId),
             ]);
@@ -265,6 +272,18 @@ class AppointmentController extends Controller
             ]];
 
         foreach ($occurrences as $occurrence) {
+            $conflict = $this->findOverlappingAppointment(
+                (int) $request->input('user'),
+                $occurrence['start'],
+                $occurrence['end']
+            );
+
+            if ($conflict) {
+                return $this->appointmentOverlapResponse($conflict, $occurrence['start'], $occurrence['end']);
+            }
+        }
+
+        foreach ($occurrences as $occurrence) {
             $appointment = Appointment::create([
                 'organization_id' => $organizationId,
                 'user' => $request->input('user'),
@@ -273,6 +292,11 @@ class AppointmentController extends Controller
                 'title' => $request->input('title'),
                 'start' => $occurrence['start'],
                 'end' => $occurrence['end'],
+                'statusUser' => $createdByProfessional ? 'Confirmed' : 'Pending Approve',
+                'statusPatient' => $createdByPatient ? 'Confirmed' : 'Pending Approve',
+                'state' => $createdByProfessional
+                    ? 'Pendiente de confirmacion del paciente'
+                    : 'Pendiente de confirmacion del profesional',
                 'comments' => $request->input('comments'),
                 'objective' => $request->input('objective'),
                 'session_description' => $request->input('session_description'),
@@ -400,6 +424,57 @@ class AppointmentController extends Controller
             ->exists();
     }
 
+    private function findOverlappingAppointment(int $userId, $start, $end, ?int $excludeAppointmentId = null): ?Appointment
+    {
+        $start = Carbon::parse($start);
+        $end = Carbon::parse($end);
+
+        return Appointment::query()
+            ->where('user', $userId)
+            ->when($excludeAppointmentId, fn ($query) => $query->where('id', '!=', $excludeAppointmentId))
+            ->where('start', '<', $end)
+            ->where('end', '>', $start)
+            ->where(function ($query) {
+                $query->whereNull('statusUser')->orWhere('statusUser', '!=', 'Cancel');
+            })
+            ->where(function ($query) {
+                $query->whereNull('statusPatient')->orWhere('statusPatient', '!=', 'Cancel');
+            })
+            ->where(function ($query) {
+                $query->whereNull('state')->orWhereNotIn('state', ['Cancel', 'Cancelado', 'Cancelada', 'cancelado', 'cancelada', 'canceled']);
+            })
+            ->orderBy('start')
+            ->first();
+    }
+
+    private function appointmentOverlapResponse(Appointment $conflict, $start, $end): JsonResponse
+    {
+        $requestedStart = Carbon::parse($start);
+        $requestedEnd = Carbon::parse($end);
+        $conflictStart = Carbon::parse($conflict->start);
+        $conflictEnd = Carbon::parse($conflict->end);
+
+        return response()->json([
+            'rasson' => sprintf(
+                'Ya existe una sesion en ese horario (%s de %s a %s).',
+                $conflictStart->format('d/m/Y'),
+                $conflictStart->format('H:i'),
+                $conflictEnd->format('H:i')
+            ),
+            'message' => 'Horario no disponible',
+            'type' => 'error',
+            'conflict' => [
+                'id' => $conflict->id,
+                'start' => $conflictStart->toIso8601String(),
+                'end' => $conflictEnd->toIso8601String(),
+            ],
+            'requested' => [
+                'start' => $requestedStart->toIso8601String(),
+                'end' => $requestedEnd->toIso8601String(),
+            ],
+        ], 422);
+    }
+
     public function show(Appointment $appointment): JsonResponse
     {
         $appointment = Appointment::where('id', $appointment->id)
@@ -414,10 +489,145 @@ class AppointmentController extends Controller
         $patient = request()->user();
         $appointment = Appointment::where('id', $id)
             ->where('patient', $patient->id)
-            ->with(['cart', 'user'])
+            ->with(['cart', 'user', 'payments'])
             ->first();
 
         return response()->json($appointment, 200);
+    }
+
+    public function patientUpdateStatus(Request $request, Appointment $appointment): JsonResponse
+    {
+        $patient = $request->user();
+        abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:Confirmed,Reschedule Requested,Cancel'],
+            'comments' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $originalAppointment = clone $appointment;
+        $meta = $appointment->notification_meta ?: [];
+
+        if (filled($validated['comments'] ?? null)) {
+            $meta['patient_status_comment'] = [
+                'status' => $validated['status'],
+                'comments' => $validated['comments'],
+                'created_at' => now()->toIso8601String(),
+            ];
+        }
+
+        $appointment->forceFill([
+            'statusPatient' => $validated['status'],
+            'state' => match ($validated['status']) {
+                'Confirmed' => 'Confirmada',
+                'Reschedule Requested' => 'Reprogramacion solicitada',
+                'Cancel' => 'Cancelada',
+                default => $appointment->state,
+            },
+            'notification_meta' => $meta,
+        ])->save();
+
+        $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+
+        return response()->json([
+            'message' => match ($validated['status']) {
+                'Confirmed' => 'Sesion confirmada correctamente.',
+                'Reschedule Requested' => 'Solicitud de reprogramacion enviada.',
+                'Cancel' => 'Sesion cancelada correctamente.',
+                default => 'Sesion actualizada.',
+            },
+            'type' => 'success',
+            'appointment' => $appointment->fresh(['cart', 'user', 'payments']),
+        ], 200);
+    }
+
+    public function patientRequestReschedule(Request $request, Appointment $appointment): JsonResponse
+    {
+        $patient = $request->user();
+        abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
+
+        $validated = $request->validate([
+            'preferred_date' => ['required', 'date'],
+            'preferred_time' => ['required', 'date_format:H:i'],
+            'alternative_date' => ['nullable', 'date'],
+            'alternative_time' => ['nullable', 'date_format:H:i'],
+            'comments' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $meta = $appointment->notification_meta ?: [];
+        $meta['reschedule_request'] = [
+            'preferred_date' => $validated['preferred_date'],
+            'preferred_time' => $validated['preferred_time'],
+            'alternative_date' => $validated['alternative_date'] ?? null,
+            'alternative_time' => $validated['alternative_time'] ?? null,
+            'comments' => $validated['comments'] ?? null,
+            'requested_at' => now()->toIso8601String(),
+            'source' => 'patient_dashboard',
+        ];
+
+        $originalAppointment = clone $appointment;
+        $appointment->forceFill([
+            'statusPatient' => 'Reschedule Requested',
+            'state' => 'Reprogramacion solicitada',
+            'notification_meta' => $meta,
+        ])->save();
+
+        $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+
+        return response()->json([
+            'message' => 'Solicitud de reprogramacion enviada.',
+            'type' => 'success',
+            'appointment' => $appointment->fresh(['cart', 'user', 'payments']),
+        ], 200);
+    }
+
+    public function patientUploadPaymentProof(Request $request, Appointment $appointment): JsonResponse
+    {
+        $patient = $request->user();
+        abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
+
+        $validated = $request->validate([
+            'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf,webp', 'max:5120'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'comments' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $path = $request->file('proof')->store('payment-proofs', 'public');
+        $receiptUrl = Storage::disk('public')->url($path);
+        $appointment->loadMissing('cart');
+
+        $payment = Payment::create([
+            'user_id' => $appointment->user,
+            'payer_type' => 'patient',
+            'appointment_id' => $appointment->id,
+            'patient_id' => $patient->id,
+            'amount' => $validated['amount'] ?? (float) ($appointment->cart?->precio ?? 0),
+            'currency' => 'MXN',
+            'payment_method' => 'manual_transfer',
+            'status' => 'pending_review',
+            'receipt_url' => $receiptUrl,
+            'concepto' => trim('Comprobante de sesion '.$appointment->id.' '.($validated['comments'] ?? '')),
+        ]);
+
+        $meta = $appointment->notification_meta ?: [];
+        $meta['latest_payment_proof'] = [
+            'payment_id' => $payment->id,
+            'receipt_url' => $receiptUrl,
+            'uploaded_at' => now()->toIso8601String(),
+            'comments' => $validated['comments'] ?? null,
+        ];
+
+        $appointment->forceFill([
+            'payment_status' => 'pending_review',
+            'notification_meta' => $meta,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Comprobante recibido. Tu profesional podra revisarlo.',
+            'type' => 'success',
+            'payment' => $payment,
+            'appointment' => $appointment->fresh(['cart', 'user', 'payments']),
+        ], 201);
     }
 
     public function update(Request $request, Appointment $appointment): JsonResponse
@@ -476,6 +686,21 @@ class AppointmentController extends Controller
         }
 
         try {
+            if ($request->hasAny(['start', 'end'])) {
+                $nextStart = Carbon::parse($fieldsToUpdate['start'] ?? $originalData->start);
+                $nextEnd = Carbon::parse($fieldsToUpdate['end'] ?? $originalData->end);
+                $conflict = $this->findOverlappingAppointment(
+                    (int) $originalData->user,
+                    $nextStart,
+                    $nextEnd,
+                    (int) $appointment->id
+                );
+
+                if ($conflict) {
+                    return $this->appointmentOverlapResponse($conflict, $nextStart, $nextEnd);
+                }
+            }
+
             if (! empty($fieldsToUpdate)) {
                 $appointment->update($fieldsToUpdate);
             }

@@ -185,8 +185,8 @@ class StripeController extends Controller
             'end' => $end,
             'title' => 'Sesión con ' . $patientName,
             'statusUser' => 'Pending Approve',
-            'statusPatient' => 'Pending Approve',
-            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
+            'statusPatient' => 'Confirmed',
+            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Pendiente de confirmacion del profesional',
             'cart_id' => $cart->id,
             'video_call_room' => $videoCallRoom,
             'extendedProps' => [

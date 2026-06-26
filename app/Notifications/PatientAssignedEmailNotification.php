@@ -16,15 +16,17 @@ class PatientAssignedEmailNotification extends Notification
     protected $user;
     protected $patient;
     protected $enlace;
+    protected ?string $initialPassword;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct($user, $patient, $enlace)
+    public function __construct($user, $patient, $enlace, ?string $initialPassword = null)
     {
         $this->user = $user;
         $this->patient = $patient;
         $this->enlace = $enlace;
+        $this->initialPassword = $initialPassword;
     }
 
     /**
@@ -50,7 +52,13 @@ class PatientAssignedEmailNotification extends Notification
 
         return (new MailMessage)
             ->subject($this->user->name . " te agrego a MindMeet")
-            ->view('email.acceptInvitation', ['usuario' => $this->user, 'paciente' => $this->patient, 'url' => $url]);
+            ->view('email.acceptInvitation', [
+                'usuario' => $this->user,
+                'paciente' => $this->patient,
+                'url' => $url,
+                'initialPassword' => $this->initialPassword,
+                'loginEmail' => $this->patient->email ?: $this->patient->phone,
+            ]);
     }
     public function toArray(object $notifiable): array
     {

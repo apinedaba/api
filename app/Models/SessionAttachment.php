@@ -9,6 +9,12 @@ class SessionAttachment extends Model
 {
     use HasFactory;
 
+    protected $appends = [
+        'display_name',
+        'formatted_size',
+        'icon',
+    ];
+
     protected $fillable = [
         'session_id',
         'public_id',
@@ -21,6 +27,19 @@ class SessionAttachment extends Model
     protected $casts = [
         'created_at' => 'datetime',
     ];
+
+    public function getDisplayNameAttribute(): string
+    {
+        $filename = trim((string) $this->filename);
+        $publicId = trim((string) $this->public_id);
+        $extension = strtolower((string) $this->extension);
+
+        if ($filename !== '' && ! $this->looksLikeGeneratedCloudinaryName($filename, $publicId)) {
+            return $filename;
+        }
+
+        return $extension !== '' ? 'Documento ' . strtoupper($extension) : 'Documento adjunto';
+    }
 
     public function getSizeHumanAttribute()
     {
@@ -37,7 +56,7 @@ class SessionAttachment extends Model
     // Relación: adjunto pertenece a sesión
     public function session()
     {
-        return $this->belongsTo(Sesion::class, 'session_id');
+        return $this->belongsTo(Appointment::class, 'session_id');
     }
 
     // Tipo de archivo detectado automáticamente
@@ -58,10 +77,26 @@ class SessionAttachment extends Model
     {
         $size = $this->size;
 
+        if (! $size) {
+            return null;
+        }
+
         if ($size < 1024)
             return $size . ' B';
         if ($size < 1048576)
             return round($size / 1024, 1) . ' KB';
         return round($size / 1048576, 1) . ' MB';
+    }
+
+    private function looksLikeGeneratedCloudinaryName(string $filename, string $publicId): bool
+    {
+        $name = pathinfo($filename, PATHINFO_FILENAME);
+        $publicName = pathinfo(basename($publicId), PATHINFO_FILENAME);
+
+        if ($publicName !== '' && $name === $publicName) {
+            return true;
+        }
+
+        return (bool) preg_match('/^[a-z0-9_-]{12,}$/i', $name);
     }
 }

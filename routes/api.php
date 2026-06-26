@@ -288,6 +288,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'patientUpdateStatus']);
+    Route::post('appointments/{appointment}/reschedule', [AppointmentController::class, 'patientRequestReschedule']);
+    Route::post('appointments/{appointment}/payment-proof', [AppointmentController::class, 'patientUploadPaymentProof']);
     // Solicitud de cita creada por el paciente
     Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);

@@ -208,6 +208,8 @@ class WhatsAppService
 
             Log::channel('whatsapp')->debug('WhatsApp request', [
                 'whatsapp_message_id' => $audit->id,
+                'endpoint' => $this->messagesEndpoint(),
+                'token_fingerprint' => $this->tokenFingerprint(),
                 'payload' => $payload,
             ]);
 
@@ -360,6 +362,17 @@ class WhatsAppService
             config('services.whatsapp.api_version', 'v25.0'),
             config('services.whatsapp.phone_number_id')
         );
+    }
+
+    protected function tokenFingerprint(): array
+    {
+        $token = (string) config('services.whatsapp.token');
+
+        return [
+            'length' => strlen($token),
+            'sha256_prefix' => substr(hash('sha256', $token), 0, 12),
+            'tail' => substr($token, -8),
+        ];
     }
 
     protected function toMetaPhoneNumber(string $phone): string

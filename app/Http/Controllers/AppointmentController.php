@@ -586,6 +586,15 @@ class AppointmentController extends Controller
         $patient = $request->user();
         abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
 
+        if (! $request->hasFile('proof')) {
+            foreach (['file', 'comprobante', 'receipt'] as $alias) {
+                if ($request->hasFile($alias)) {
+                    $request->files->set('proof', $request->file($alias));
+                    break;
+                }
+            }
+        }
+
         $validated = $request->validate([
             'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf,webp', 'max:5120'],
             'amount' => ['nullable', 'numeric', 'min:0'],

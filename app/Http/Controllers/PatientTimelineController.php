@@ -29,6 +29,7 @@ class PatientTimelineController extends Controller
 
         // Obtener sesiones + notas + adjuntos
         $sessions = Appointment::where('patient', $patientId)
+            ->where('user', $psychologist->id)
             ->orderBy('start', 'desc')
             ->with([
                 'notes' => function ($q) {

@@ -7,6 +7,7 @@ use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
+use App\Models\AppointmentRequest;
 use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
 use App\Models\Patient;
@@ -84,19 +85,43 @@ class AppointmentController extends Controller
         return response()->json($appointments, 200);
     }
 
-    public function getAvailableSlots(Request $request, $id)
+    public function getAvailableSlots(Request $request, $id = null)
     {
         $now = Carbon::now();
         $start = Carbon::parse($request->start)->startOfDay();
         $end = Carbon::parse($request->end)->endOfDay();
+        $middlewares = Route::getCurrentRoute()->gatherMiddleware();
+        $authUser = $request->user();
+
+        $id = $id ?: $request->integer('psychologist_id') ?: $authUser?->id;
+
+        if (in_array('patient', $middlewares, true)) {
+            $hasActiveRelation = PatientUser::where('patient', $authUser->id)
+                ->where('user', $id)
+                ->where('activo', true)
+                ->whereNull('archived_at')
+                ->exists();
+
+            if (! $hasActiveRelation) {
+                return response()->json([
+                    'message' => 'Solo puedes consultar horarios de un psicólogo vinculado a tu cuenta.',
+                    'type' => 'error',
+                ], 403);
+            }
+        }
 
         $user = User::findOrFail($id);
-        $workingHours = $user->horarios;
+        $workingHours = $user->horarios ?? [];
 
         $appointments = Appointment::where('user', $id)
             ->whereBetween('start', [$start, $end])
             ->whereNotIn('statusUser', ['Cancel'])
             ->whereNotIn('statusPatient', ['Cancel'])
+            ->get();
+
+        $appointmentRequests = AppointmentRequest::where('psychologist_id', $id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->whereIn('status', ['pending', 'approved'])
             ->get();
 
         $slots = [];
@@ -118,7 +143,11 @@ class AppointmentController extends Controller
             foreach ($workingHours[$weekday] as $block) {
                 $blockStart = Carbon::parse("$fecha {$block['start']}");
                 $blockEnd = Carbon::parse("$fecha {$block['end']}");
-                $slotStart = $blockStart->gt($now) ? $blockStart->copy() : $now->copy();
+                $slotStart = $blockStart->copy();
+
+                while ($slotStart->lte($now)) {
+                    $slotStart->addMinutes(60);
+                }
 
                 while ($slotStart->lt($blockEnd)) {
                     $slotEnd = $slotStart->copy()->addMinutes(50);
@@ -131,7 +160,12 @@ class AppointmentController extends Controller
                         return $slotStart->lt($appointment->end) && $slotEnd->gt($appointment->start);
                     });
 
-                    if (! $empalme) {
+                    $requestTaken = $appointmentRequests->contains(function ($appointmentRequest) use ($fecha, $slotStart) {
+                        return $appointmentRequest->date->format('Y-m-d') === $fecha
+                            && substr($appointmentRequest->time, 0, 5) === $slotStart->format('H:i');
+                    });
+
+                    if (! $empalme && ! $requestTaken) {
                         $slots[] = [
                             'date' => $fecha,
                             'hour' => $slotStart->format('H:i'),

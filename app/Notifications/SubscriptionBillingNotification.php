@@ -28,20 +28,17 @@ class SubscriptionBillingNotification extends Notification implements ShouldQueu
         $title = $this->title();
         $body = $this->body();
 
-        $mail = (new MailMessage)
+        return (new MailMessage)
             ->subject("MindMeet | {$title}")
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line($body);
-
-        if ($detail = $this->detailLine()) {
-            $mail->line($detail);
-        }
-
-        if ($secondary = $this->secondaryLine()) {
-            $mail->line($secondary);
-        }
-
-        return $mail->action($this->actionLabel(), $this->actionUrl());
+            ->view('email.subscription-billing', [
+                'name' => $notifiable->name ?? '',
+                'title' => $title,
+                'body' => $body,
+                'detail' => $this->detailLine(),
+                'secondary' => $this->secondaryLine(),
+                'actionLabel' => $this->actionLabel(),
+                'actionUrl' => $this->actionUrl(),
+            ]);
     }
 
     public function toArray(object $notifiable): array

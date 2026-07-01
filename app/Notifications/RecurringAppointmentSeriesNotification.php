@@ -39,21 +39,19 @@ class RecurringAppointmentSeriesNotification extends Notification
 
         return (new MailMessage)
             ->subject('MindMeet | Serie de sesiones programada')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line(
-                $isProfessional
+            ->view('email.recurring-appointment-series', [
+                'name' => $notifiable->name ?? '',
+                'message' => $isProfessional
                     ? "Se creo una serie {$this->frequencyLabel()} con {$counterpart}."
-                    : "Se programo una serie {$this->frequencyLabel()} con {$counterpart}."
-            )
-            ->line('Primera sesion: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y \\a \\l\\a\\s H:i'))
-            ->line('Vigencia hasta: ' . $until->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Total de sesiones generadas: ' . $this->occurrencesCount)
-            ->action(
-                $isProfessional ? 'Ver agenda' : 'Ver dashboard',
-                $isProfessional
+                    : "Se programo una serie {$this->frequencyLabel()} con {$counterpart}.",
+                'firstSession' => $start->translatedFormat('d \\d\\e F \\d\\e Y \\a \\l\\a\\s H:i'),
+                'until' => $until->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'occurrencesCount' => $this->occurrencesCount,
+                'actionLabel' => $isProfessional ? 'Ver agenda' : 'Ver dashboard',
+                'actionUrl' => $isProfessional
                     ? $this->professionalAgendaUrl()
-                    : rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard'
-            );
+                    : rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+            ]);
     }
 
     public function toArray(object $notifiable): array

@@ -33,18 +33,17 @@ class AppointmentReminderNotification extends Notification
 
         return (new MailMessage)
             ->subject($isProfessional ? 'MindMeet | Recordatorio de sesion en 30 minutos' : 'MindMeet | Tu sesion comienza en 30 minutos')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line(
-                $isProfessional
+            ->view('email.appointment-reminder', [
+                'name' => $notifiable->name ?? '',
+                'isProfessional' => $isProfessional,
+                'message' => $isProfessional
                     ? "Tienes una sesion con {$counterpart} {$timeLabel}."
-                    : "Tu sesion con {$counterpart} {$timeLabel}."
-            )
-            ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Hora: ' . $start->format('H:i'))
-            ->action(
-                $isProfessional ? 'Ver agenda' : 'Ver sesion',
-                $this->actionUrl($notifiable)
-            );
+                    : "Tu sesion con {$counterpart} {$timeLabel}.",
+                'date' => $start->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'time' => $start->format('H:i'),
+                'actionLabel' => $isProfessional ? 'Ver agenda' : 'Ver sesion',
+                'actionUrl' => $this->actionUrl($notifiable),
+            ]);
     }
 
     public function toArray(object $notifiable): array

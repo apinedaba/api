@@ -35,13 +35,15 @@ class SessionPaymentRegisteredNotification extends Notification
 
         return (new MailMessage)
             ->subject('MindMeet | Pago registrado para una sesion')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line("Se registro un {$concept} por {$amount}.")
-            ->line('Paciente: ' . ($patient?->name ?: 'Paciente MindMeet'))
-            ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Hora: ' . $start->format('H:i'))
-            ->line('La cita ya esta registrada en tu agenda.')
-            ->action('Ver agenda', $this->professionalAgendaUrl());
+            ->view('email.session-payment-registered', [
+                'name' => $notifiable->name ?? '',
+                'concept' => $concept,
+                'amount' => $amount,
+                'patientName' => $patient?->name ?: 'Paciente MindMeet',
+                'date' => $start->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'time' => $start->format('H:i'),
+                'agendaUrl' => $this->professionalAgendaUrl(),
+            ]);
     }
 
     public function toArray(object $notifiable): array

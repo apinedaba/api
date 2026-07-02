@@ -21,6 +21,7 @@ export default function Analytics({ auth, analytics, filters }) {
         from: filters?.from || '',
         to: filters?.to || '',
         only_activity: filters?.only_activity ?? true,
+        lead_status: filters?.lead_status || '',
         search: '',
     });
 
@@ -43,6 +44,7 @@ export default function Analytics({ auth, analytics, filters }) {
             from: form.from,
             to: form.to,
             only_activity: form.only_activity ? 1 : 0,
+            lead_status: form.lead_status || undefined,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -179,6 +181,14 @@ export default function Analytics({ auth, analytics, filters }) {
                             <Kpi title="Leads capturados" value={analytics?.summary?.leads} />
                             <Kpi title="Conversion global" value={percent(analytics?.summary?.lead_conversion)} />
                         </div>
+                        {form.lead_status === 'active' && (
+                            <div className="border-t border-slate-100 px-5 pb-5">
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+                                    <span className="font-semibold">Mostrando métricas de leads activos: nuevos, vistos, contactados o creados.</span>
+                                    <Link href={route('analytics')} className="font-bold hover:underline">Ver todos los leads</Link>
+                                </div>
+                            </div>
+                        )}
                     </section>
 
                     <section className="grid gap-6 lg:grid-cols-[1fr_360px]">

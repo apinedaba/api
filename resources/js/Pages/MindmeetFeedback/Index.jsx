@@ -8,6 +8,7 @@ export default function Index({ auth, feedback, filters, stats }) {
     const [form, setForm] = useState({
         search: filters?.search || '',
         rating: filters?.rating || '',
+        max_rating: filters?.max_rating || '',
     });
 
     const rows = feedback?.data || [];
@@ -15,8 +16,8 @@ export default function Index({ auth, feedback, filters, stats }) {
     const average = Number(stats?.average_rating || 0).toFixed(1);
 
     const activeFilters = useMemo(() => (
-        form.search.trim() !== '' || form.rating !== ''
-    ), [form.search, form.rating]);
+        form.search.trim() !== '' || form.rating !== '' || form.max_rating !== ''
+    ), [form.search, form.rating, form.max_rating]);
 
     const submit = (event) => {
         event.preventDefault();
@@ -27,7 +28,7 @@ export default function Index({ auth, feedback, filters, stats }) {
     };
 
     const clearFilters = () => {
-        setForm({ search: '', rating: '' });
+        setForm({ search: '', rating: '', max_rating: '' });
         router.get(route('mindmeet-feedback.index'), {}, {
             preserveScroll: true,
             preserveState: true,
@@ -76,7 +77,7 @@ export default function Index({ auth, feedback, filters, stats }) {
                             />
                             <select
                                 value={form.rating}
-                                onChange={(event) => setForm((current) => ({ ...current, rating: event.target.value }))}
+                                onChange={(event) => setForm((current) => ({ ...current, rating: event.target.value, max_rating: '' }))}
                                 className="rounded-xl border-slate-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
                             >
                                 <option value="">Todas</option>
@@ -84,6 +85,11 @@ export default function Index({ auth, feedback, filters, stats }) {
                                     <option key={star} value={star}>{star} estrellas</option>
                                 ))}
                             </select>
+                            {form.max_rating ? (
+                                <span className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+                                    {form.max_rating} estrellas o menos
+                                </span>
+                            ) : null}
                             <button className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800">
                                 Filtrar
                             </button>

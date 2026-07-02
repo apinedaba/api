@@ -34,6 +34,19 @@ class AppointmentCartController extends Controller
     {
         $source = request('source', 'website');
         $source = in_array($source, ['website', 'panel', 'all'], true) ? $source : 'website';
+        $status = request('status', 'all');
+        $allowedStatuses = [
+            'all',
+            'pending_group',
+            'paid',
+            'processing',
+            'voucher_generated',
+            'pending',
+            'failed',
+            'expired',
+            'canceled',
+        ];
+        $status = in_array($status, $allowedStatuses, true) ? $status : 'all';
 
         $carts = AppointmentCart::with(['user', 'patient', 'appointment.payments'])
             ->when($source !== 'all', fn ($query) => $query->where('source', $source))
@@ -50,7 +63,10 @@ class AppointmentCartController extends Controller
 
         return Inertia::render('Carts', [
             'carts' => $carts,
-            'filters' => ['source' => $source],
+            'filters' => [
+                'source' => $source,
+                'status' => $status,
+            ],
             'stats' => $stats,
             'status' => session('status'),
         ]);

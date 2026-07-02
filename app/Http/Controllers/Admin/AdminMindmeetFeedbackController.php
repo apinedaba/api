@@ -14,6 +14,7 @@ class AdminMindmeetFeedbackController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
         $rating = $request->query('rating');
+        $maxRating = $request->query('max_rating');
 
         $query = MindmeetFeedback::query()
             ->with(['user:id,name,email,image'])
@@ -30,6 +31,10 @@ class AdminMindmeetFeedbackController extends Controller
             $query->where('rating', (int) $rating);
         }
 
+        if (is_numeric($maxRating)) {
+            $query->where('rating', '<=', (int) $maxRating);
+        }
+
         $feedback = $query->paginate(15)->withQueryString();
 
         $baseQuery = MindmeetFeedback::query();
@@ -39,6 +44,7 @@ class AdminMindmeetFeedbackController extends Controller
             'filters' => [
                 'search' => $search,
                 'rating' => $rating,
+                'max_rating' => $maxRating,
             ],
             'stats' => [
                 'total' => (clone $baseQuery)->count(),

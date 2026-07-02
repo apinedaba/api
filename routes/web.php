@@ -30,6 +30,21 @@ use App\Http\Controllers\Vendedor\VendedorAuthController;
 use App\Http\Controllers\Vendedor\VendedorDashboardController;
 use App\Http\Controllers\VendedorController;
 use App\Jobs\TestNotificacionJob;
+use App\Models\Appointment;
+use App\Models\AppointmentCart;
+use App\Models\Clinic;
+use App\Models\ConsultaContacto;
+use App\Models\MinderReport;
+use App\Models\MinderSupportAppointment;
+use App\Models\MinderSupportThread;
+use App\Models\MindmeetFeedback;
+use App\Models\Patient;
+use App\Models\Payment;
+use App\Models\RedPregunta;
+use App\Models\RedReport;
+use App\Models\Subscription;
+use App\Models\User;
+use App\Models\ValidacionCedulaManual;
 use App\Models\Vendedor;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
@@ -52,7 +67,151 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    $today = now()->startOfDay();
+    $tomorrow = now()->addDay()->startOfDay();
+    $monthStart = now()->startOfMonth();
+    $attentionItems = [];
+
+    $pendingIdentity = User::query()
+        ->whereIn('identity_verification_status', ['pending', 'sending'])
+        ->whereNotNull('cedula_selfie_url')
+        ->whereNotNull('ine_selfie_url')
+        ->count();
+    $manualCedulasPending = ValidacionCedulaManual::where('estado', 'pendiente')->count();
+    $incompleteProfiles = User::query()
+        ->where(fn ($query) => $query->where('isProfileComplete', false)->orWhereNull('isProfileComplete'))
+        ->count();
+    $activeLeads = ConsultaContacto::whereIn('status', ['new', 'viewed', 'contacted', 'created'])->count();
+    $pendingCarts = AppointmentCart::whereIn('estado', ['pendiente', 'pendientePago', 'voucher_generado'])->count();
+    $openSupportThreads = MinderSupportThread::where('status', 'open')->count();
+    $pendingSupportAppointments = MinderSupportAppointment::where('status', 'pending')->count();
+    $pendingReports = RedReport::where('status', 'pending')->count() + MinderReport::where('status', 'pending')->count();
+    $lowFeedback = MindmeetFeedback::where('rating', '<=', 3)->where('created_at', '>=', now()->subDays(30))->count();
+
+    $attentionItems[] = [
+        'label' => 'Identidades por revisar',
+        'value' => $pendingIdentity,
+        'hint' => 'Psicólogos con cédula e INE cargadas.',
+        'href' => route('psicologos', ['filter' => 'identity_review']),
+        'tone' => $pendingIdentity > 0 ? 'amber' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Cédulas manuales',
+        'value' => $manualCedulasPending,
+        'hint' => 'Validaciones SEP/manuales pendientes.',
+        'href' => route('psicologos', ['filter' => 'identity_review', 'focus' => 'manual_cedulas']),
+        'tone' => $manualCedulasPending > 0 ? 'amber' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Perfiles incompletos',
+        'value' => $incompleteProfiles,
+        'hint' => 'Profesionales que aún no terminan su información pública.',
+        'href' => route('psicologos', ['filter' => 'incomplete_profiles']),
+        'tone' => $incompleteProfiles > 0 ? 'amber' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Leads activos',
+        'value' => $activeLeads,
+        'hint' => 'Solicitudes aún no convertidas o descartadas.',
+        'href' => route('analytics', ['lead_status' => 'active']),
+        'tone' => $activeLeads > 0 ? 'blue' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Pagos/carritos pendientes',
+        'value' => $pendingCarts,
+        'hint' => 'Reservas o pagos que requieren seguimiento.',
+        'href' => route('carts', ['source' => 'all', 'status' => 'pending_group']),
+        'tone' => $pendingCarts > 0 ? 'rose' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Soporte abierto',
+        'value' => $openSupportThreads + $pendingSupportAppointments,
+        'hint' => 'Mensajes y sesiones de apoyo pendientes.',
+        'href' => route('minder.support.index', ['status' => 'open']),
+        'tone' => ($openSupportThreads + $pendingSupportAppointments) > 0 ? 'blue' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Reportes comunidad',
+        'value' => $pendingReports,
+        'hint' => 'Contenido reportado en Mentes en Red/Minder.',
+        'href' => route('minder.forum-reports.index', ['status' => 'pending']),
+        'tone' => $pendingReports > 0 ? 'rose' : 'green',
+    ];
+
+    $recentActivity = collect()
+        ->merge(User::latest()->limit(4)->get(['id', 'name', 'email', 'created_at'])->map(fn ($user) => [
+            'type' => 'Psicólogo nuevo',
+            'title' => $user->name ?: $user->email,
+            'subtitle' => $user->email,
+            'date' => optional($user->created_at)->diffForHumans(),
+            'sort_date' => optional($user->created_at)->timestamp,
+            'href' => route('psicologoShow', $user->id),
+        ]))
+        ->merge(Patient::latest()->limit(4)->get(['id', 'name', 'email', 'created_at'])->map(fn ($patient) => [
+            'type' => 'Paciente nuevo',
+            'title' => $patient->name ?: $patient->email,
+            'subtitle' => $patient->email ?: 'Sin correo',
+            'date' => optional($patient->created_at)->diffForHumans(),
+            'sort_date' => optional($patient->created_at)->timestamp,
+            'href' => route('paciente', $patient->id),
+        ]))
+        ->merge(ConsultaContacto::with('user:id,name')->latest()->limit(4)->get()->map(fn ($lead) => [
+            'type' => 'Lead recibido',
+            'title' => $lead->nombre ?: $lead->email,
+            'subtitle' => optional($lead->user)->name ?: 'Sin psicólogo asignado',
+            'date' => optional($lead->created_at)->diffForHumans(),
+            'sort_date' => optional($lead->created_at)->timestamp,
+            'href' => route('analytics'),
+        ]))
+        ->sortByDesc(fn ($item) => $item['sort_date'])
+        ->take(8)
+        ->values();
+
+    return Inertia::render('Dashboard', [
+        'summary' => [
+            'psychologists_total' => User::count(),
+            'psychologists_visible' => User::where('activo', true)->where('identity_verification_status', 'approved')->count(),
+            'patients_total' => Patient::count(),
+            'appointments_today' => Appointment::whereBetween('start', [$today, $tomorrow])->count(),
+            'appointments_month' => Appointment::where('start', '>=', $monthStart)->count(),
+            'payments_month' => (float) Payment::where('created_at', '>=', $monthStart)
+                ->whereIn('status', ['paid', 'succeeded', 'completed', 'approved'])
+                ->sum('amount'),
+            'leads_month' => ConsultaContacto::where('created_at', '>=', $monthStart)->count(),
+            'converted_leads_month' => ConsultaContacto::where('status', ConsultaContacto::STATUS_CONVERTED)
+                ->where(fn ($query) => $query->where('converted_at', '>=', $monthStart)->orWhere('updated_at', '>=', $monthStart))
+                ->count(),
+            'clinics_active' => Clinic::where('status', 'active')->count(),
+            'active_subscriptions' => Subscription::whereIn('stripe_status', ['active', 'trialing'])->count(),
+        ],
+        'attentionItems' => $attentionItems,
+        'recentActivity' => $recentActivity,
+        'todayAppointments' => Appointment::with(['user:id,name,email', 'patient:id,name,email'])
+            ->whereBetween('start', [$today, $tomorrow])
+            ->orderBy('start')
+            ->limit(6)
+            ->get()
+            ->map(fn ($appointment) => [
+                'id' => $appointment->id,
+                'time' => optional($appointment->start)->format('H:i'),
+                'title' => $appointment->title ?: 'Sesión programada',
+                'psychologist' => optional($appointment->user)->name ?: 'Sin psicólogo',
+                'patient' => optional($appointment->patient)->name ?: 'Sin paciente',
+                'status' => $appointment->statusUser ?: $appointment->state ?: 'Pendiente',
+            ]),
+        'community' => [
+            'open_questions' => RedPregunta::where('status', 'open')->count(),
+            'pending_reports' => $pendingReports,
+            'low_feedback' => $lowFeedback,
+        ],
+        'quickLinks' => [
+            ['label' => 'Psicólogos', 'href' => route('psicologos')],
+            ['label' => 'Pacientes', 'href' => route('pacientes')],
+            ['label' => 'Carritos', 'href' => route('carts', ['source' => 'all'])],
+            ['label' => 'Soporte', 'href' => route('minder.support.index', ['status' => 'open'])],
+            ['label' => 'Evaluaciones', 'href' => route('mindmeet-feedback.index')],
+        ],
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {

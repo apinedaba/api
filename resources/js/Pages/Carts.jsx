@@ -43,13 +43,16 @@ const formatDate = (date) => {
 };
 
 export default function Carts({ auth, carts = [], filters = {}, stats = {} }) {
-    const [filter, setFilter] = useState({ search: '', status: 'all' });
+    const [filter, setFilter] = useState({ search: '', status: filters.status || 'all' });
 
     const filteredItems = useMemo(() => {
         const search = filter.search.trim().toLowerCase();
+        const pendingStatuses = ['pending', 'requires_payment_method', 'requires_action', 'processing', 'voucher_generated'];
 
         return carts.filter((item) => {
-            const matchesStatus = filter.status === 'all' || item.admin_payment_status === filter.status;
+            const matchesStatus = filter.status === 'all'
+                || (filter.status === 'pending_group' && pendingStatuses.includes(item.admin_payment_status))
+                || item.admin_payment_status === filter.status;
             const searchable = [
                 item.id,
                 item.user?.name,
@@ -137,7 +140,10 @@ export default function Carts({ auth, carts = [], filters = {}, stats = {} }) {
     ];
 
     const changeSource = (event) => {
-        router.get('/carts', { source: event.target.value }, { preserveState: false, preserveScroll: true });
+        router.get('/carts', {
+            source: event.target.value,
+            status: filter.status,
+        }, { preserveState: false, preserveScroll: true });
     };
 
     return (
@@ -178,6 +184,7 @@ export default function Carts({ auth, carts = [], filters = {}, stats = {} }) {
                                     className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                                 >
                                     <option value="all">Todos los estatus</option>
+                                    <option value="pending_group">Pendientes y en proceso</option>
                                     <option value="paid">Pagados</option>
                                     <option value="processing">Procesando</option>
                                     <option value="voucher_generated">Voucher generado</option>

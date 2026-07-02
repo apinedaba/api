@@ -44,11 +44,57 @@ class UserController extends Controller
         return response()->json($email, 200);
     }
 
-    function getAllUsers()
+    function getAllUsers(Request $request)
     {
-        $users = User::with('subscription')->orderBy('identity_verification_status', 'desc')->get();
+        $filter = $request->query('filter', 'all');
+        $allowedFilters = ['all', 'active', 'identity_review', 'rejected', 'incomplete_profiles', 'without_subscription'];
+        $filter = in_array($filter, $allowedFilters, true) ? $filter : 'all';
+
+        $baseQuery = User::query();
+
+        $summary = [
+            'total' => (clone $baseQuery)->count(),
+            'active' => (clone $baseQuery)->where('identity_verification_status', 'approved')->count(),
+            'identity_review' => (clone $baseQuery)
+                ->whereIn('identity_verification_status', ['pending', 'sending'])
+                ->whereNotNull('cedula_selfie_url')
+                ->whereNotNull('ine_selfie_url')
+                ->count(),
+            'rejected' => (clone $baseQuery)->where('identity_verification_status', 'rejected')->count(),
+            'incomplete_profiles' => (clone $baseQuery)
+                ->where(fn ($query) => $query->where('isProfileComplete', false)->orWhereNull('isProfileComplete'))
+                ->count(),
+            'without_subscription' => (clone $baseQuery)
+                ->where('has_lifetime_access', false)
+                ->whereDoesntHave('subscription')
+                ->count(),
+        ];
+
+        $users = User::with('subscription')
+            ->when($filter === 'active', fn ($query) => $query->where('identity_verification_status', 'approved'))
+            ->when($filter === 'identity_review', function ($query) {
+                $query->whereIn('identity_verification_status', ['pending', 'sending'])
+                    ->whereNotNull('cedula_selfie_url')
+                    ->whereNotNull('ine_selfie_url');
+            })
+            ->when($filter === 'rejected', fn ($query) => $query->where('identity_verification_status', 'rejected'))
+            ->when($filter === 'incomplete_profiles', function ($query) {
+                $query->where(fn ($subquery) => $subquery->where('isProfileComplete', false)->orWhereNull('isProfileComplete'));
+            })
+            ->when($filter === 'without_subscription', function ($query) {
+                $query->where('has_lifetime_access', false)
+                    ->whereDoesntHave('subscription');
+            })
+            ->orderBy('identity_verification_status', 'desc')
+            ->get();
+
         return Inertia::render('Psicologos', [
             'psicologos' => $users,
+            'summary' => $summary,
+            'filters' => [
+                'filter' => $filter,
+                'focus' => $request->query('focus'),
+            ],
             'status' => session('status'),
         ]);
     }

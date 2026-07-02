@@ -2,8 +2,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import FotoPerfil from '@/Components/FotoPerfil';
 
-export default function MinderSupport({ auth, threads }) {
+export default function MinderSupport({ auth, threads, filters = {} }) {
     const items = threads?.data ?? [];
+    const status = filters?.status || 'all';
 
     return (
         <AuthenticatedLayout
@@ -17,6 +18,12 @@ export default function MinderSupport({ auth, threads }) {
                         <span className="border-b-2 border-blue-600 px-4 py-2 text-sm font-semibold text-blue-700">Mensajes</span>
                         <Link href={route('minder.support-appointments.index')} className="px-4 py-2 text-sm text-slate-500">Sesiones de apoyo</Link>
                     </div>
+                    {status !== 'all' && (
+                        <div className="mb-3 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-700">
+                            <span>Filtro activo: {status === 'open' ? 'abiertos' : 'cerrados'}</span>
+                            <Link href={route('minder.support.index')} className="font-semibold hover:underline">Ver todos</Link>
+                        </div>
+                    )}
                     <div className="bg-white shadow sm:rounded-lg divide-y divide-gray-100">
                         {items.length === 0 && (
                             <p className="py-10 text-center text-sm text-slate-400">Sin hilos de soporte.</p>

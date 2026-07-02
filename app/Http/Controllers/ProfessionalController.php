@@ -89,17 +89,17 @@ class ProfessionalController extends Controller
         }
 
         if ($pais) {
-            $q->where('address->pais', $pais);
+            $q->where('users.address->pais', $pais);
         }
 
         if ($idioma) {
-            $q->whereJsonContains('personales->idiomas', $idioma);
+            $q->whereJsonContains('users.personales->idiomas', $idioma);
         }
 
         if (!empty($especialidades)) {
             $q->where(function ($specialtyQuery) use ($especialidades) {
                 foreach ($especialidades as $especialidad) {
-                    $specialtyQuery->orWhereJsonContains('educacion->especialidades', $especialidad);
+                    $specialtyQuery->orWhereJsonContains('users.educacion->especialidades', $especialidad);
                 }
             });
         }
@@ -136,8 +136,8 @@ class ProfessionalController extends Controller
 
         if (!empty($estados)) {
             $q->where(function ($stateQuery) use ($estados) {
-                $stateQuery->whereIn('address->state', $estados)
-                    ->orWhereIn('address->estado', $estados)
+                $stateQuery->whereIn('users.address->state', $estados)
+                    ->orWhereIn('users.address->estado', $estados)
                     ->orWhereIn('active_offices.state', $estados);
             });
         }
@@ -154,7 +154,7 @@ class ProfessionalController extends Controller
             // OR entre géneros, pero AND contra los demás filtros
             $q->where(function ($qq) use ($generos) {
                 foreach ($generos as $g) {
-                    $qq->orWhere('personales->genero', $g);
+                    $qq->orWhere('users.personales->genero', $g);
                 }
             });
         }
@@ -162,7 +162,7 @@ class ProfessionalController extends Controller
         if ($enfoques) {
             $q->where(function ($qq) use ($enfoques) {
                 foreach ($enfoques as $e) {
-                    $qq->orWhere('educacion->enfoque', $e);
+                    $qq->orWhere('users.educacion->enfoque', $e);
                 }
             });
         }

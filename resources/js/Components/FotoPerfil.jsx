@@ -12,7 +12,8 @@ export default function FotoPerfil({ image, alt, name, className, detail = false
         "bg-indigo-700",
         "bg-blue-700",
     ]
-    const defaultStyles = "w-32 h-32 w-full  bg-blue-two p-2 border-2 border-white rounded-full text-lg"
+    const defaultStyles = "h-32 w-32 rounded-full border-2 border-white bg-blue-two object-cover p-2 text-lg"
+    const fallbackStyles = className || defaultStyles;
     function getInitials(name) {
         if (!name) return "";
 
@@ -26,18 +27,18 @@ export default function FotoPerfil({ image, alt, name, className, detail = false
         }
     }
 
-    if (image === null) {
+    if (!image) {
         return (
-            <span className={`w-full ${colors[Math.floor(Math.random() * colors.length)]} p-2 flex items-center justify-center border-2 border-white rounded-full text-white text-sm w-12 h-12 `}>{getInitials(name)}</span>
+            <span className={`${fallbackStyles} ${colors[Math.floor(Math.random() * colors.length)]} flex shrink-0 items-center justify-center text-sm font-semibold text-white`}>
+                {getInitials(name)}
+            </span>
         )
     }
 
-    if (image != null) {
-        let tranformation = detail ? "c_fill,h_400,w_400" : "c_fill,h_200,w_200"
-        return (
-            <img src={getThumbnailUrl(image, tranformation)} alt={alt} className={className || defaultStyles} />
-        )
-    }
+    let tranformation = detail ? "c_fill,h_400,w_400" : "c_fill,h_200,w_200"
 
+    return (
+        <img src={getThumbnailUrl(image, tranformation)} alt={alt} className={className || defaultStyles} />
+    )
 
 }

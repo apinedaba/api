@@ -6,6 +6,7 @@ import DataTable from 'react-data-table-component';
 
 const filterLabels = {
     all: 'Todos',
+    public_visible: 'Públicos',
     active: 'Aprobados',
     identity_review: 'Por revisar',
     rejected: 'Rechazados',
@@ -173,10 +174,10 @@ export default function Psicologos({ auth, psicologos = [], summary = {}, filter
                 <div className="mx-auto max-w-7xl space-y-6">
                     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                         <Kpi label="Total" value={summary.total || 0} />
+                        <Kpi label="Públicos" value={summary.public_visible || 0} tone="green" />
                         <Kpi label="Por revisar" value={summary.identity_review || 0} tone="amber" />
-                        <Kpi label="Aprobados" value={summary.active || 0} tone="green" />
+                        <Kpi label="Aprobados" value={summary.active || 0} tone="sky" />
                         <Kpi label="Rechazados" value={summary.rejected || 0} tone="rose" />
-                        <Kpi label="Incompletos" value={summary.incomplete_profiles || 0} tone="sky" />
                     </section>
 
                     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -210,6 +211,7 @@ export default function Psicologos({ auth, psicologos = [], summary = {}, filter
                             <div className="mt-5 flex flex-wrap gap-2">
                                 {[
                                     ['all', summary.total],
+                                    ['public_visible', summary.public_visible],
                                     ['identity_review', summary.identity_review],
                                     ['active', summary.active],
                                     ['rejected', summary.rejected],

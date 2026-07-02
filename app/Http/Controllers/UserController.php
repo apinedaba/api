@@ -47,13 +47,14 @@ class UserController extends Controller
     function getAllUsers(Request $request)
     {
         $filter = $request->query('filter', 'all');
-        $allowedFilters = ['all', 'active', 'identity_review', 'rejected', 'incomplete_profiles', 'without_subscription'];
+        $allowedFilters = ['all', 'public_visible', 'active', 'identity_review', 'rejected', 'incomplete_profiles', 'without_subscription'];
         $filter = in_array($filter, $allowedFilters, true) ? $filter : 'all';
 
         $baseQuery = User::query();
 
         $summary = [
             'total' => (clone $baseQuery)->count(),
+            'public_visible' => User::query()->publiclyVisible()->count(),
             'active' => (clone $baseQuery)->where('identity_verification_status', 'approved')->count(),
             'identity_review' => (clone $baseQuery)
                 ->whereIn('identity_verification_status', ['pending', 'sending'])
@@ -71,6 +72,7 @@ class UserController extends Controller
         ];
 
         $users = User::with('subscription')
+            ->when($filter === 'public_visible', fn ($query) => $query->publiclyVisible())
             ->when($filter === 'active', fn ($query) => $query->where('identity_verification_status', 'approved'))
             ->when($filter === 'identity_review', function ($query) {
                 $query->whereIn('identity_verification_status', ['pending', 'sending'])

@@ -170,7 +170,7 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard', [
         'summary' => [
             'psychologists_total' => User::count(),
-            'psychologists_visible' => User::where('activo', true)->where('identity_verification_status', 'approved')->count(),
+            'psychologists_visible' => User::query()->publiclyVisible()->count(),
             'patients_total' => Patient::count(),
             'appointments_today' => Appointment::whereBetween('start', [$today, $tomorrow])->count(),
             'appointments_month' => Appointment::where('start', '>=', $monthStart)->count(),

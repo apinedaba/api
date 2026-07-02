@@ -318,13 +318,20 @@ class UserController extends Controller
     {
         $request->validate([
             'action' => 'required|in:approve,reject',
-            'type' => 'nullable|in:cedula,ine,both'
+            'type' => 'nullable|in:cedula,ine,both',
+            'rejection_reason' => 'nullable|string|max:1000',
         ]);
 
         $user = User::findOrFail($id);
         $type = $request->type ?? 'both';
 
         if ($request->action === 'approve') {
+            if (! $user->cedula_selfie_url || ! $user->ine_selfie_url) {
+                throw ValidationException::withMessages([
+                    'identity' => 'Para aprobar la identidad, el psicólogo debe tener cargadas la cédula profesional y el INE.',
+                ]);
+            }
+
             $user->identity_verification_status = 'approved';
             $message = 'Identidad verificada correctamente';
 
@@ -338,21 +345,24 @@ class UserController extends Controller
                 ]
             );
         } else {
-            $user->identity_verification_status = 'rejected';
+            $documents = [
+                'cedula' => 'tu cédula profesional',
+                'ine' => 'tu INE',
+                'both' => 'tu cédula profesional e INE',
+            ];
 
-            // Si se rechaza, eliminar la URL de la imagen correspondiente
-            $documentType = '';
             if ($type === 'cedula' || $type === 'both') {
                 $user->cedula_selfie_url = null;
-                $documentType = $type === 'both' ? 'tu cédula profesional e INE' : 'tu cédula profesional';
             }
 
             if ($type === 'ine' || $type === 'both') {
                 $user->ine_selfie_url = null;
-                $documentType = $type === 'cedula' ? 'tu cédula profesional e INE' : ($type === 'ine' ? 'tu INE' : 'tu cédula profesional e INE');
             }
 
-            $message = 'Identidad rechazada. El usuario deberá subir nuevamente las imágenes.';
+            $user->identity_verification_status = $type === 'both' ? 'rejected' : 'pending';
+            $documentType = $documents[$type] ?? $documents['both'];
+            $rejectionReason = trim((string) $request->input('rejection_reason', ''));
+            $message = 'Documento rechazado. El usuario deberá subir nuevamente ' . $documentType . '.';
 
             // Enviar email de rechazo
             EmailService::send(
@@ -362,7 +372,11 @@ class UserController extends Controller
                 [
                     'name' => $user->name,
                     'documentType' => $documentType,
-                    'url' => config('app.frontend_url') . '/perfil'
+                    'rejectionReason' => $rejectionReason,
+                    'url' => rtrim(
+                        config('app.front_url_psicologo') ?: config('app.front_url') ?: config('app.frontend_url'),
+                        '/'
+                    ) . '/dashboard'
                 ]
             );
         }

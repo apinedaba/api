@@ -196,6 +196,27 @@ export default function HomeVisualEditor({ data, onChange }) {
 
     const currentSlide = slides[currentSlideIndex] || {};
 
+    const updatePromotionField = (index, field, value) => {
+        const currentPromotions = Array.isArray(data.promotions)
+            ? data.promotions
+            : JSON.parse(data.promotions || '[]');
+
+        if (!currentPromotions[index]) {
+            return;
+        }
+
+        currentPromotions[index] = {
+            ...currentPromotions[index],
+            [field]: value,
+        };
+
+        if (field === 'imageUrl') {
+            currentPromotions[index].url = value;
+        }
+
+        onChange('promotions', JSON.stringify(currentPromotions, null, 2));
+    };
+
     return (
         <div className="space-y-6">
             <input
@@ -519,34 +540,75 @@ export default function HomeVisualEditor({ data, onChange }) {
             <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-200 bg-slate-50 p-4">
                     <h3 className="font-semibold text-slate-900">Promociones</h3>
-                    <p className="text-xs text-slate-500 mt-1">Haz clic en las imágenes para cambiarlas</p>
+                    <p className="text-xs text-slate-500 mt-1">Sube una imagen o pega su URL. Agrega el link destino para redirigir al usuario.</p>
                 </div>
 
                 <div className="p-4">
                     {promotions.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid gap-4 lg:grid-cols-3">
                             {promotions.map((promotion, idx) => (
                                 <div
                                     key={idx}
-                                    className="relative rounded-lg overflow-hidden bg-slate-100 cursor-pointer group"
-                                    onClick={() => handleImageClick('promotions', idx)}
+                                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
                                 >
-                                    {promotion.url ? (
-                                        <>
-                                            <img
-                                                src={promotion.url}
-                                                alt={promotion.alt || 'Promoción'}
-                                                className="w-full aspect-video object-cover"
-                                            />
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <span className="text-3xl">📤</span>
+                                    <button
+                                        type="button"
+                                        className="relative w-full overflow-hidden rounded-lg bg-slate-100 group"
+                                        onClick={() => handleImageClick('promotions', idx)}
+                                    >
+                                        {promotion.url ? (
+                                            <>
+                                                <img
+                                                    src={promotion.url}
+                                                    alt={promotion.alt || 'Promoción'}
+                                                    className="w-full aspect-video object-cover"
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <span className="text-3xl">📤</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="w-full aspect-video flex flex-col items-center justify-center text-slate-400">
+                                                <span className="text-4xl">📤</span>
+                                                <span className="mt-2 text-xs font-semibold">Subir imagen</span>
                                             </div>
-                                        </>
-                                    ) : (
-                                        <div className="w-full aspect-video flex items-center justify-center text-4xl">
-                                            📤
-                                        </div>
-                                    )}
+                                        )}
+                                    </button>
+
+                                    <div className="mt-3 space-y-3">
+                                        <label className="block">
+                                            <span className="mb-1 block text-xs font-semibold text-slate-600">URL de imagen</span>
+                                            <input
+                                                type="url"
+                                                value={promotion.url || ''}
+                                                onChange={(event) => updatePromotionField(idx, 'url', event.target.value)}
+                                                placeholder="https://..."
+                                                className="w-full rounded-lg border-slate-200 text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            />
+                                        </label>
+
+                                        <label className="block">
+                                            <span className="mb-1 block text-xs font-semibold text-slate-600">Link destino</span>
+                                            <input
+                                                type="url"
+                                                value={promotion.link || ''}
+                                                onChange={(event) => updatePromotionField(idx, 'link', event.target.value)}
+                                                placeholder="https://mindmeet.com.mx/..."
+                                                className="w-full rounded-lg border-slate-200 text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            />
+                                        </label>
+
+                                        {promotion.link ? (
+                                            <a
+                                                href={promotion.link}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex text-xs font-semibold text-blue-600 hover:text-blue-700"
+                                            >
+                                                Probar link
+                                            </a>
+                                        ) : null}
+                                    </div>
                                 </div>
                             ))}
                         </div>

@@ -30,6 +30,7 @@ const navigationGroups = [
             { label: 'Cupones', href: 'coupons', match: ['coupons', 'coupons.*'] },
             { label: 'Vendedores', href: 'vendedores', match: ['vendedores', 'vendedores.*'] },
             { label: 'Pagos vendedores', href: 'seller-commissions', match: ['seller-commissions', 'seller-commissions.*'] },
+            { label: 'Referidos psicólogos', href: 'professional-referrals.index', match: ['professional-referrals.*'] },
         ],
     },
     {

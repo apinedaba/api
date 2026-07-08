@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
 use App\Services\OrganizationService;
+use App\Services\ProfessionalReferralService;
 
 class RegisterController extends Controller
 {
@@ -40,7 +41,8 @@ class RegisterController extends Controller
     public function registerUser(
         Request $request,
         SellerCommissionService $sellerCommissionService,
-        OrganizationService $organizationService
+        OrganizationService $organizationService,
+        ProfessionalReferralService $professionalReferralService
     )
     {
         $validateUser = Validator::make($request->all(), $this->registerValidationRules);
@@ -58,9 +60,12 @@ class RegisterController extends Controller
         $vendedor = $sellerCode
             ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
             : null;
+        $professionalReferralCode = $request->input('professional_referral_code')
+            ?: $request->input('psych_ref')
+            ?: $request->input('p_ref');
 
         $accountType = $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
-        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode) {
+        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode, $professionalReferralService, $professionalReferralCode) {
             $user = User::create([
                 'name' => trim((string) $request->name),
                 'email' => mb_strtolower(trim((string) $request->email)),
@@ -92,6 +97,8 @@ class RegisterController extends Controller
 
                 $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
             }
+
+            $professionalReferralService->registerReferralByCode($professionalReferralCode, $user);
 
             return $user->fresh();
         });

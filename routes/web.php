@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderSupportAppointmentController;
 use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\Admin\AdminMindmeetFeedbackController;
+use App\Http\Controllers\Admin\AdminProfessionalReferralController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
@@ -40,6 +41,7 @@ use App\Models\MinderSupportThread;
 use App\Models\MindmeetFeedback;
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Models\ProfessionalReferralReward;
 use App\Models\RedPregunta;
 use App\Models\RedReport;
 use App\Models\Subscription;
@@ -87,6 +89,7 @@ Route::get('/dashboard', function () {
     $pendingSupportAppointments = MinderSupportAppointment::where('status', 'pending')->count();
     $pendingReports = RedReport::where('status', 'pending')->count() + MinderReport::where('status', 'pending')->count();
     $lowFeedback = MindmeetFeedback::where('rating', '<=', 3)->where('created_at', '>=', now()->subDays(30))->count();
+    $pendingReferralRewards = ProfessionalReferralReward::where('status', ProfessionalReferralReward::STATUS_PENDING)->count();
 
     $attentionItems[] = [
         'label' => 'Identidades por revisar',
@@ -136,6 +139,13 @@ Route::get('/dashboard', function () {
         'hint' => 'Contenido reportado en Mentes en Red/Minder.',
         'href' => route('minder.forum-reports.index', ['status' => 'pending']),
         'tone' => $pendingReports > 0 ? 'rose' : 'green',
+    ];
+    $attentionItems[] = [
+        'label' => 'Recompensas referidos',
+        'value' => $pendingReferralRewards,
+        'hint' => 'Premios de psicólogos por aprobar o aplicar.',
+        'href' => route('professional-referrals.index'),
+        'tone' => $pendingReferralRewards > 0 ? 'blue' : 'green',
     ];
 
     $recentActivity = collect()
@@ -210,6 +220,7 @@ Route::get('/dashboard', function () {
             ['label' => 'Carritos', 'href' => route('carts', ['source' => 'all'])],
             ['label' => 'Soporte', 'href' => route('minder.support.index', ['status' => 'open'])],
             ['label' => 'Evaluaciones', 'href' => route('mindmeet-feedback.index')],
+            ['label' => 'Referidos', 'href' => route('professional-referrals.index')],
         ],
     ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
@@ -236,6 +247,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
     Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
     Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
+    Route::get('/professional-referrals', [AdminProfessionalReferralController::class, 'index'])->name('professional-referrals.index');
+    Route::post('/professional-referrals/{referral}/sync', [AdminProfessionalReferralController::class, 'sync'])->name('professional-referrals.sync');
+    Route::post('/professional-referrals/rules', [AdminProfessionalReferralController::class, 'storeRule'])->name('professional-referrals.rules.store');
+    Route::put('/professional-referrals/rules/{rule}', [AdminProfessionalReferralController::class, 'updateRule'])->name('professional-referrals.rules.update');
+    Route::patch('/professional-referrals/rewards/{reward}', [AdminProfessionalReferralController::class, 'updateReward'])->name('professional-referrals.rewards.update');
     Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
     Route::post('/help-center', [HelpCenterAdminController::class, 'store'])->name('help-center.store');
     Route::put('/help-center/{helpCenterArticle}', [HelpCenterAdminController::class, 'update'])->name('help-center.update');

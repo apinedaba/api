@@ -37,6 +37,7 @@ use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
+use App\Http\Controllers\ProfessionalReferralController;
 use App\Http\Controllers\ProfessionalPayoutController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
@@ -124,6 +125,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('use
     Route::post('clinics/{clinic}/psychologists', [ClinicWorkspaceController::class, 'storePsychologist']);
     Route::put('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'updatePsychologist']);
     Route::delete('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'detachPsychologist']);
+    Route::get('referrals/summary', [ProfessionalReferralController::class, 'summary']);
 });
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.

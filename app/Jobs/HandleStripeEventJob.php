@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Events\SubscriptionActivated;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\ProfessionalReferralService;
 use App\Services\SubscriptionBillingNotificationService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -83,6 +84,7 @@ class HandleStripeEventJob implements ShouldQueue
             ]);
 
         broadcast(new SubscriptionActivated($user->id));
+        app(ProfessionalReferralService::class)->syncReferralForUser($user->fresh('subscription'));
 
         Log::info("Nueva suscripcion creada para el usuario: {$user->id}");
     }
@@ -103,6 +105,11 @@ class HandleStripeEventJob implements ShouldQueue
                 : null,
             'ends_at' => $this->resolveSubscriptionEndsAt($stripeSubscription),
         ]);
+
+        $user = $subscription->user()->with('subscription')->first();
+        if ($user) {
+            app(ProfessionalReferralService::class)->syncReferralForUser($user);
+        }
 
         Log::info("Suscripcion actualizada: {$stripeSubscription->id} a estado {$stripeSubscription->status}");
     }

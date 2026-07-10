@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProfessionalReferral;
+use App\Models\ProfessionalReferralPointAccount;
 use App\Models\ProfessionalReferralReward;
 use App\Models\ProfessionalReferralRewardRule;
+use App\Models\ProfessionalReferralSetting;
 use App\Services\ProfessionalReferralService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,6 +52,13 @@ class AdminProfessionalReferralController extends Controller
                 ->latest('earned_at')
                 ->limit(20)
                 ->get(),
+            'pointAccounts' => ProfessionalReferralPointAccount::query()
+                ->with('user:id,name,email')
+                ->where('balance_points', '>', 0)
+                ->orderByDesc('balance_points')
+                ->limit(10)
+                ->get(),
+            'settings' => ProfessionalReferralSetting::current(),
             'filters' => [
                 'status' => $status,
                 'search' => $search,
@@ -59,6 +68,8 @@ class AdminProfessionalReferralController extends Controller
                 'trialing' => ProfessionalReferral::where('status', ProfessionalReferral::STATUS_TRIALING)->count(),
                 'qualified' => ProfessionalReferral::where('status', ProfessionalReferral::STATUS_QUALIFIED)->count(),
                 'pending_rewards' => ProfessionalReferralReward::where('status', ProfessionalReferralReward::STATUS_PENDING)->count(),
+                'point_accounts' => ProfessionalReferralPointAccount::where('balance_points', '>', 0)->count(),
+                'points_balance' => ProfessionalReferralPointAccount::sum('balance_points'),
             ],
         ]);
     }
@@ -101,6 +112,25 @@ class AdminProfessionalReferralController extends Controller
         $rule->update($data);
 
         return back()->with('success', 'Regla actualizada.');
+    }
+
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'points_enabled' => 'boolean',
+            'points_per_qualified_referral' => 'required|integer|min:1|max:10000',
+            'points_name' => 'required|string|max:80',
+            'points_description' => 'nullable|string|max:500',
+        ]);
+
+        ProfessionalReferralSetting::current()->update([
+            'points_enabled' => (bool) ($data['points_enabled'] ?? false),
+            'points_per_qualified_referral' => $data['points_per_qualified_referral'],
+            'points_name' => $data['points_name'],
+            'points_description' => $data['points_description'] ?? null,
+        ]);
+
+        return back()->with('success', 'Configuracion de MindPoints actualizada.');
     }
 
     public function updateReward(Request $request, ProfessionalReferralReward $reward): RedirectResponse

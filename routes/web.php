@@ -251,6 +251,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/professional-referrals/{referral}/sync', [AdminProfessionalReferralController::class, 'sync'])->name('professional-referrals.sync');
     Route::post('/professional-referrals/rules', [AdminProfessionalReferralController::class, 'storeRule'])->name('professional-referrals.rules.store');
     Route::put('/professional-referrals/rules/{rule}', [AdminProfessionalReferralController::class, 'updateRule'])->name('professional-referrals.rules.update');
+    Route::patch('/professional-referrals/settings', [AdminProfessionalReferralController::class, 'updateSettings'])->name('professional-referrals.settings.update');
     Route::patch('/professional-referrals/rewards/{reward}', [AdminProfessionalReferralController::class, 'updateReward'])->name('professional-referrals.rewards.update');
     Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
     Route::post('/help-center', [HelpCenterAdminController::class, 'store'])->name('help-center.store');

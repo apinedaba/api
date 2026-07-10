@@ -16,6 +16,20 @@ class ProfessionalReferralController extends Controller
         ));
     }
 
+    public function updatePreference(Request $request, ProfessionalReferralService $referralService): JsonResponse
+    {
+        $data = $request->validate([
+            'reward_preference' => 'required|in:free_months,mentepuntos',
+        ]);
+
+        $referralService->updateRewardPreference($request->user(), $data['reward_preference']);
+
+        return response()->json($referralService->summaryFor(
+            $request->user(),
+            $this->resolvePsychologistFrontendUrl()
+        ));
+    }
+
     private function resolvePsychologistFrontendUrl(): string
     {
         $candidates = [

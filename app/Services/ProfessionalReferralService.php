@@ -4,10 +4,15 @@ namespace App\Services;
 
 use App\Models\ProfessionalReferral;
 use App\Models\ProfessionalReferralCode;
+use App\Models\ProfessionalReferralPointAccount;
+use App\Models\ProfessionalReferralPointTransaction;
 use App\Models\ProfessionalReferralReward;
 use App\Models\ProfessionalReferralRewardRule;
+use App\Models\ProfessionalReferralSetting;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class ProfessionalReferralService
@@ -52,6 +57,7 @@ class ProfessionalReferralService
             'last_used_at' => now(),
         ]);
         $referralCode->increment('clicks_count');
+        $rewardMode = $this->resolveRewardModeForCode($referralCode);
 
         return ProfessionalReferral::create([
             'referrer_user_id' => $referralCode->user_id,
@@ -59,9 +65,11 @@ class ProfessionalReferralService
             'professional_referral_code_id' => $referralCode->id,
             'code' => $referralCode->code,
             'status' => ProfessionalReferral::STATUS_REGISTERED,
+            'reward_mode' => $rewardMode,
             'registered_at' => now(),
             'metadata' => [
                 'source' => 'professional_referral_link',
+                'reward_mode_locked_at' => now()->toIso8601String(),
             ],
         ]);
     }
@@ -77,6 +85,7 @@ class ProfessionalReferralService
             return null;
         }
 
+        $wasQualified = $referral->status === ProfessionalReferral::STATUS_QUALIFIED;
         $subscriptionStatus = optional($user->subscription)->stripe_status;
         $isPaid = $user->has_lifetime_access || in_array($subscriptionStatus, ['active'], true);
 
@@ -97,11 +106,12 @@ class ProfessionalReferralService
 
         $referral->update($updates);
 
-        if ($referral->fresh()->status === ProfessionalReferral::STATUS_QUALIFIED) {
-            $this->evaluateRewardsFor($referral->referrer_user_id);
+        $freshReferral = $referral->fresh(['referrer.professionalReferralCode', 'referred.subscription']);
+        if (!$wasQualified && $freshReferral->status === ProfessionalReferral::STATUS_QUALIFIED) {
+            $this->handleQualifiedReferral($freshReferral);
         }
 
-        return $referral->fresh();
+        return $freshReferral;
     }
 
     public function evaluateRewardsFor(int $referrerUserId): Collection
@@ -109,6 +119,10 @@ class ProfessionalReferralService
         $qualifiedCount = ProfessionalReferral::query()
             ->where('referrer_user_id', $referrerUserId)
             ->where('status', ProfessionalReferral::STATUS_QUALIFIED)
+            ->where(function ($query) {
+                $query->whereNull('reward_mode')
+                    ->orWhere('reward_mode', ProfessionalReferral::REWARD_MODE_FREE_MONTHS);
+            })
             ->count();
 
         return ProfessionalReferralRewardRule::query()
@@ -140,8 +154,21 @@ class ProfessionalReferralService
     public function summaryFor(User $user, string $frontendUrl): array
     {
         $code = $this->ensureCodeFor($user);
+        $settings = ProfessionalReferralSetting::current();
+        $pointAccount = $user->professionalReferralPointAccount()->first();
         $qualifiedCount = $user->professionalReferralsMade()
             ->where('status', ProfessionalReferral::STATUS_QUALIFIED)
+            ->count();
+        $qualifiedForMonthsCount = $user->professionalReferralsMade()
+            ->where('status', ProfessionalReferral::STATUS_QUALIFIED)
+            ->where(function ($query) {
+                $query->whereNull('reward_mode')
+                    ->orWhere('reward_mode', ProfessionalReferral::REWARD_MODE_FREE_MONTHS);
+            })
+            ->count();
+        $qualifiedForPointsCount = $user->professionalReferralsMade()
+            ->where('status', ProfessionalReferral::STATUS_QUALIFIED)
+            ->where('reward_mode', ProfessionalReferral::REWARD_MODE_MINDPOINTS)
             ->count();
         $registeredCount = $user->professionalReferralsMade()->count();
 
@@ -150,13 +177,39 @@ class ProfessionalReferralService
             ->orderBy('required_qualified_referrals')
             ->get();
 
-        $nextRule = $rules->firstWhere('required_qualified_referrals', '>', $qualifiedCount);
+        $nextRule = $rules->firstWhere('required_qualified_referrals', '>', $qualifiedForMonthsCount);
 
         return [
             'code' => $code->code,
             'link' => rtrim($frontendUrl, '/') . '/register?p_ref=' . urlencode($code->code),
+            'reward_preference' => $code->reward_preference ?: ProfessionalReferralCode::REWARD_FREE_MONTHS,
+            'settings' => [
+                'points_enabled' => (bool) $settings->points_enabled,
+                'points_name' => $settings->points_name,
+                'points_per_qualified_referral' => $settings->points_per_qualified_referral,
+                'points_description' => $settings->points_description,
+            ],
+            'point_account' => [
+                'balance_points' => $pointAccount?->balance_points ?? 0,
+                'lifetime_earned_points' => $pointAccount?->lifetime_earned_points ?? 0,
+                'lifetime_redeemed_points' => $pointAccount?->lifetime_redeemed_points ?? 0,
+            ],
+            'recent_point_transactions' => $user->professionalReferralPointTransactions()
+                ->latest()
+                ->limit(5)
+                ->get()
+                ->map(fn (ProfessionalReferralPointTransaction $transaction) => [
+                    'id' => $transaction->id,
+                    'type' => $transaction->type,
+                    'points' => $transaction->points,
+                    'description' => $transaction->description,
+                    'created_at' => optional($transaction->created_at)->toDateString(),
+                ])
+                ->values(),
             'registered_count' => $registeredCount,
             'qualified_count' => $qualifiedCount,
+            'qualified_for_months_count' => $qualifiedForMonthsCount,
+            'qualified_for_points_count' => $qualifiedForPointsCount,
             'pending_count' => $user->professionalReferralsMade()
                 ->whereIn('status', [ProfessionalReferral::STATUS_REGISTERED, ProfessionalReferral::STATUS_TRIALING])
                 ->count(),
@@ -164,9 +217,9 @@ class ProfessionalReferralService
                 'name' => $nextRule->name,
                 'required_qualified_referrals' => $nextRule->required_qualified_referrals,
                 'reward_months' => $nextRule->reward_months,
-                'remaining' => max(0, $nextRule->required_qualified_referrals - $qualifiedCount),
+                'remaining' => max(0, $nextRule->required_qualified_referrals - $qualifiedForMonthsCount),
                 'progress_percent' => $nextRule->required_qualified_referrals > 0
-                    ? min(100, (int) floor(($qualifiedCount / $nextRule->required_qualified_referrals) * 100))
+                    ? min(100, (int) floor(($qualifiedForMonthsCount / $nextRule->required_qualified_referrals) * 100))
                     : 100,
             ] : null,
             'earned_rewards' => $user->professionalReferralRewards()
@@ -189,11 +242,103 @@ class ProfessionalReferralService
                     'id' => $referral->id,
                     'name' => optional($referral->referred)->name ?: optional($referral->referred)->email,
                     'status' => $referral->status,
+                    'reward_mode' => $referral->reward_mode ?: ProfessionalReferral::REWARD_MODE_FREE_MONTHS,
                     'registered_at' => optional($referral->registered_at)->toDateString(),
                     'qualified_at' => optional($referral->qualified_at)->toDateString(),
                 ])
                 ->values(),
         ];
+    }
+
+    public function updateRewardPreference(User $user, string $preference): ProfessionalReferralCode
+    {
+        $allowed = [
+            ProfessionalReferralCode::REWARD_FREE_MONTHS,
+            ProfessionalReferralCode::REWARD_MENTEPUNTOS,
+        ];
+
+        if (!in_array($preference, $allowed, true)) {
+            throw ValidationException::withMessages([
+                'reward_preference' => 'Selecciona una modalidad de recompensa valida.',
+            ]);
+        }
+
+        $settings = ProfessionalReferralSetting::current();
+        if ($preference === ProfessionalReferralCode::REWARD_MENTEPUNTOS && !$settings->points_enabled) {
+            throw ValidationException::withMessages([
+                'reward_preference' => 'MindPoints aun no esta activo.',
+            ]);
+        }
+
+        $code = $this->ensureCodeFor($user);
+        $code->update(['reward_preference' => $preference]);
+
+        return $code->fresh();
+    }
+
+    private function handleQualifiedReferral(ProfessionalReferral $referral): void
+    {
+        $settings = ProfessionalReferralSetting::current();
+        $rewardMode = $referral->reward_mode ?: $this->resolveRewardModeForCode($referral->referrer->professionalReferralCode);
+
+        if ($rewardMode === ProfessionalReferral::REWARD_MODE_MINDPOINTS && $settings->points_enabled) {
+            $referral->update(['reward_mode' => ProfessionalReferral::REWARD_MODE_MINDPOINTS]);
+            $this->awardPointsForReferral($referral, $settings);
+            return;
+        }
+
+        $referral->update(['reward_mode' => ProfessionalReferral::REWARD_MODE_FREE_MONTHS]);
+        $this->evaluateRewardsFor($referral->referrer_user_id);
+    }
+
+    private function awardPointsForReferral(ProfessionalReferral $referral, ProfessionalReferralSetting $settings): void
+    {
+        DB::transaction(function () use ($referral, $settings) {
+            $transaction = ProfessionalReferralPointTransaction::firstOrCreate(
+                [
+                    'professional_referral_id' => $referral->id,
+                    'type' => ProfessionalReferralPointTransaction::TYPE_EARNED,
+                ],
+                [
+                    'user_id' => $referral->referrer_user_id,
+                    'points' => $settings->points_per_qualified_referral,
+                    'status' => 'posted',
+                    'description' => 'Referido calificado: ' . (optional($referral->referred)->name ?: optional($referral->referred)->email ?: 'psicologo referido'),
+                    'metadata' => [
+                        'points_name' => $settings->points_name,
+                        'referred_user_id' => $referral->referred_user_id,
+                    ],
+                ]
+            );
+
+            if (!$transaction->wasRecentlyCreated) {
+                return;
+            }
+
+            $account = ProfessionalReferralPointAccount::firstOrCreate(
+                ['user_id' => $referral->referrer_user_id],
+                [
+                    'balance_points' => 0,
+                    'lifetime_earned_points' => 0,
+                    'lifetime_redeemed_points' => 0,
+                ]
+            );
+
+            $account->increment('balance_points', $transaction->points);
+            $account->increment('lifetime_earned_points', $transaction->points);
+        });
+    }
+
+    private function resolveRewardModeForCode(?ProfessionalReferralCode $referralCode): string
+    {
+        $settings = ProfessionalReferralSetting::current();
+        $preference = $referralCode?->reward_preference ?: ProfessionalReferralCode::REWARD_FREE_MONTHS;
+
+        if ($preference === ProfessionalReferralCode::REWARD_MENTEPUNTOS && $settings->points_enabled) {
+            return ProfessionalReferral::REWARD_MODE_MINDPOINTS;
+        }
+
+        return ProfessionalReferral::REWARD_MODE_FREE_MONTHS;
     }
 
     private function generateUniqueCode(User $user): string

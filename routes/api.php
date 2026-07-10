@@ -126,6 +126,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('use
     Route::put('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'updatePsychologist']);
     Route::delete('clinics/{clinic}/psychologists/{user}', [ClinicWorkspaceController::class, 'detachPsychologist']);
     Route::get('referrals/summary', [ProfessionalReferralController::class, 'summary']);
+    Route::patch('referrals/preference', [ProfessionalReferralController::class, 'updatePreference']);
 });
 
 // Grupo 2: Requiere autenticación Y una suscripción activa.

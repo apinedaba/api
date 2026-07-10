@@ -115,6 +115,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(ProfessionalReferralReward::class, 'referrer_user_id');
     }
 
+    public function professionalReferralPointAccount(): HasOne
+    {
+        return $this->hasOne(ProfessionalReferralPointAccount::class);
+    }
+
+    public function professionalReferralPointTransactions(): HasMany
+    {
+        return $this->hasMany(ProfessionalReferralPointTransaction::class);
+    }
+
     public function ownedClinics(): HasMany
     {
         return $this->hasMany(Clinic::class, 'owner_user_id');

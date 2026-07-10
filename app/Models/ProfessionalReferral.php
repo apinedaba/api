@@ -12,6 +12,8 @@ class ProfessionalReferral extends Model
     public const STATUS_QUALIFIED = 'qualified';
     public const STATUS_INACTIVE = 'inactive';
     public const STATUS_CANCELLED = 'cancelled';
+    public const REWARD_MODE_FREE_MONTHS = 'free_months';
+    public const REWARD_MODE_MINDPOINTS = 'mentepuntos';
 
     protected $fillable = [
         'referrer_user_id',
@@ -19,6 +21,7 @@ class ProfessionalReferral extends Model
         'professional_referral_code_id',
         'code',
         'status',
+        'reward_mode',
         'registered_at',
         'first_paid_at',
         'qualified_at',

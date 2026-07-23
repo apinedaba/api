@@ -144,7 +144,9 @@ class WhatsAppNotificationController extends Controller
             'language' => $data['language'] ?? 'es_MX',
             'components' => $whatsApp->appointmentTemplateComponents(
                 $appointment,
-                $data['buttons'] ?? $this->defaultAppointmentUrlButton($appointment)
+                $data['buttons'] ?? ($templateKey === 'appointment_reminder'
+                    ? $this->confirmationButtons($appointment)
+                    : $this->defaultAppointmentUrlButton($appointment))
             ),
             'context' => [
                 'appointment_id' => $appointment->id,
@@ -153,6 +155,12 @@ class WhatsAppNotificationController extends Controller
                 'event' => $templateKey,
             ],
         ]);
+
+        if ($templateKey === 'appointment_reminder') {
+            $meta = $appointment->notification_meta ?? [];
+            data_set($meta, 'confirmation_request.sent_date', now(config('app.timezone'))->toDateString());
+            $appointment->forceFill(['notification_meta' => $meta])->save();
+        }
 
         return $this->queuedResponse('Notificacion WhatsApp de cita encolada.');
     }
@@ -172,6 +180,15 @@ class WhatsAppNotificationController extends Controller
                 'parameter_type' => 'text',
                 'text' => $appointment->public_uuid ?: (string) $appointment->id,
             ],
+        ];
+    }
+
+    protected function confirmationButtons(Appointment $appointment): array
+    {
+        return [
+            ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:confirm"],
+            ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:postpone"],
+            ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:cancel"],
         ];
     }
 

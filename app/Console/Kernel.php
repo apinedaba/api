@@ -25,6 +25,15 @@ class Kernel extends ConsoleKernel
             ->dailyAt('08:00')
             ->timezone('America/Mexico_City')
             ->withoutOverlapping();
+        $schedule->command('appointments:request-confirmation')
+            ->hourlyAt(0)
+            ->between('07:00', '18:00')
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
+        $schedule->command('appointments:cancel-expired-unconfirmed')
+            ->everyFiveMinutes()
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         $schedule->command('subscriptions:notify-upcoming-charges')
             ->dailyAt('10:00')
             ->timezone('America/Mexico_City');

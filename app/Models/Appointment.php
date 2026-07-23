@@ -36,6 +36,8 @@ class Appointment extends Model
         'interventions',
         'action_plan',
         'observations',
+        'psychometric_scales',
+        'mental_exam',
         'payment_status',
         'video_call_room',
         'cart_id',
@@ -67,6 +69,8 @@ class Appointment extends Model
         'synced_with_google' => 'boolean',
         'extendedProps' => 'array',
         'notification_meta' => 'array',
+        'psychometric_scales' => 'array',
+        'mental_exam' => 'array',
     ];
 
     public function patient_user()

@@ -35,7 +35,9 @@ class PatientTimelineController extends Controller
                 'notes' => function ($q) {
                     $q->orderBy('created_at', 'desc');
                 },
-                'attachments'
+                'attachments',
+                'payments',
+                'cart',
             ])
             ->get();
 

@@ -691,6 +691,8 @@ class AppointmentController extends Controller
             'interventions',
             'action_plan',
             'observations',
+            'psychometric_scales',
+            'mental_exam',
             'payment_status',
             'link',
             'video_call_room',

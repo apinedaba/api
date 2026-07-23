@@ -81,8 +81,8 @@ jobs:
 
             # Permisos correctos
             sudo chown -R ${{secrets.VPS_USER}}:www-data storage bootstrap/cache
-            sudo chown -R ${{secrets.VPS_USER}}:www-data ./*
-            sudo chmod -R 775 storage bootstrap/cache
+            sudo find storage bootstrap/cache -type d -exec chmod 2775 {} \;
+            sudo find storage bootstrap/cache -type f -exec chmod 0664 {} \;
 
             # Dependencias Node requeridas por Browsershot/Puppeteer en produccion.
             # Usamos Google Chrome estable porque chromium-browser en Ubuntu suele ser Snap

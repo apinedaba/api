@@ -89,6 +89,10 @@ return [
             'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirm_session'),
             'appointment_cancelled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CANCELLED', 'confirm_session'),
             'patient_invitation' => env('WHATSAPP_TEMPLATE_PATIENT_INVITATION', 'patient_invitation'),
+            'daily_appointments' => env('WHATSAPP_TEMPLATE_DAILY_APPOINTMENTS', 'citas_hoy'),
+            'membership_payment_failed' => env('WHATSAPP_TEMPLATE_MEMBERSHIP_PAYMENT_FAILED', 'pago_fallido'),
+            'appointment_rescheduled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_RESCHEDULED', 'cita_reprogramada'),
+            'appointment_session_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_SESSION_REMINDER', 'cita_recordatorio'),
         ],
     ],
 

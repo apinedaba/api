@@ -15,6 +15,7 @@ use App\Models\PatientUser;
 use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\AppointmentRescheduledWhatsAppNotification;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\RecurringAppointmentSeriesNotification;
@@ -769,6 +770,11 @@ class AppointmentController extends Controller
 
             $appointment->refresh();
             $user = User::find($appointment->user);
+
+            if (Carbon::parse($originalData->start)->notEqualTo(Carbon::parse($appointment->start))) {
+                $patient = $appointment->patient()->first();
+                $patient?->notify(new AppointmentRescheduledWhatsAppNotification($appointment));
+            }
 
             if ($appointment->google_event_id && $user && $user->googleAccount) {
                 SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'update');

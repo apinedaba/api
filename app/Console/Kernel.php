@@ -21,6 +21,10 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->timezone('America/Mexico_City');
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
+        $schedule->command('appointments:send-daily-whatsapp')
+            ->dailyAt('08:00')
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         $schedule->command('subscriptions:notify-upcoming-charges')
             ->dailyAt('10:00')
             ->timezone('America/Mexico_City');

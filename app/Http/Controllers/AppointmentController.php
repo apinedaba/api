@@ -1208,10 +1208,11 @@ class AppointmentController extends Controller
 
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
+            $professional = $appointment->user()->first();
             $data = [
                 'uuid' => $appointment->public_uuid,
-                'professional' => data_get($appointment->user?->contacto, 'publicname')
-                    ?: $appointment->user?->name,
+                'professional' => data_get($professional?->contacto, 'publicname')
+                    ?: $professional?->name,
                 'title' => $appointment->title,
                 'fecha' => $start->format('d/m/Y'),
                 'hora' => $start->format('H:i').' - '.$end->format('H:i'),

@@ -210,7 +210,6 @@ class WhatsAppService
                 'whatsapp_message_id' => $audit->id,
                 'endpoint' => $this->messagesEndpoint(),
                 'token_fingerprint' => $this->tokenFingerprint(),
-                'debug_token' => $this->debugToken(),
                 'template_variables' => $this->templateVariables($payload),
                 'payload' => $payload,
             ]);
@@ -248,19 +247,37 @@ class WhatsAppService
         }
     }
 
-    public function appointmentTemplateComponents(Appointment $appointment, array $buttons = []): array
+    public function appointmentTemplateComponents(
+        Appointment $appointment,
+        array $buttons = [],
+        array $bodyParameterKeys = []
+    ): array
     {
         $appointment->loadMissing(['patient', 'user']);
         $patient = $appointment->patient()->first();
         $professional = $appointment->user()->first();
         $start = optional($appointment->start)->timezone(config('app.timezone'));
 
-        $bodyParameters = [
-            $patient?->name ?: 'paciente',
-            $start?->format('d/m/Y') ?: '',
-            $start?->format('H:i') ?: '',
-            $professional?->name ?: 'tu profesional',
+        $values = [
+            'patient_name' => $patient?->name ?: 'paciente',
+            'professional_name' => data_get($professional?->contacto, 'publicname')
+                ?: $professional?->name
+                ?: 'tu profesional',
+            'professional_public_name' => data_get($professional?->contacto, 'publicname')
+                ?: $professional?->name
+                ?: 'tu profesional',
+            'date' => $start?->format('d/m/Y') ?: '',
+            'time' => $start?->format('H:i') ?: '',
         ];
+
+        $parameterKeys = $bodyParameterKeys !== []
+            ? $bodyParameterKeys
+            : ['patient_name', 'professional_public_name', 'date', 'time'];
+
+        $bodyParameters = collect($parameterKeys)
+            ->map(fn ($key): string => (string) ($values[(string) $key] ?? ''))
+            ->values()
+            ->all();
 
         return array_values(array_filter([
             $this->bodyParametersComponent($bodyParameters),
@@ -373,21 +390,6 @@ class WhatsAppService
         return [
             'length' => strlen($token),
             'sha256_prefix' => substr(hash('sha256', $token), 0, 12),
-            'tail' => substr($token, -8),
-        ];
-    }
-
-    protected function debugToken(): ?array
-    {
-        if (! (bool) config('services.whatsapp.debug_expose_token')) {
-            return null;
-        }
-
-        $token = (string) config('services.whatsapp.token');
-
-        return [
-            'token' => $token,
-            'authorization_header' => "Bearer {$token}",
         ];
     }
 

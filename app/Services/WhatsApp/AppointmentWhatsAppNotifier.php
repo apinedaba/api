@@ -85,6 +85,9 @@ class AppointmentWhatsAppNotifier
         $template = $this->whatsApp->templateName($resolvedTemplateKey);
         $templateConfig = $this->templateConfig($resolvedTemplateKey);
         $buttons = $templateConfig?->buttons ?: $this->defaultButtons($appointment, $templateKey);
+        $bodyParameterKeys = $templateKey === 'appointment_created'
+            ? ['patient_name', 'professional_public_name', 'date', 'time']
+            : ($templateConfig?->body_parameters ?: []);
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
@@ -93,7 +96,8 @@ class AppointmentWhatsAppNotifier
             'language' => $templateConfig?->language ?: 'es_MX',
             'components' => $this->whatsApp->appointmentTemplateComponents(
                 $appointment,
-                $buttons
+                $buttons,
+                $bodyParameterKeys
             ),
             'context' => [
                 'appointment_id' => $appointment->id,

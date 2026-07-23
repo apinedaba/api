@@ -29,7 +29,7 @@ return new class extends Migration
                 'language' => 'es_MX',
                 'category' => 'appointments',
                 'description' => 'Confirmacion de asistencia para una cita nueva.',
-                'body_parameters' => json_encode(['patient_name', 'date', 'time', 'professional_name']),
+                'body_parameters' => json_encode(['patient_name', 'professional_public_name', 'date', 'time']),
                 'buttons' => null,
                 'is_active' => true,
                 'created_at' => now(),

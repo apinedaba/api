@@ -146,7 +146,10 @@ class WhatsAppNotificationController extends Controller
                 $appointment,
                 $data['buttons'] ?? ($templateKey === 'appointment_reminder'
                     ? $this->confirmationButtons($appointment)
-                    : $this->defaultAppointmentUrlButton($appointment))
+                    : $this->defaultAppointmentUrlButton($appointment)),
+                $templateKey === 'appointment_created'
+                    ? ['patient_name', 'professional_public_name', 'date', 'time']
+                    : []
             ),
             'context' => [
                 'appointment_id' => $appointment->id,

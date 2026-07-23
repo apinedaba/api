@@ -85,7 +85,7 @@ return [
         'webhook_url' => env('WHATSAPP_WEBHOOK_URL'),
         'templates' => [
             'appointment_created' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CREATED', 'confirm_session'),
-            'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirm_session'),
+            'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirma_tu_cita'),
             'appointment_cancelled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CANCELLED', 'confirm_session'),
             'patient_invitation' => env('WHATSAPP_TEMPLATE_PATIENT_INVITATION', 'patient_invitation'),
             'daily_appointments' => env('WHATSAPP_TEMPLATE_DAILY_APPOINTMENTS', 'citas_hoy'),

@@ -85,9 +85,11 @@ class AppointmentWhatsAppNotifier
         $template = $this->whatsApp->templateName($resolvedTemplateKey);
         $templateConfig = $this->templateConfig($resolvedTemplateKey);
         $buttons = $templateConfig?->buttons ?: $this->defaultButtons($appointment, $templateKey);
-        $bodyParameterKeys = $templateKey === 'appointment_created'
-            ? ['patient_name', 'professional_public_name', 'date', 'time']
-            : ($templateConfig?->body_parameters ?: []);
+        $bodyParameterKeys = match ($templateKey) {
+            'appointment_created' => ['patient_name', 'professional_public_name', 'date', 'time'],
+            'appointment_reminder' => ['patient_name'],
+            default => $templateConfig?->body_parameters ?: [],
+        };
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
@@ -160,7 +162,6 @@ class AppointmentWhatsAppNotifier
             return [
                 ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:confirm"],
                 ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:postpone"],
-                ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:cancel"],
             ];
         }
 

@@ -147,9 +147,11 @@ class WhatsAppNotificationController extends Controller
                 $data['buttons'] ?? ($templateKey === 'appointment_reminder'
                     ? $this->confirmationButtons($appointment)
                     : $this->defaultAppointmentUrlButton($appointment)),
-                $templateKey === 'appointment_created'
-                    ? ['patient_name', 'professional_public_name', 'date', 'time']
-                    : []
+                match ($templateKey) {
+                    'appointment_created' => ['patient_name', 'professional_public_name', 'date', 'time'],
+                    'appointment_reminder' => ['patient_name'],
+                    default => [],
+                }
             ),
             'context' => [
                 'appointment_id' => $appointment->id,
@@ -191,7 +193,6 @@ class WhatsAppNotificationController extends Controller
         return [
             ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:confirm"],
             ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:postpone"],
-            ['sub_type' => 'quick_reply', 'parameter_type' => 'payload', 'payload' => "appointment:{$appointment->id}:cancel"],
         ];
     }
 

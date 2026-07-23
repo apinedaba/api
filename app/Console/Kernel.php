@@ -34,6 +34,10 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->timezone('America/Mexico_City')
             ->withoutOverlapping();
+        $schedule->command('marketplace:on-demand-process')
+            ->everyMinute()
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         $schedule->command('subscriptions:notify-upcoming-charges')
             ->dailyAt('10:00')
             ->timezone('America/Mexico_City');

@@ -26,6 +26,8 @@ use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
+use App\Models\OnDemandRequest;
+use App\Notifications\OnDemandMarketplaceNotification;
 use App\Notifications\SessionPaymentRegisteredNotification;
 use App\Services\TwilioWhatsAppService;
 use Carbon\Carbon;
@@ -58,6 +60,8 @@ class StripeController extends Controller
 
         $cart = AppointmentCart::where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
+            ->when($request->filled('cart_id'), fn ($query) => $query->whereKey($request->integer('cart_id')))
+            ->latest('id')
             ->first();
 
         if (!$cart) {
@@ -138,6 +142,7 @@ class StripeController extends Controller
         $existing = Appointment::where('cart_id', $cart->id)->first();
         if ($existing) {
             $this->ensureCompletedPayment($cart, $existing, $intent, $pricing, 'card');
+            $this->confirmOnDemandAppointment($existing);
             $this->generarEnlace($cart->user_id, $cart->patient_id);
             $cart->update([
                 'estado' => 'pagado',
@@ -166,6 +171,30 @@ class StripeController extends Controller
 
 
         return response()->json($appointment);
+    }
+
+    private function confirmOnDemandAppointment(Appointment $appointment): void
+    {
+        $onDemand = OnDemandRequest::where('appointment_id', $appointment->id)
+            ->where('status', 'awaiting_payment')
+            ->first();
+        if (! $onDemand) return;
+
+        $appointment->update([
+            'statusUser' => 'Confirmed',
+            'statusPatient' => 'Confirmed',
+            'state' => 'Confirmada',
+            'payment_status' => 'paid',
+        ]);
+        $onDemand->update(['status' => 'confirmed']);
+        $onDemand->patient?->notify(new OnDemandMarketplaceNotification([
+            'title' => 'Tu sesion esta confirmada',
+            'body' => 'El pago fue recibido y la reservacion on-demand quedo confirmada.',
+            'action_url' => rtrim(config('app.perfil_paciente_url'), '/').'/dashboard',
+            'action_label' => 'Ver cita',
+            'kind' => 'on-demand-confirmed',
+            'appointment_id' => $appointment->id,
+        ]));
     }
 
     private function createPaidAppointment(AppointmentCart $cart, ?string $videoCallRoom, string $chargeMode): Appointment

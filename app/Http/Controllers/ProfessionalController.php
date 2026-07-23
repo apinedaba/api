@@ -522,6 +522,7 @@ class ProfessionalController extends Controller
         ];
     }
 
+
     private function publicProfileUrl(User $user): string
     {
         $baseUrl = rtrim(

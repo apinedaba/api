@@ -8,17 +8,28 @@ use Illuminate\Database\Eloquent\Model;
 class PsychologistReview extends Model
 {
     protected $fillable = [
-            
-            'patient_id',
-            'psychologist_id',
-            'name',
-            'email',
-            'email_hash',
-            'device_id',
-            'rating',
-            'comment',
-            'approved'
-            
+        'patient_id',
+        'psychologist_id',
+        'appointment_id',
+        'name',
+        'email',
+        'email_hash',
+        'device_id',
+        'rating',
+        'comment',
+        'approved',
+        'is_anonymous',
+        'professional_response',
+        'published_at',
+        'meta',
+    ];
+
+    protected $casts = [
+        'rating' => 'integer',
+        'approved' => 'boolean',
+        'is_anonymous' => 'boolean',
+        'published_at' => 'datetime',
+        'meta' => 'array',
     ];
 
     public function patient()
@@ -29,5 +40,10 @@ class PsychologistReview extends Model
     public function psychologist()
     {
         return $this->belongsTo(User::class, 'psychologist_id');
+    }
+
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class);
     }
 }

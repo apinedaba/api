@@ -90,6 +90,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Appointment::class, "user", "id");
     }
+    public function onDemandSettings()
+    {
+        return $this->hasOne(OnDemandProfessionalSetting::class);
+    }
+    public function onDemandOffers()
+    {
+        return $this->hasMany(OnDemandOffer::class, 'professional_id');
+    }
     public function subscription()
     {
         return $this->hasOne(Subscription::class);

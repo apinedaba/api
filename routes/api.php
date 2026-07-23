@@ -30,6 +30,8 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OnDemandPatientController;
+use App\Http\Controllers\OnDemandProfessionalController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientExerciseAiController;
 use App\Http\Controllers\PatientMedicationController;
@@ -224,6 +226,11 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated']);
     Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder']);
     Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);
+    Route::get('user/on-demand/settings', [OnDemandProfessionalController::class, 'settings']);
+    Route::put('user/on-demand/settings', [OnDemandProfessionalController::class, 'updateSettings']);
+    Route::get('user/on-demand/offers', [OnDemandProfessionalController::class, 'offers']);
+    Route::post('user/on-demand/offers/{offer}/accept', [OnDemandProfessionalController::class, 'accept']);
+    Route::post('user/on-demand/offers/{offer}/reject', [OnDemandProfessionalController::class, 'reject']);
     Route::post('user/whatsapp/template', [WhatsAppNotificationController::class, 'template']);
     Route::post('user/whatsapp/interactive-buttons', [WhatsAppNotificationController::class, 'interactiveButtons']);
     Route::apiResource('user/whatsapp/templates', WhatsAppTemplateController::class)
@@ -296,6 +303,11 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     // Solicitud de cita creada por el paciente
     Route::get('appointment-requests', [AppointmentRequestController::class, 'indexByPatient']);
     Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
+    Route::get('on-demand/requests', [OnDemandPatientController::class, 'index']);
+    Route::post('on-demand/requests', [OnDemandPatientController::class, 'store']);
+    Route::get('on-demand/requests/{onDemandRequest}', [OnDemandPatientController::class, 'show']);
+    Route::post('on-demand/requests/{onDemandRequest}/select', [OnDemandPatientController::class, 'select']);
+    Route::post('on-demand/requests/{onDemandRequest}/cancel', [OnDemandPatientController::class, 'cancel']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
     Route::post('logout', [PatientAuthController::class, 'logout']);
     Route::get('notifications', [NotificationController::class, 'index']);

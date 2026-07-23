@@ -45,6 +45,11 @@ class Patient extends Authenticatable
         return $this->hasMany(PatientUser::class, 'patient', 'id');
     }
 
+    public function onDemandRequests()
+    {
+        return $this->hasMany(OnDemandRequest::class);
+    }
+
     public function expediente()
     {
         return $this->hasOne(Expediente::class, 'patient_id', 'id');

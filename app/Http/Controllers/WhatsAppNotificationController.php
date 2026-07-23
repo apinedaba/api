@@ -141,7 +141,8 @@ class WhatsAppNotificationController extends Controller
             'message_type' => 'template',
             'phone' => $phone,
             'template' => $data['template'] ?? $whatsApp->templateName($templateKey),
-            'language' => $data['language'] ?? 'es_MX',
+            'language' => $data['language']
+                ?? ($templateKey === 'appointment_reminder' ? 'es' : 'es_MX'),
             'components' => $whatsApp->appointmentTemplateComponents(
                 $appointment,
                 $data['buttons'] ?? ($templateKey === 'appointment_reminder'

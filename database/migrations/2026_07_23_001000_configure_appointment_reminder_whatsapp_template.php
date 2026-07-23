@@ -11,7 +11,7 @@ return new class extends Migration
             ->where('key', 'appointment_reminder')
             ->update([
                 'template_name' => 'confirma_tu_cita',
-                'language' => 'es_MX',
+                'language' => 'es',
                 'body_parameters' => json_encode(['patient_name']),
                 // El payload incluye el ID de la cita y se construye en tiempo de envio.
                 'buttons' => null,

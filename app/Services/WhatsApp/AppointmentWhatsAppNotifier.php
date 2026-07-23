@@ -95,7 +95,9 @@ class AppointmentWhatsAppNotifier
             'message_type' => 'template',
             'phone' => $patient->phone,
             'template' => $template,
-            'language' => $templateConfig?->language ?: 'es_MX',
+            'language' => $templateKey === 'appointment_reminder'
+                ? 'es'
+                : ($templateConfig?->language ?: 'es_MX'),
             'components' => $this->whatsApp->appointmentTemplateComponents(
                 $appointment,
                 $buttons,

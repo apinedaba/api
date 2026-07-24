@@ -133,11 +133,36 @@ class PatientTimelineController extends Controller
     {
         $note = SessionNote::findOrFail($noteId);
 
-        $this->authorizeSession($note->session, auth()->user());
+        $session = Appointment::findOrFail($note->session_id);
+        $this->authorizeSession($session, auth()->user());
+        $this->abortIfArchived($session, auth()->user());
 
         $note->delete();
 
         return response()->json(['message' => 'Nota eliminada']);
+    }
+
+    public function updateNote(Request $request, $noteId)
+    {
+        $note = SessionNote::findOrFail($noteId);
+        $session = Appointment::findOrFail($note->session_id);
+        $psychologist = auth()->user();
+
+        $this->authorizeSession($session, $psychologist);
+        $this->abortIfArchived($session, $psychologist);
+
+        $validated = $request->validate([
+            'content' => 'required|string|max:50000',
+        ]);
+
+        $note->update([
+            'content' => $validated['content'],
+        ]);
+
+        return response()->json([
+            'message' => 'Nota actualizada',
+            'note' => $note->fresh(),
+        ]);
     }
 
     public function streamAttachment($id)

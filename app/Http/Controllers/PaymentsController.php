@@ -6,7 +6,10 @@ use App\Models\Payment;
 use App\Models\Appointment;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class PaymentsController extends Controller
 {
@@ -94,7 +97,7 @@ class PaymentsController extends Controller
                 'payer_type' => ['required', Rule::in(['patient', 'minder'])],
                 'appointment_id' => ['nullable', 'exists:appointments,id'],
                 'patient_id' => ['nullable', 'exists:patients,id'],
-                'amount' => ['required', 'numeric'],
+                'amount' => ['required', 'numeric', 'gt:0'],
                 'currency' => ['nullable', 'string', 'max:10'],
                 'payment_method' => ['required', 'string', 'max:255'],
                 'status' => ['nullable', 'string', 'max:255'],
@@ -106,7 +109,8 @@ class PaymentsController extends Controller
 
             $appointment = null;
             if (!empty($validated['appointment_id'])) {
-                $appointment = Appointment::with(['patient', 'user'])->findOrFail($validated['appointment_id']);
+                $appointment = Appointment::with(['patient', 'cart', 'payments'])->findOrFail($validated['appointment_id']);
+                abort_unless((int) $appointment->user === (int) auth()->id(), 403, 'No puedes registrar pagos en esta sesion.');
             }
 
             $userId = $appointment?->user ?? auth()->id();
@@ -118,14 +122,32 @@ class PaymentsController extends Controller
             $validated['status'] = $validated['status']
                 ?? ((float) $validated['amount'] < 0 ? 'refunded' : 'completed');
 
-            $payment = Payment::create($validated);
+            $payment = DB::transaction(function () use ($validated, $appointment) {
+                $payment = Payment::create($validated);
+
+                if ($appointment) {
+                    $this->syncAppointmentPaymentStatus($appointment->fresh(['cart', 'payments']));
+                }
+
+                return $payment;
+            });
+
+            $summary = $appointment
+                ? $this->appointmentPaymentSummary($appointment->fresh(['cart', 'payments']))
+                : null;
+
             return response()->json([
                 'rasson' => 'El pago se registro exitosamente.',
                 'message' => "Pago registrado",
                 'type' => "success",
-                'payment' => $payment
+                'payment' => $payment,
+                'summary' => $summary,
             ], 200);
         } catch (\Throwable $th) {
+            if ($th instanceof ValidationException || $th instanceof HttpExceptionInterface) {
+                throw $th;
+            }
+
             return response()->json([
                 'rasson' => 'Ocurrio un error al registrar el pago: ' . $th->getMessage(),
                 'message' => "Pago no registrado",
@@ -133,6 +155,56 @@ class PaymentsController extends Controller
             ],  400);
 
         }
+    }
+
+    private function syncAppointmentPaymentStatus(Appointment $appointment): void
+    {
+        $summary = $this->appointmentPaymentSummary($appointment);
+        if ($summary['session_amount'] === null) {
+            return;
+        }
+
+        $paymentStatus = $summary['is_fully_paid'] ? 'paid' : 'pending';
+        $appointment->forceFill(['payment_status' => $paymentStatus])->save();
+
+        if ($appointment->cart) {
+            $appointment->cart->update([
+                'estado' => $summary['is_fully_paid'] ? 'pagado' : 'pendiente',
+            ]);
+        }
+    }
+
+    private function appointmentPaymentSummary(Appointment $appointment): array
+    {
+        $sessionAmount = is_numeric($appointment->cart?->precio)
+            ? round((float) $appointment->cart->precio, 2)
+            : null;
+
+        $settledStatuses = ['completed', 'paid', 'succeeded', 'approved'];
+        $paidAmount = round(
+            $appointment->payments->sum(function (Payment $payment) use ($settledStatuses): float {
+                $status = strtolower((string) $payment->status);
+                $amount = (float) $payment->amount;
+
+                if ($amount < 0 || $status === 'refunded') {
+                    return $amount;
+                }
+
+                return in_array($status, $settledStatuses, true) ? $amount : 0;
+            }),
+            2
+        );
+        $balance = $sessionAmount === null
+            ? null
+            : round(max($sessionAmount - $paidAmount, 0), 2);
+
+        return [
+            'session_amount' => $sessionAmount,
+            'paid_amount' => $paidAmount,
+            'balance_amount' => $balance,
+            'payment_count' => $appointment->payments->count(),
+            'is_fully_paid' => $sessionAmount !== null && $sessionAmount > 0 && $balance <= 0.01,
+        ];
     }
 
     /**

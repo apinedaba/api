@@ -11,7 +11,7 @@
     </h1>
 
     <p style="font-size:15px; color:#333333; margin-bottom:15px;">
-        <strong>Se requiere que vuelvas a subir tus documentos de identidad</strong>
+        <strong>Necesitamos que actualices {{ $documentType ?? 'tus documentos de identidad' }}</strong>
     </p>
 
     <p style="font-size:14px; color:#444444; line-height:1.6;">
@@ -19,23 +19,38 @@
     </p>
 
     <p style="font-size:14px; color:#444444; line-height:1.6;">
-        Te informamos que tu verificación de identidad no pudo ser aprobada. Esto puede deberse a:
+        Te informamos que no pudimos aprobar {{ $documentType ?? 'tus documentos de identidad' }} en esta revisión.
+        Para continuar con la validación, vuelve a subir el documento solicitado desde tu perfil.
     </p>
 
-    <ul style="font-size:14px; color:#444444; line-height:1.6; padding-left:20px;">
-        <li>La imagen no es clara o está borrosa</li>
-        <li>No se puede verificar la información en el documento</li>
-        <li>El documento no es legible</li>
-        <li>La foto no corresponde con los requisitos solicitados</li>
-    </ul>
+    @if (!empty($rejectionReason))
+        <div style="
+            background-color:#fff7ed;
+            border:1px solid #fed7aa;
+            border-radius:8px;
+            padding:14px 16px;
+            margin:18px 0;
+        ">
+            <p style="font-size:13px; color:#9a3412; margin:0 0 6px; font-weight:700;">
+                Motivo indicado por el equipo MindMeet
+            </p>
+            <p style="font-size:14px; color:#444444; line-height:1.6; margin:0;">
+                {{ $rejectionReason }}
+            </p>
+        </div>
+    @else
+        <p style="font-size:14px; color:#444444; line-height:1.6;">
+            Revisa que la imagen sea clara, legible, completa y que corresponda al documento solicitado.
+        </p>
+    @endif
 
     <p style="font-size:14px; color:#444444; line-height:1.6;">
-        Por favor, accede a tu perfil y vuelve a subir las imágenes de {{ $documentType ?? 'tus documentos de identidad' }}
-        con mayor claridad.
+        Por favor, accede a tu perfil y vuelve a subir {{ $documentType ?? 'tus documentos de identidad' }}
+        con buena iluminación, sin cortes y con la información visible.
     </p>
 
     <div style="text-align:center; margin-top:25px;">
-        <a href="{{ $url ?? config('app.frontend_url') . '/perfil' }}"
+        <a href="{{ $url ?? rtrim(config('app.front_url_psicologo') ?: config('app.front_url') ?: config('app.frontend_url'), '/') . '/dashboard' }}"
             style="background-color:#0077b6;
                   color:#ffffff;
                   padding:12px 28px;

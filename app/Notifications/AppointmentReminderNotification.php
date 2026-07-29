@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\User;
+use App\Support\ProfessionalContact;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -21,7 +22,51 @@ class AppointmentReminderNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return filled($notifiable->email) ? ['mail', 'database'] : ['database'];
+        $channels = filled($notifiable->email) ? ['mail', 'database'] : ['database'];
+        $channels[] = 'whatsapp';
+
+        return $channels;
+    }
+
+    public function toWhatsApp(object $notifiable): array
+    {
+        $this->appointment->loadMissing(['patient', 'user']);
+        $isProfessional = $notifiable instanceof User;
+        $patient = $this->appointment->getRelation('patient');
+        $professional = $this->appointment->getRelation('user');
+        $start = Carbon::parse($this->appointment->start)->timezone(config('app.timezone'));
+        $time = str_replace(':00', '', $start->format('g:ia'));
+
+        return [
+            'message_type' => 'template',
+            'phone' => $isProfessional
+                ? ProfessionalContact::whatsapp($notifiable)
+                : (data_get($notifiable->contacto, 'whatsapp') ?: $notifiable->phone),
+            'template' => config('services.whatsapp.templates.appointment_session_reminder', 'cita_recordatorio'),
+            'language' => 'es_MX',
+            'components' => [
+                [
+                    'type' => 'body',
+                    'parameters' => [
+                        [
+                            'type' => 'text',
+                            'text' => $isProfessional
+                                ? ProfessionalContact::templateText((string) ($patient?->name ?: 'tu paciente'))
+                                : ($professional ? ProfessionalContact::publicName($professional) : 'tu profesional'),
+                        ],
+                        ['type' => 'text', 'text' => $time],
+                    ],
+                ],
+            ],
+            'context' => [
+                'appointment_id' => $this->appointment->id,
+                'patient_id' => $patient?->id,
+                'user_id' => $professional?->id,
+                'reminder_key' => $this->reminderKey,
+                'event' => 'appointment_session_reminder',
+                'recipient' => $isProfessional ? 'professional' : 'patient',
+            ],
+        ];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -33,18 +78,17 @@ class AppointmentReminderNotification extends Notification
 
         return (new MailMessage)
             ->subject($isProfessional ? 'MindMeet | Recordatorio de sesion en 30 minutos' : 'MindMeet | Tu sesion comienza en 30 minutos')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line(
-                $isProfessional
+            ->view('email.appointment-reminder', [
+                'name' => $notifiable->name ?? '',
+                'isProfessional' => $isProfessional,
+                'message' => $isProfessional
                     ? "Tienes una sesion con {$counterpart} {$timeLabel}."
-                    : "Tu sesion con {$counterpart} {$timeLabel}."
-            )
-            ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Hora: ' . $start->format('H:i'))
-            ->action(
-                $isProfessional ? 'Ver agenda' : 'Ver sesion',
-                $this->actionUrl($notifiable)
-            );
+                    : "Tu sesion con {$counterpart} {$timeLabel}.",
+                'date' => $start->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'time' => $start->format('H:i'),
+                'actionLabel' => $isProfessional ? 'Ver agenda' : 'Ver sesion',
+                'actionUrl' => $this->actionUrl($notifiable),
+            ]);
     }
 
     public function toArray(object $notifiable): array

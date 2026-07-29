@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Notifications\SubscriptionBillingNotification;
+use App\Notifications\MembershipPaymentFailedWhatsAppNotification;
 use Carbon\Carbon;
 
 class SubscriptionBillingNotificationService
@@ -69,6 +70,7 @@ class SubscriptionBillingNotificationService
             'currency' => $currency,
             'next_retry_at' => $nextRetryAt,
         ]));
+        $user->notify(new MembershipPaymentFailedWhatsAppNotification());
 
         if ($subscription) {
             $subscription->forceFill([

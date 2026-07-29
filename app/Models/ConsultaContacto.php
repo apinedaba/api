@@ -8,6 +8,13 @@ use Illuminate\Notifications\Notifiable;
 class ConsultaContacto extends Model
 {
     use Notifiable;
+
+    public const STATUS_NEW = 'new';
+    public const STATUS_VIEWED = 'viewed';
+    public const STATUS_CONTACTED = 'contacted';
+    public const STATUS_CONVERTED = 'converted';
+    public const STATUS_DISCARDED = 'discarded';
+
     protected $table = 'consultas_contacto';
 
     protected $fillable = [
@@ -19,6 +26,14 @@ class ConsultaContacto extends Model
         'fecha',
         'hora',
         'user_id',
+        'patient_id',
+        'appointment_id',
+        'status',
+        'viewed_at',
+        'contacted_at',
+        'converted_at',
+        'discarded_at',
+        'notes',
         'lead_type',
         'session_package_id',
         'package_name',
@@ -59,6 +74,10 @@ class ConsultaContacto extends Model
         'subtotal_amount' => 'decimal:2',
         'coupon_discount_amount' => 'decimal:2',
         'final_amount' => 'decimal:2',
+        'viewed_at' => 'datetime',
+        'contacted_at' => 'datetime',
+        'converted_at' => 'datetime',
+        'discarded_at' => 'datetime',
     ];
 
     public function user()
@@ -69,5 +88,15 @@ class ConsultaContacto extends Model
     public function sessionPackage()
     {
         return $this->belongsTo(SessionPackage::class);
+    }
+
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
+
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class);
     }
 }

@@ -73,6 +73,22 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'whatsapp' => [
+            'driver' => 'stack',
+            'channels' => ['whatsapp_daily'],
+            'ignore_exceptions' => true,
+        ],
+
+        'whatsapp_daily' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/whatsapp.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'permission' => 0664,
+            'locking' => true,
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

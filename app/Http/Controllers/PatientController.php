@@ -9,6 +9,7 @@ use App\Models\Expediente;
 use App\Notifications\PatientAssignedEmailNotification;
 use App\Notifications\PatientConsentSignedNotification;
 use App\Notifications\SendEmail;
+use App\Services\WhatsApp\PatientInvitationWhatsAppNotifier;
 use App\Support\PatientIdentity;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
@@ -130,6 +131,7 @@ class PatientController extends Controller
         $telefono = $attributes['phone'];
         $patient = PatientIdentity::findByEmailOrPhone($email, $telefono);
         $isNewPatient = $patient === null;
+        $initialPassword = null;
 
         $validationRules = [
             'email' => ['nullable', 'email'],
@@ -169,6 +171,7 @@ class PatientController extends Controller
 
         if ($isNewPatient) {
             $passwordSeed = $request->input('password') ?: $telefono ?: $email;
+            $initialPassword = $passwordSeed;
             $historiaClinica = array_merge($request->input('historiaClinica', []) ?? [], [
                 'clinical_intake' => $request->input('clinical_intake', data_get($data, 'historiaClinica.clinical_intake', [])),
             ]);
@@ -239,11 +242,16 @@ class PatientController extends Controller
         }
 
         if ($enlace) {
-            $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace);
+            $send = $this->sendNotificacionEmailByUser($user, $patient, $enlace, $initialPassword);
+
+            if ($this->shouldSendPatientWhatsApp($request)) {
+                app(PatientInvitationWhatsAppNotifier::class)
+                    ->send($user, $patient, $initialPassword, 'user.patient.store');
+            }
 
             $successMessage = $isNewPatient
-                ? 'El paciente se creó y se le envió una invitación con éxito. Espera a que acepte la invitación para poder agendarle citas.'
-                : 'El paciente existente fue enlazado con éxito a tu cuenta. Se le envió una notificación. Espera a que la acepte para poder agendarle citas.';
+                ? 'El paciente se creó y quedó activo en tu directorio. Se le envió un correo para iniciar sesión en su portal de paciente.'
+                : 'El paciente existente fue enlazado y quedó activo en tu directorio. Se le envió un correo para iniciar sesión en su portal de paciente.';
 
             return response()->json(
                 [
@@ -457,18 +465,26 @@ class PatientController extends Controller
         });
     }
 
-    public function sendNotificacionEmailByUser($user, $patient, $enlace)
+    public function sendNotificacionEmailByUser($user, $patient, $enlace, ?string $initialPassword = null)
     {
         if ($enlace) {
             try {
                 // code...
-                $patient->notify(new PatientAssignedEmailNotification($user, $patient, $enlace));
+                $patient->notify(new PatientAssignedEmailNotification($user, $patient, $enlace, $initialPassword));
                 return true;
             } catch (\Throwable $th) {
                 Log::error($th->getMessage());
                 // throw $th;
             }
         }
+    }
+
+    private function shouldSendPatientWhatsApp(Request $request): bool
+    {
+        return $request->boolean('send_whatsapp')
+            || $request->boolean('send_whatsapp_patient')
+            || $request->boolean('enviar_whatsapp_paciente')
+            || $request->boolean('contacto.enviar_whatsapp_paciente');
     }
 
     public function sendInvitacion($id)
@@ -693,14 +709,21 @@ class PatientController extends Controller
             $response = [
                 'rasson' => 'El usuario se a actualizado correctamente',
                 'message' => 'Usuario actulizado ',
-                'type' => 'success'
+                'type' => 'success',
+                'patient' => $patient->fresh(['connections', 'connections.user']),
             ];
         } catch (\Throwable $th) {
+            Log::error('Error updating patient: ' . $th->getMessage(), [
+                'patient_id' => $patient->id,
+            ]);
+
             $response = [
                 'rasson' => 'El usuario no se a actualizado correctamente',
                 'message' => 'Usuario no actulizado',
                 'type' => 'error'
             ];
+
+            return response()->json($response, 500);
         }
 
         return response()->json($response, 200);

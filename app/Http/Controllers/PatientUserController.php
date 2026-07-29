@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientUser;
 use App\Models\Patient;
+use App\Models\Appointment;
 use App\Services\EmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 
 
 class PatientUserController extends Controller
@@ -73,6 +75,39 @@ class PatientUserController extends Controller
         ], 200);
     }
 
+    public function activateManually($patient): JsonResponse
+    {
+        $relation = $this->resolveRelation($patient);
+
+        if (!$relation) {
+            return response()->json([
+                'message' => 'Paciente no encontrado en tu directorio',
+                'type' => 'error',
+            ], 404);
+        }
+
+        if ($relation->archived_at) {
+            return response()->json([
+                'message' => 'Paciente archivado. Reactivalo antes de activar el vinculo.',
+                'type' => 'error',
+            ], 423);
+        }
+
+        if (!$relation->activo) {
+            $relation->update([
+                'activo' => true,
+                'status' => 'Activado por psicologo',
+                'video_call_room' => $relation->video_call_room ?: 'mindmeet-room-' . Str::uuid(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Paciente activado correctamente',
+            'type' => 'success',
+            'data' => $relation->fresh(['patient', 'expediente']),
+        ], 200);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
@@ -103,7 +138,10 @@ class PatientUserController extends Controller
 
         $enlace = PatientUser::create([
             'user' => $user->id,
-            'patient' => $patient
+            'patient' => $patient,
+            'activo' => true,
+            'status' => 'Vinculado',
+            'video_call_room' => 'mindmeet-room-' . Str::uuid(),
         ]);
 
         if ($enlace) {
@@ -129,7 +167,36 @@ class PatientUserController extends Controller
                 'type' => "error"
             ]);
         }
-        $currentRelation = PatientUser::where('patient', $user->id)->with('user')->get();
+        $currentRelation = PatientUser::where('patient', $user->id)
+            ->where('activo', true)
+            ->whereNull('archived_at')
+            ->with('user')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(1)
+            ->get();
+
+        if ($currentRelation->isEmpty()) {
+            $nextAppointment = Appointment::query()
+                ->with('user')
+                ->where('patient', $user->id)
+                ->where('start', '>=', now())
+                ->orderBy('start')
+                ->first();
+
+            if ($nextAppointment?->user) {
+                return response()->json(data: [[
+                    'id' => 'appointment-'.$nextAppointment->id,
+                    'user' => $nextAppointment->user,
+                    'patient' => $user->id,
+                    'activo' => true,
+                    'status' => 'Cita programada',
+                    'archived_at' => null,
+                    'video_call_room' => $nextAppointment->video_call_room,
+                ]], status: 200);
+            }
+        }
+
         return response()->json(data: $currentRelation, status: 200);
     }
 
@@ -164,7 +231,7 @@ class PatientUserController extends Controller
                 'email.cuenta-activada-paciente',
                 [
                     'name' => $patient->name,
-                    'url' => config('app.frontend_url') . '/iniciar-sesion'
+                    'url' => rtrim(config('app.perfil_paciente_url') ?: 'https://paciente.mindmeet.com.mx', '/') . '/iniciar-sesion'
                 ]
             );
             $response = [

@@ -15,6 +15,7 @@ use App\Models\PatientUser;
 use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
+use App\Notifications\AppointmentRescheduledWhatsAppNotification;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\RecurringAppointmentSeriesNotification;
@@ -683,6 +684,28 @@ class AppointmentController extends Controller
 
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
+        $request->validate([
+            'comments' => ['nullable', 'string'],
+            'objective' => ['nullable', 'string'],
+            'session_description' => ['nullable', 'string'],
+            'pre_session_note' => ['nullable', 'string'],
+            'interventions' => ['nullable', 'string'],
+            'action_plan' => ['nullable', 'string'],
+            'observations' => ['nullable', 'string'],
+            'psychometric_scales' => ['nullable', 'array'],
+            'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string'],
+            'psychometric_scales.*.label' => ['required_with:psychometric_scales', 'string'],
+            'psychometric_scales.*.items' => ['required_with:psychometric_scales', 'array'],
+            'psychometric_scales.*.items.*.id' => ['required', 'string'],
+            'psychometric_scales.*.items.*.label' => ['required', 'string'],
+            'psychometric_scales.*.items.*.value' => ['required', 'integer', 'between:0,3'],
+            'psychometric_scales.*.score' => ['nullable', 'numeric', 'min:0'],
+            'psychometric_scales.*.max_score' => ['nullable', 'numeric', 'min:0'],
+            'psychometric_scales.*.interpretation' => ['nullable', 'string'],
+            'mental_exam' => ['nullable', 'array'],
+            'payment_status' => ['nullable', 'in:pending,paid'],
+        ]);
+
         $originalData = Appointment::with(['user', 'cart', 'patient'])->findOrFail($appointment->id);
         $updatedData = $request->only([
             'title',
@@ -698,6 +721,8 @@ class AppointmentController extends Controller
             'interventions',
             'action_plan',
             'observations',
+            'psychometric_scales',
+            'mental_exam',
             'payment_status',
             'link',
             'video_call_room',
@@ -714,7 +739,13 @@ class AppointmentController extends Controller
                 continue;
             }
 
-            if ((string) $arrayOriginal[$key] !== (string) $value) {
+            $originalValue = $originalData->getAttribute($key);
+            $hasChanged = is_array($originalValue) || is_array($value)
+                ? json_encode($originalValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    !== json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string) $originalValue !== (string) $value;
+
+            if ($hasChanged) {
                 $fieldsToUpdate[$key] = $value;
             }
         }
@@ -785,6 +816,11 @@ class AppointmentController extends Controller
 
             $appointment->refresh();
             $user = User::find($appointment->user);
+
+            if (Carbon::parse($originalData->start)->notEqualTo(Carbon::parse($appointment->start))) {
+                $patient = $appointment->patient()->first();
+                $patient?->notify(new AppointmentRescheduledWhatsAppNotification($appointment));
+            }
 
             if ($appointment->google_event_id && $user && $user->googleAccount) {
                 SyncAppointmentToGoogleCalendar::dispatch($appointment, $user, 'update');
@@ -1188,9 +1224,11 @@ class AppointmentController extends Controller
 
             $start = Carbon::parse($appointment->start);
             $end = Carbon::parse($appointment->end);
+            $professional = $appointment->user()->first();
             $data = [
                 'uuid' => $appointment->public_uuid,
-                'professional' => $appointment->user?->name,
+                'professional' => data_get($professional?->contacto, 'publicname')
+                    ?: $professional?->name,
                 'title' => $appointment->title,
                 'fecha' => $start->format('d/m/Y'),
                 'hora' => $start->format('H:i').' - '.$end->format('H:i'),
@@ -1238,11 +1276,11 @@ class AppointmentController extends Controller
             ];
 
             $originalAppointment = clone $appointment;
-        $appointment->forceFill([
+            $appointment->forceFill([
                 'statusPatient' => 'Reschedule Requested',
                 'state' => 'Reprogramacion solicitada',
                 'notification_meta' => $meta,
-        ])->save();
+            ])->save();
 
             $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
 

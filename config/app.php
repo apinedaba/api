@@ -160,7 +160,7 @@ return [
     'front_url_psicologo' => env('FRONTEND_URL_PSICOLOGO'),
     'front_url_user' => env('FRONTEND_URL_USER'),
     'help_whatsapp_url' => env('HELP_WHATSAPP_URL', 'https://wa.me/5216635385134?text=Hola%20equipo%20MindMeet%2C%20necesito%20ayuda%20con%20mi%20cuenta%20de%20psicologo'),
-    'perfil_paciente_url' => env('PERFIL_PACIENTE_URL', env('APP_FRONT', 'http://localhost:5173')),
+    'perfil_paciente_url' => env('PERFIL_PACIENTE_URL', env('APP_FRONT', 'https://paciente.mindmeet.com.mx')),
 
 
 

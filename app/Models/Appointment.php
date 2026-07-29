@@ -10,6 +10,8 @@ use App\Models\SessionAttachment;
 use App\Models\SessionNote;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
@@ -17,6 +19,7 @@ class Appointment extends Model
 
     protected $fillable = [
         'organization_id',
+        'public_uuid',
         'user',
         'patient',
         'clinic_id',
@@ -33,6 +36,8 @@ class Appointment extends Model
         'interventions',
         'action_plan',
         'observations',
+        'psychometric_scales',
+        'mental_exam',
         'payment_status',
         'video_call_room',
         'cart_id',
@@ -48,6 +53,15 @@ class Appointment extends Model
         'notification_meta',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (Appointment $appointment) {
+            if (Schema::hasColumn($appointment->getTable(), 'public_uuid') && ! $appointment->public_uuid) {
+                $appointment->public_uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     protected $casts = [
         'start' => 'datetime',
         'end' => 'datetime',
@@ -55,6 +69,8 @@ class Appointment extends Model
         'synced_with_google' => 'boolean',
         'extendedProps' => 'array',
         'notification_meta' => 'array',
+        'psychometric_scales' => 'array',
+        'mental_exam' => 'array',
     ];
 
     public function patient_user()

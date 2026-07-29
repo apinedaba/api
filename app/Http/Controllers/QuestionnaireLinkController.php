@@ -46,8 +46,22 @@ class QuestionnaireLinkController extends Controller
     public function showPublicQuestionnaire($token)
     {
         $link = QuestionnaireLink::where('token', $token)
-            ->where('expires_at', '>', now())
-            ->firstOrFail();
+            ->with('questionnaire')
+            ->first();
+
+        if (! $link) {
+            return response()->json([
+                'message' => 'No encontramos este enlace de cuestionario.',
+                'type' => 'not_found',
+            ], 404);
+        }
+
+        if ($link->expires_at && $link->expires_at->isPast()) {
+            return response()->json([
+                'message' => 'Este enlace de cuestionario ya expiro. Solicita a tu especialista que genere uno nuevo.',
+                'type' => 'expired',
+            ], 410);
+        }
 
         $questionnaire = $link;
 
@@ -65,9 +79,22 @@ class QuestionnaireLinkController extends Controller
         if ((int)$user === $userAuth->id) {
             $link = QuestionnaireLink::where('token', $token)->where('user', (int)$user)
             ->with('questionnaireLink')->with('questionnaire')->with('patient')
-            ->firstOrFail();
+            ->first();
+
+            if (! $link) {
+                return response()->json([
+                    'message' => 'No encontramos la respuesta de este cuestionario para tu cuenta.',
+                    'type' => 'not_found',
+                ], 404);
+            }
+
             return response()->json($link, 200);
         }
+
+        return response()->json([
+            'message' => 'No tienes permiso para ver esta respuesta.',
+            'type' => 'forbidden',
+        ], 403);
 
     }
     /**

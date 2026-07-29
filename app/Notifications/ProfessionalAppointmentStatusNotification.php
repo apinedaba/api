@@ -30,12 +30,14 @@ class ProfessionalAppointmentStatusNotification extends Notification
 
         return (new MailMessage)
             ->subject('MindMeet | Actualizacion de sesion')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line(($patient?->name ?: 'Tu paciente') . ' actualizo el estado de la sesion.')
-            ->line('Nuevo estado: ' . $this->statusLabel())
-            ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Hora: ' . $start->format('H:i'))
-            ->action('Ver agenda', $this->professionalAgendaUrl());
+            ->view('email.professional-appointment-status', [
+                'name' => $notifiable->name ?? '',
+                'patientName' => $patient?->name ?: 'Tu paciente',
+                'status' => $this->statusLabel(),
+                'date' => $start->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'time' => $start->format('H:i'),
+                'agendaUrl' => $this->professionalAgendaUrl(),
+            ]);
     }
 
     public function toArray(object $notifiable): array

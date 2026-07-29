@@ -5,15 +5,20 @@ namespace App\Http\Controllers\Minder;
 use App\Http\Controllers\Controller;
 use App\Models\MinderGroup;
 use App\Models\MinderGroupMember;
+use App\Models\MinderConsultationRequest;
 use App\Models\User;
+use App\Services\MinderDirectMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class MinderGroupController extends Controller
 {
+    public function __construct(private readonly MinderDirectMessageService $directMessages)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -189,11 +194,23 @@ class MinderGroupController extends Controller
             'El destinatario no es un psicólogo verificado activo.'
         );
 
-        // ¿Ya existe un DM entre los dos?
         $existing = MinderGroup::where('is_dm', true)
             ->whereHas('groupMembers', fn($q) => $q->where('user_id', $me->id))
             ->whereHas('groupMembers', fn($q) => $q->where('user_id', $targetUserId))
-            ->first();
+            ->exists();
+
+        $acceptedConsultation = MinderConsultationRequest::where('status', MinderConsultationRequest::STATUS_ACCEPTED)
+            ->where(function ($query) use ($me, $targetUserId) {
+                $query->where(fn($pair) => $pair
+                    ->where('sender_id', $me->id)
+                    ->where('recipient_id', $targetUserId))
+                    ->orWhere(fn($pair) => $pair
+                        ->where('sender_id', $targetUserId)
+                        ->where('recipient_id', $me->id));
+            })
+            ->exists();
+
+        abort_if(! $existing && ! $acceptedConsultation, 403, 'La consulta debe ser aceptada antes de abrir el chat.');
 
         $dmPartner = [
             'id'     => $targetUser->id,
@@ -201,30 +218,12 @@ class MinderGroupController extends Controller
             'imagen' => $targetUser->image,
         ];
 
-        if ($existing) {
-            return response()->json([
-                'data'       => array_merge($existing->toArray(), ['dm_partner' => $dmPartner]),
-                'created'    => false,
-            ]);
-        }
-
-        // Crear grupo DM privado
-        $group = MinderGroup::create([
-            'name'        => 'dm:' . min($me->id, $targetUserId) . ':' . max($me->id, $targetUserId),
-            'slug'        => 'dm-' . min($me->id, $targetUserId) . '-' . max($me->id, $targetUserId) . '-' . Str::random(5),
-            'type'        => 'private',
-            'is_dm'       => true,
-            'max_members' => 2,
-            'created_by'  => $me->id,
-            'is_active'   => true,
-        ]);
-
-        MinderGroupMember::create(['group_id' => $group->id, 'user_id' => $me->id,       'role' => 'member']);
-        MinderGroupMember::create(['group_id' => $group->id, 'user_id' => $targetUserId, 'role' => 'member']);
+        $result = $this->directMessages->findOrCreate($me, $targetUser);
+        $group = $result['group'];
 
         return response()->json([
             'data'    => array_merge($group->toArray(), ['dm_partner' => $dmPartner, 'is_member' => true]),
-            'created' => true,
-        ], 201);
+            'created' => $result['created'],
+        ], $result['created'] ? 201 : 200);
     }
 }

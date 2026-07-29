@@ -90,7 +90,8 @@ class StripeController extends Controller
         ]);
 
         $cart->update([
-            'payment_intent_id' => $intent->id
+            'payment_intent_id' => $intent->id,
+            'stripe_payment_status' => $intent->status,
         ]);
 
         return response()->json([
@@ -149,6 +150,7 @@ class StripeController extends Controller
                 'estado' => 'pagado',
                 'payment_intent_id' => null,
                 'stripe_session_id' => null,
+                'stripe_payment_status' => $intent->status,
                 'appointment_id' => $existing->id
             ]);
 
@@ -165,6 +167,7 @@ class StripeController extends Controller
             'estado' => 'pagado',
             'payment_intent_id' => null,
             'stripe_session_id' => null,
+            'stripe_payment_status' => $intent->status,
             'appointment_id' => $appointment->id
         ]);
 
@@ -189,8 +192,8 @@ class StripeController extends Controller
             'end' => $end,
             'title' => 'Sesión con ' . $patientName,
             'statusUser' => 'Pending Approve',
-            'statusPatient' => 'Pending Approve',
-            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Creado',
+            'statusPatient' => 'Confirmed',
+            'state' => $chargeMode === 'avg' ? 'Pendiente de liquidar' : 'Pendiente de confirmacion del profesional',
             'cart_id' => $cart->id,
             'video_call_room' => $videoCallRoom,
             'extendedProps' => [
@@ -391,7 +394,10 @@ class StripeController extends Controller
             'locale' => 'es-419',
         ]);
 
-        $cart->update(['stripe_session_id' => $session->id]);
+        $cart->update([
+            'stripe_session_id' => $session->id,
+            'stripe_payment_status' => 'voucher_generated',
+        ]);
 
         return response()->json(['url' => $session->url, 'clientSecret ' => $session->id]);
     }
@@ -438,6 +444,7 @@ class StripeController extends Controller
         // Guarda referencia para trazabilidad (útil si haces polling desde front)
         $cart->update([
             'payment_intent_id' => $pi->id,
+            'stripe_payment_status' => $pi->status,
             // no cambies estado a pagado; aún no está pagado, solo se generará el voucher
             // si quieres, puedes marcar 'voucher_generado' después del confirm en front
         ]);
@@ -473,7 +480,11 @@ class StripeController extends Controller
                     // Puedes actualizar estado del cart a "voucher_generado" si gustas:
                     if (!empty($session->metadata->appointment_cart_id)) {
                         AppointmentCart::where('id', $session->metadata->appointment_cart_id)
-                            ->update(['estado' => 'voucher_generado']);
+                            ->update([
+                                'estado' => 'voucher_generado',
+                                'stripe_session_id' => $session->id,
+                                'stripe_payment_status' => 'voucher_generated',
+                            ]);
                     }
                     break;
                 }
@@ -508,6 +519,7 @@ class StripeController extends Controller
                                     'estado' => 'pagado',
                                     'payment_intent_id' => $pi->id,
                                     'stripe_session_id' => $cart->stripe_session_id, // lo conservas si quieres
+                                    'stripe_payment_status' => $pi->status,
                                     'appointment_id' => $appointment->id,
                                 ]);
 
@@ -525,9 +537,22 @@ class StripeController extends Controller
                     $meta = (array) ($pi->metadata ?? []);
                     if (($meta['type'] ?? null) === 'session_pago_oxxo' && !empty($meta['appointment_cart_id'])) {
                         AppointmentCart::where('id', $meta['appointment_cart_id'])
-                            ->update(['estado' => 'cancelado']);
+                            ->update([
+                                'estado' => 'cancelado',
+                                'stripe_payment_status' => $pi->status ?: 'payment_failed',
+                            ]);
                         Log::warning("OXXO voucher expiró / fallo. Cart {$meta['appointment_cart_id']} cancelado.");
                     }
+                    break;
+                }
+            case 'account.updated':
+            case 'transfer.created':
+            case 'transfer.reversed':
+            case 'transfer.failed':
+            case 'payout.created':
+            case 'payout.paid':
+            case 'payout.failed': {
+                    app(ProfessionalPayoutController::class)->handleStripeConnectEvent($event);
                     break;
                 }
         }

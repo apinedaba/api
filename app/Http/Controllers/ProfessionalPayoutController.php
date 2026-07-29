@@ -411,6 +411,7 @@ class ProfessionalPayoutController extends Controller
             'paid' => round((float) $paid, 2),
             'currency' => 'MXN',
             'mindmeet_fee_rate' => $this->settlements->mindmeetFeeRate(),
+            'platform_fee_rate' => (float) config('services.checkout.platform_fee_rate', 0.06),
         ];
     }
 
@@ -550,7 +551,7 @@ class ProfessionalPayoutController extends Controller
     {
         $candidates = [
             config('app.front_url_psicologo'),
-            app()->environment('local') ? 'http://localhost:3001' : null,
+            app()->environment('local') ? 'http://localhost:5173' : null,
             config('app.front_url_user'),
             config('app.front_url'),
             config('app.frontend_url'),

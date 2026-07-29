@@ -78,7 +78,9 @@ class HomeContentService
         $homeSlider = $this->decodeJsonField($payload['homeSlider'] ?? '[]', 'homeSlider');
         $this->validateHomeSlider($homeSlider);
         $home['homeSlider'] = $homeSlider;
-        $home['promotions'] = $this->decodeJsonField($payload['promotions'] ?? '[]', 'promotions');
+        $home['promotions'] = $this->normalizePromotions(
+            $this->decodeJsonField($payload['promotions'] ?? '[]', 'promotions')
+        );
         $home['especialidades'] = $this->decodeJsonField($payload['especialidades'] ?? '[]', 'especialidades');
         $home['sections'] = $this->decodeJsonField($payload['sections'] ?? '[]', 'sections');
 
@@ -170,5 +172,31 @@ class HomeContentService
 
             // imageUrlMobile es opcional
         }
+    }
+
+    protected function normalizePromotions(array $promotions): array
+    {
+        return array_map(function ($promotion) {
+            if (!is_array($promotion)) {
+                return $promotion;
+            }
+
+            $imageUrl = trim((string) ($promotion['url'] ?? $promotion['imageUrl'] ?? ''));
+            $link = trim((string) ($promotion['link'] ?? ''));
+
+            $promotion['url'] = $imageUrl;
+
+            if (array_key_exists('imageUrl', $promotion)) {
+                unset($promotion['imageUrl']);
+            }
+
+            if ($link !== '') {
+                $promotion['link'] = $link;
+            } else {
+                unset($promotion['link']);
+            }
+
+            return $promotion;
+        }, $promotions);
     }
 }

@@ -94,7 +94,22 @@ class QuestionnaireController extends Controller
         ]);
         try {
             $qt = QuestionnaireLink::where('token', $questionnaireToken);
-            $response = $qt->firstOrFail();
+            $response = $qt->first();
+
+            if (! $response) {
+                return response()->json([
+                    'message' => 'No encontramos este enlace de cuestionario.',
+                    'type' => 'not_found',
+                ], 404);
+            }
+
+            if ($response->expires_at && $response->expires_at->isPast()) {
+                return response()->json([
+                    'message' => 'Este enlace de cuestionario ya expiro. Solicita a tu especialista que genere uno nuevo.',
+                    'type' => 'expired',
+                ], 410);
+            }
+
             $checkResponse = QuestionnairesLinkResponses::where('questionnaire_link_id', $response->id)->count();
             if ($checkResponse > 0) {
                 $update = $qt->update(["status" => "completed"]);

@@ -17,8 +17,8 @@ class QuestionnaireLink extends Model
         'patient'
     ];
 
-    protected $dates = [
-        'expires_at',
+    protected $casts = [
+        'expires_at' => 'datetime',
     ];
 
     public function questionnaire()

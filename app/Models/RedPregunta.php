@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RedPregunta extends Model
@@ -16,18 +17,26 @@ class RedPregunta extends Model
 
     protected $fillable = [
         'user_id',
+        'category_id',
         'titulo',
         'descripcion',
         'tags',
         'mejor_respuesta_id',
         'views_count',
         'is_active',
+        'status',
+        'close_reason',
+        'close_note',
+        'closed_at',
+        'edited_at',
     ];
 
     protected $casts = [
         'tags'       => 'array',
         'is_active'  => 'boolean',
         'views_count' => 'integer',
+        'closed_at' => 'datetime',
+        'edited_at' => 'datetime',
     ];
 
     // ─── Relaciones ───────────────────────────────────────────────
@@ -36,6 +45,11 @@ class RedPregunta extends Model
     {
         return $this->belongsTo(User::class, 'user_id')
             ->select(['id', 'name', 'image', 'personales']);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(RedCategory::class, 'category_id');
     }
 
     public function respuestas(): HasMany
@@ -52,6 +66,21 @@ class RedPregunta extends Model
     public function mejorRespuesta(): BelongsTo
     {
         return $this->belongsTo(RedRespuesta::class, 'mejor_respuesta_id');
+    }
+
+    public function preferencias(): HasMany
+    {
+        return $this->hasMany(RedQuestionPreference::class, 'pregunta_id');
+    }
+
+    public function votos(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            RedVoto::class,
+            RedRespuesta::class,
+            'pregunta_id',
+            'respuesta_id'
+        )->where('red_respuestas.is_deleted', false);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────

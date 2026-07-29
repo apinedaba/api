@@ -1,10 +1,26 @@
 <?php
 
 use App\Http\Controllers\Minder\MinderGroupController;
+use App\Http\Controllers\Minder\MinderConsultationRequestController;
 use App\Http\Controllers\Minder\MinderMessageController;
 use App\Http\Controllers\Minder\MinderReactionController;
 use App\Http\Controllers\Minder\MinderSupportController;
+use App\Http\Controllers\Minder\MinderSupportAppointmentController;
 use Illuminate\Support\Facades\Route;
+
+// ─────────────────────────────────────────────────────────────────
+//  Soporte MindMeet — disponible para cualquier psicólogo autenticado
+// ─────────────────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])
+    ->prefix('user/minder')
+    ->group(function () {
+        Route::get('support', [MinderSupportController::class, 'show']);
+        Route::post('support/messages', [MinderSupportController::class, 'store'])
+            ->middleware('throttle:minder-messages');
+        Route::get('support-appointments', [MinderSupportAppointmentController::class, 'index']);
+        Route::post('support-appointments', [MinderSupportAppointmentController::class, 'store']);
+        Route::delete('support-appointments/{appointment}', [MinderSupportAppointmentController::class, 'cancel']);
+    });
 
 // ─────────────────────────────────────────────────────────────────
 //  Comunidad Minder — solo psicólogos verificados (approved + activo)
@@ -24,6 +40,14 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'minder_acces
         Route::post('dm', [MinderGroupController::class, 'startDirectMessage']);
         Route::get('search-users', [MinderGroupController::class, 'searchUsers']);
 
+        // Solicitudes de consulta profesional. El chat se crea al aceptar.
+        Route::get('consultation-requests', [MinderConsultationRequestController::class, 'index']);
+        Route::post('consultation-requests', [MinderConsultationRequestController::class, 'store'])
+            ->middleware('throttle:minder-messages');
+        Route::patch('consultation-requests/{consultationRequest}/accept', [MinderConsultationRequestController::class, 'accept']);
+        Route::patch('consultation-requests/{consultationRequest}/reject', [MinderConsultationRequestController::class, 'reject']);
+        Route::delete('consultation-requests/{consultationRequest}', [MinderConsultationRequestController::class, 'cancel']);
+
         // Mensajes del grupo
         Route::get('groups/{minderGroup}/messages', [MinderMessageController::class, 'index']);
         Route::post('groups/{minderGroup}/messages', [MinderMessageController::class, 'store'])
@@ -41,8 +65,4 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'minder_acces
         // Denuncias de mensajes
         Route::post('groups/{minderGroup}/messages/{message}/report', [MinderMessageController::class, 'report']);
 
-        // Soporte Mindmeet (canal directo con el equipo)
-        Route::get('support', [MinderSupportController::class, 'show']);
-        Route::post('support/messages', [MinderSupportController::class, 'store'])
-            ->middleware('throttle:minder-messages');
     });

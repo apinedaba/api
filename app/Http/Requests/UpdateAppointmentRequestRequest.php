@@ -16,6 +16,7 @@ class UpdateAppointmentRequestRequest extends FormRequest
         return [
             'status' => ['required', 'in:approved,rejected'],
             'notes'  => ['nullable', 'string', 'max:1000'],
+            'syncWithGoogle' => ['nullable', 'boolean'],
         ];
     }
 

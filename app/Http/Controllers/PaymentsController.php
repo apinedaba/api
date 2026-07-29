@@ -7,19 +7,49 @@ use App\Models\Appointment;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Services\PaymentSettlementService;
 
 class PaymentsController extends Controller
 {
+    public function __construct(private PaymentSettlementService $settlements)
+    {
+    }
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         $user = auth()->user();
-        $payments = Payment::where('user_id', $user->id)->with(['appointment', 'patient']);
+        $payments = Payment::where('user_id', $user->id)
+            ->with(['appointment', 'patient'])
+            ->latest()
+            ->get()
+            ->map(function (Payment $payment) {
+                $breakdown = $this->settlements->breakdown($payment);
+                $payment->collected_by_mindmeet = $this->settlements->isMindMeetCollected($payment);
+                $payment->session_concluded = $this->settlements->isSessionConcluded($payment);
+                $payment->is_withdrawable = $this->settlements->isWithdrawable($payment);
+                $payment->gross_amount = $breakdown['patient_charge_amount'];
+                $payment->session_amount = $breakdown['session_amount'];
+                $payment->stripe_fee_amount = $breakdown['stripe_fee_amount'];
+                $payment->stripe_fee_is_estimated = $breakdown['stripe_fee_is_estimated'];
+                $payment->mindmeet_fee_rate = $breakdown['mindmeet_fee_rate'];
+                $payment->mindmeet_fee_amount = $breakdown['mindmeet_fee_amount'];
+                $payment->net_psychologist_amount = $breakdown['net_psychologist_amount'];
+                $payment->availability_status = $payment->is_withdrawable ? 'available' : 'held';
+
+                return $payment;
+            });
+
         return response()->json([
-            'payments'=> $payments->get(),
-            'total' => $payments->sum('amount')
+            'payments'=> $payments,
+            'total' => round($payments->sum('net_psychologist_amount'), 2),
+            'gross_total' => round($payments->sum('gross_amount'), 2),
+            'mindmeet_fee_total' => round($payments->sum('mindmeet_fee_amount'), 2),
+            'net_total' => round($payments->sum('net_psychologist_amount'), 2),
+            'withdrawable_total' => round($payments->where('is_withdrawable', true)->sum('net_psychologist_amount'), 2),
+            'manual_total' => round($payments->where('collected_by_mindmeet', false)->sum('net_psychologist_amount'), 2),
+            'mindmeet_fee_rate' => $this->settlements->mindmeetFeeRate(),
         ], 200);
 
     }

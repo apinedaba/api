@@ -32,6 +32,7 @@ return [
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),
+        'mindmeet_fee_rate' => (float) env('MINDMEET_PROFESSIONAL_COMMISSION_RATE', 0.10),
     ],
 
     'ses' => [

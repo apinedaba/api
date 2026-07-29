@@ -29,6 +29,7 @@ use App\Models\Payment;
 use App\Notifications\SessionPaymentRegisteredNotification;
 use App\Services\TwilioWhatsAppService;
 use Carbon\Carbon;
+use App\Services\PaymentSettlementService;
 
 class StripeController extends Controller
 {
@@ -36,11 +37,13 @@ class StripeController extends Controller
     protected $service;
     protected $subscriptionStatusService;
     protected $pricingService;
+    protected $settlements;
 
     public function __construct(
         AppointmentService $service,
         SubscriptionStatusService $subscriptionStatusService,
-        CheckoutPricingService $pricingService
+        CheckoutPricingService $pricingService,
+        PaymentSettlementService $settlements
     )
     {
         // Usa tu secret actual (puede ser el mismo en local y prod, tú ya lo tenías así)
@@ -48,6 +51,7 @@ class StripeController extends Controller
         $this->service = $service;
         $this->subscriptionStatusService = $subscriptionStatusService;
         $this->pricingService = $pricingService;
+        $this->settlements = $settlements;
     }
 
     public function createPaymentIntent(Request $request)
@@ -122,7 +126,10 @@ class StripeController extends Controller
                 : response()->json(['message' => 'No se encontró carrito o cita'], 404);
         }
 
-        $intent = PaymentIntent::retrieve($intentId);
+        $intent = PaymentIntent::retrieve([
+            'id' => $intentId,
+            'expand' => ['charges.data.balance_transaction'],
+        ]);
         if ($intent->status !== 'succeeded') {
             return response()->json(['message' => 'El pago no fue exitoso'], 402);
         }
@@ -217,8 +224,10 @@ class StripeController extends Controller
             'charge_subtotal_amount' => $pricing['charge_subtotal_amount'],
             'platform_fee_rate' => $pricing['platform_fee_rate'],
             'platform_fee_amount' => $pricing['platform_fee_amount'],
+            'stripe_fee_amount' => $this->stripeFeeFromIntent($intent),
+            'mindmeet_fee_rate' => $this->settlements->mindmeetFeeRate(),
             'total_charge_amount' => $pricing['total_charge_amount'],
-            'psychologist_amount' => $pricing['psychologist_amount'],
+            'psychologist_amount' => null,
             'remaining_balance_amount' => $pricing['remaining_balance_amount'],
             'charge_mode' => $pricing['charge_mode'],
             'payout_status' => $pricing['payout_status'],
@@ -234,6 +243,8 @@ class StripeController extends Controller
             ['stripe_payment_id' => $intent->id],
             $paymentPayload
         );
+        $payment->loadMissing('appointment');
+        $this->settlements->synchronizeSettlementFields($payment);
 
         if ($payment->wasRecentlyCreated) {
             try {
@@ -263,6 +274,21 @@ class StripeController extends Controller
         }
 
         return $payment;
+    }
+
+    private function stripeFeeFromIntent(PaymentIntent $intent): ?float
+    {
+        $balanceTransaction = data_get($intent, 'charges.data.0.balance_transaction');
+
+        if (is_object($balanceTransaction) && isset($balanceTransaction->fee)) {
+            return round(((float) $balanceTransaction->fee) / 100, 2);
+        }
+
+        if (is_array($balanceTransaction) && isset($balanceTransaction['fee'])) {
+            return round(((float) $balanceTransaction['fee']) / 100, 2);
+        }
+
+        return null;
     }
 
     private function paymentRegisteredWhatsAppMessage(Appointment $appointment, Payment $payment): string
@@ -795,7 +821,7 @@ class StripeController extends Controller
     {
         $candidates = [
             config('app.front_url_psicologo'),
-            app()->environment('local') ? 'http://localhost:5173' : null,
+            app()->environment('local') ? 'http://localhost:3001' : null,
             config('app.front_url_user'),
             config('app.front_url'),
             config('app.frontend_url'),
@@ -809,7 +835,7 @@ class StripeController extends Controller
             }
         }
 
-        return app()->environment('local') ? 'http://localhost:5173' : 'https://minder.mindmeet.com.mx';
+        return app()->environment('local') ? 'http://localhost:3001' : 'https://minder.mindmeet.com.mx';
     }
 
     protected function resolvePatientFrontendUrl(): string

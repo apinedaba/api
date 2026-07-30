@@ -221,6 +221,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::resource('user/appointments', AppointmentController::class);
+    Route::post('user/appointments/{appointment}/start', [AppointmentController::class, 'startSession'])
+        ->middleware('throttle:6,1');
     Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated']);
     Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder']);
     Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);
@@ -290,6 +292,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
     Route::get('appointments/patient', [AppointmentController::class, 'getAppoinmentsByPatient']);
     Route::get('appointments/{id}', [AppointmentController::class, 'showABP']);
+    Route::get('appointments/{appointment}/start-code', [AppointmentController::class, 'patientSessionStartCode']);
     Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'patientUpdateStatus']);
     Route::post('appointments/{appointment}/reschedule', [AppointmentController::class, 'patientRequestReschedule']);
     Route::post('appointments/{appointment}/payment-proof', [AppointmentController::class, 'patientUploadPaymentProof']);

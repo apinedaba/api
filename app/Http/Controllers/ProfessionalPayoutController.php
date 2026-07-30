@@ -13,12 +13,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
+use App\Services\PaymentSettlementService;
 
 class ProfessionalPayoutController extends Controller
 {
     private StripeClient $stripe;
 
-    public function __construct()
+    public function __construct(private PaymentSettlementService $settlements)
     {
         $this->stripe = new StripeClient(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
     }
@@ -175,10 +176,20 @@ class ProfessionalPayoutController extends Controller
                 $this->createConnectedAccountPayout($withdrawal, $user);
             }
         } catch (\Throwable $exception) {
+            $stripeCode = $exception instanceof ApiErrorException ? $exception->getStripeCode() : null;
+            $insufficientFunds = in_array($stripeCode, ['balance_insufficient', 'insufficient_funds'], true)
+                || str_contains(strtolower($exception->getMessage()), 'insufficient available funds');
+            $stripeTestMode = str_starts_with((string) config('services.stripe.secret_key'), 'sk_test_');
+            $publicMessage = $insufficientFunds
+                ? ($stripeTestMode
+                    ? 'La cuenta de Stripe en modo de prueba no tiene saldo disponible. Realiza un pago de prueba con la tarjeta 4000 0000 0000 0077 y vuelve a solicitar el retiro.'
+                    : 'Stripe todavía no tiene fondos disponibles suficientes para procesar este retiro. Intenta nuevamente cuando el saldo pase de pendiente a disponible.')
+                : 'No se pudo procesar el retiro en Stripe.';
+
             $withdrawal->update([
                 'status' => ProfessionalWithdrawal::STATUS_FAILED,
                 'failed_at' => now(),
-                'failure_code' => $exception instanceof ApiErrorException ? $exception->getStripeCode() : null,
+                'failure_code' => $stripeCode,
                 'failure_message' => $exception->getMessage(),
             ]);
 
@@ -204,8 +215,10 @@ class ProfessionalPayoutController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'No se pudo procesar el retiro en Stripe.',
-                'reason' => $exception->getMessage(),
+                'message' => $publicMessage,
+                'reason' => $publicMessage,
+                'error_code' => $insufficientFunds ? 'stripe_balance_insufficient' : ($stripeCode ?: 'stripe_withdrawal_failed'),
+                'retryable' => $insufficientFunds,
                 'withdrawal' => $withdrawal->fresh(),
             ], 422);
         }
@@ -377,13 +390,15 @@ class ProfessionalPayoutController extends Controller
         $available = 0.0;
         $gross = 0.0;
         $mindmeetFees = 0.0;
+        $stripeFees = 0.0;
         $pending = 0.0;
         $paid = 0.0;
 
         foreach ($this->withdrawablePayments($user) as $payment) {
-            $gross += (float) $payment->amount;
-            $netAmount = $this->netPsychologistAmount($payment);
-            $mindmeetFees += max((float) $payment->amount - $netAmount, 0);
+            $breakdown = $this->settlements->breakdown($payment);
+            $gross += $breakdown['patient_charge_amount'];
+            $stripeFees += $breakdown['stripe_fee_amount'];
+            $mindmeetFees += $breakdown['mindmeet_fee_amount'];
             $available += $this->availablePaymentAmount($payment);
         }
 
@@ -402,10 +417,12 @@ class ProfessionalPayoutController extends Controller
         return [
             'available' => round($available, 2),
             'gross_unwithdrawn' => round($gross, 2),
+            'stripe_fee_unwithdrawn' => round($stripeFees, 2),
             'mindmeet_fee_unwithdrawn' => round($mindmeetFees, 2),
             'pending' => round((float) $pending, 2),
             'paid' => round((float) $paid, 2),
             'currency' => 'MXN',
+            'mindmeet_fee_rate' => $this->settlements->mindmeetFeeRate(),
             'platform_fee_rate' => (float) config('services.checkout.platform_fee_rate', 0.06),
         ];
     }
@@ -413,48 +430,26 @@ class ProfessionalPayoutController extends Controller
     private function withdrawablePayments(User $user)
     {
         return Payment::query()
-            ->with(['withdrawals' => fn ($query) => $query->where('professional_withdrawals.status', '!=', ProfessionalWithdrawal::STATUS_FAILED)])
+            ->with([
+                'appointment',
+                'withdrawals' => fn ($query) => $query->where('professional_withdrawals.status', '!=', ProfessionalWithdrawal::STATUS_FAILED),
+            ])
             ->where('user_id', $user->id)
             ->where('status', 'completed')
             ->where('amount', '>', 0)
             ->oldest()
             ->get()
-            ->filter(fn (Payment $payment) => $this->isMindMeetCollectedPayment($payment))
+            ->filter(fn (Payment $payment) => $this->settlements->isWithdrawable($payment))
             ->filter(fn (Payment $payment) => $this->availablePaymentAmount($payment) > 0.009)
             ->values();
     }
 
     private function availablePaymentAmount(Payment $payment): float
     {
-        $baseAmount = $this->netPsychologistAmount($payment);
+        $baseAmount = $this->settlements->breakdown($payment)['net_psychologist_amount'];
         $allocated = $payment->withdrawals->sum(fn ($withdrawal) => (float) $withdrawal->pivot->amount);
 
         return round(max($baseAmount - $allocated, 0), 2);
-    }
-
-    private function netPsychologistAmount(Payment $payment): float
-    {
-        if ($payment->psychologist_amount !== null) {
-            return round((float) $payment->psychologist_amount, 2);
-        }
-
-        if ($payment->platform_fee_amount !== null) {
-            return round(max((float) $payment->amount - (float) $payment->platform_fee_amount, 0), 2);
-        }
-
-        if ($this->isMindMeetCollectedPayment($payment)) {
-            $feeRate = (float) config('services.checkout.platform_fee_rate', 0.06);
-
-            return round(((float) $payment->amount) / (1 + $feeRate), 2);
-        }
-
-        return round((float) $payment->amount, 2);
-    }
-
-    private function isMindMeetCollectedPayment(Payment $payment): bool
-    {
-        return filled($payment->stripe_payment_id)
-            && in_array(strtolower((string) $payment->payment_method), ['card', 'oxxo', 'stripe'], true);
     }
 
     private function allocatePaymentsForAmount(User $user, float $amount): array

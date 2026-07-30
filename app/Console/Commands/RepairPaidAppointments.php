@@ -2,11 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Controllers\StripeController;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
 use App\Services\AppointmentService;
+use App\Services\CheckoutPricingService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Stripe\PaymentIntent;
+use Stripe\Stripe;
 
 class RepairPaidAppointments extends Command
 {
@@ -14,30 +19,71 @@ class RepairPaidAppointments extends Command
 
     protected $description = 'Repair paid appointment carts that are missing an agenda session or video room.';
 
-    public function handle(AppointmentService $appointmentService): int
+    public function handle(
+        AppointmentService $appointmentService,
+        CheckoutPricingService $pricingService,
+        StripeController $stripeController
+    ): int
     {
         $created = 0;
         $updated = 0;
 
         AppointmentCart::with(['patient', 'user'])
-            ->where('estado', 'pagado')
+            ->where(function ($query) {
+                $query->where('estado', 'pagado')
+                    ->orWhereNotNull('payment_intent_id');
+            })
             ->orderBy('id')
-            ->chunkById(100, function ($carts) use ($appointmentService, &$created, &$updated) {
+            ->chunkById(100, function ($carts) use ($appointmentService, $pricingService, $stripeController, &$created, &$updated) {
                 foreach ($carts as $cart) {
                     if (!$cart->user_id || !$cart->patient_id || !$cart->fecha || !$cart->hora) {
                         continue;
                     }
 
-                    $relation = $appointmentService->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
                     $appointment = Appointment::where('cart_id', $cart->id)->first();
+                    if (! $appointment && filled($cart->payment_intent_id)) {
+                        try {
+                            Stripe::setApiKey(config('services.stripe.secret_key'));
+                            $intent = PaymentIntent::retrieve([
+                                'id' => $cart->payment_intent_id,
+                                'expand' => ['charges.data.balance_transaction'],
+                            ]);
+
+                            if ($intent->status === 'succeeded') {
+                                $chargeMode = $pricingService->normalizeChargeMode(
+                                    data_get($intent, 'metadata.charge_mode') ?: $cart->charge_mode
+                                );
+                                $pricing = $pricingService->buildFromCart($cart, $chargeMode);
+                                $stripeController->finalizeSuccessfulSessionPayment(
+                                    $cart->id,
+                                    $intent,
+                                    $pricing,
+                                    str_contains((string) data_get($intent, 'metadata.type'), 'oxxo') ? 'oxxo' : 'card'
+                                );
+                                $created++;
+                                continue;
+                            }
+                        } catch (\Throwable $exception) {
+                            Log::warning('Could not reconcile paid appointment cart', [
+                                'cart_id' => $cart->id,
+                                'payment_intent_id' => $cart->payment_intent_id,
+                                'message' => $exception->getMessage(),
+                            ]);
+                        }
+                    }
 
                     if (!$appointment) {
+                        if ($cart->estado !== 'pagado') {
+                            continue;
+                        }
+                        $relation = $appointmentService->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
                         $appointment = $this->createAppointmentFromCart($cart, $relation->video_call_room);
                         $cart->forceFill(['appointment_id' => $appointment->id])->save();
                         $created++;
                         continue;
                     }
 
+                    $relation = $appointmentService->ensureRelationshipAndRoom($cart->user_id, $cart->patient_id);
                     $updates = [];
                     if (!$appointment->video_call_room && $relation->video_call_room) {
                         $updates['video_call_room'] = $relation->video_call_room;

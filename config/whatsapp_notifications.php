@@ -1,0 +1,152 @@
+<?php
+
+return [
+    'recipients' => [
+        'patient' => 'Paciente',
+        'professional' => 'Psicólogo',
+    ],
+
+    'events' => [
+        'appointment_created' => [
+            'label' => 'Cita creada',
+            'description' => 'Se crea una cita desde MindMeet o el portal público.',
+            'recipients' => ['patient', 'professional'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'date' => 'Fecha de la cita (variable existente)',
+                'time' => 'Hora de la cita (variable existente)',
+                'appointment_end_time' => 'Hora de término',
+                'appointment_title' => 'Título de la cita',
+                'appointment_url' => 'URL pública de la cita',
+            ],
+        ],
+        'session_start_code' => [
+            'label' => 'Código de inicio de sesión',
+            'description' => 'Envía al paciente el código secreto necesario para iniciar la sesión.',
+            'recipients' => ['patient'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'session_start_code' => 'Código secreto de inicio',
+            ],
+        ],
+        'appointment_reminder' => [
+            'label' => 'Recordatorio de cita',
+            'description' => 'Recordatorio previo a una cita.',
+            'recipients' => ['patient', 'professional'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'counterpart_name' => 'Nombre de la otra persona',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'date' => 'Fecha de la cita (variable existente)',
+                'time' => 'Hora de la cita (variable existente)',
+                'appointment_url' => 'URL pública de la cita',
+            ],
+        ],
+        'appointment_cancelled' => [
+            'label' => 'Cita cancelada',
+            'description' => 'Una cita es cancelada.',
+            'recipients' => ['patient', 'professional'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'date' => 'Fecha de la cita (variable existente)',
+                'time' => 'Hora de la cita (variable existente)',
+                'appointment_title' => 'Título de la cita',
+            ],
+        ],
+        'appointment_rescheduled' => [
+            'label' => 'Cita reprogramada',
+            'description' => 'La fecha u hora de una cita cambia.',
+            'recipients' => ['patient', 'professional'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'appointment_date' => 'Nueva fecha',
+                'appointment_time' => 'Nueva hora',
+                'new_date' => 'Nueva fecha (variable existente)',
+                'appointment_url' => 'URL pública de la cita',
+            ],
+        ],
+        'appointment_session_reminder' => [
+            'label' => 'Recordatorio inmediato de sesión',
+            'description' => 'Aviso cercano a la hora de la sesión para paciente o psicólogo.',
+            'recipients' => ['patient', 'professional'],
+            'variables' => [
+                'counterpart_name' => 'Nombre de la otra persona',
+                'session_time' => 'Fecha y hora de la sesión',
+                'patient_name' => 'Nombre del paciente',
+                'professional_public_name' => 'Nombre público del psicólogo',
+            ],
+        ],
+        'daily_appointments' => [
+            'label' => 'Agenda diaria',
+            'description' => 'Resumen diario de citas para el psicólogo.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'appointment_count' => 'Cantidad de citas',
+                'patient_schedule' => 'Listado de pacientes y horarios',
+            ],
+        ],
+        'patient_invitation' => [
+            'label' => 'Invitación de paciente',
+            'description' => 'Se invita a un paciente a usar MindMeet.',
+            'recipients' => ['patient'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+                'patient_portal_url' => 'URL del portal del paciente',
+            ],
+        ],
+        'membership_payment_failed' => [
+            'label' => 'Pago de membresía fallido',
+            'description' => 'Falla el cobro de membresía de un psicólogo.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'professional_name' => 'Nombre del psicólogo',
+                'professional_public_name' => 'Nombre público del psicólogo',
+            ],
+        ],
+        'new_lead' => [
+            'label' => 'Nuevo lead',
+            'description' => 'Avisa al psicólogo cuando recibe un contacto desde MindMeet.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'professional_name' => 'Nombre del psicólogo',
+                'lead_name' => 'Nombre del posible paciente',
+                'lead_type' => 'Servicio de interés',
+                'lead_date' => 'Fecha solicitada',
+                'lead_phone' => 'Teléfono del posible paciente',
+                'leads_url' => 'URL del módulo de leads',
+            ],
+        ],
+        'session_payment_registered' => [
+            'label' => 'Pago de sesión registrado',
+            'description' => 'Avisa al psicólogo cuando se registra el pago de una sesión.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'professional_name' => 'Nombre del psicólogo',
+                'patient_name' => 'Nombre del paciente',
+                'payment_amount' => 'Monto pagado',
+                'payment_concept' => 'Concepto del pago',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'agenda_url' => 'URL de la agenda',
+            ],
+        ],
+    ],
+];

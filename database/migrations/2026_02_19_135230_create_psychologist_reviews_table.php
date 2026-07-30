@@ -10,18 +10,14 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('psychologist_reviews', function (Blueprint $table) {
-            $table->foreignId('psychologist_id')->constrained('users')->onDelete('cascade'); // assuming psychologists are in `users`
+        Schema::table('psychologist_reviews', function (Blueprint $table) {
             $table->string('name');
             $table->string('email');
             $table->string('email_hash', 64);
             $table->string('device_id')->nullable();
-            $table->smallInteger('rating');
-            $table->text('comment')->nullable();
             $table->boolean('approved')->default(true);
             $table->unique(['psychologist_id', 'email_hash']);
             $table->id();
-            $table->timestamps();
         });
     }
 

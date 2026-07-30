@@ -32,6 +32,7 @@ return [
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),
+        'mindmeet_fee_rate' => (float) env('MINDMEET_PROFESSIONAL_COMMISSION_RATE', 0.10),
     ],
 
     'ses' => [
@@ -67,13 +68,6 @@ return [
     ],
     'brevo' => [
         'sms_key' => env('BREVO_SMS_KEY'),
-    ],
-
-    'twilio' => [
-        'account_sid' => env('TWILIO_ACCOUNT_SID'),
-        'auth_token' => env('TWILIO_AUTH_TOKEN'),
-        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
-        'enabled' => env('TWILIO_WHATSAPP_ENABLED', false),
     ],
 
     'whatsapp' => [

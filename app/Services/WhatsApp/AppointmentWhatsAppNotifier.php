@@ -29,12 +29,25 @@ class AppointmentWhatsAppNotifier
         return $this->dispatchAppointmentTemplate($appointment, 'appointment_cancelled', $source);
     }
 
+    public function appointmentRescheduled(Appointment $appointment, string $source = 'appointments.rescheduled'): bool
+    {
+        return $this->dispatchAppointmentTemplate($appointment, 'appointment_rescheduled', $source);
+    }
+
+    public function sessionStartCode(Appointment $appointment, string $source = 'appointments.start-code'): bool
+    {
+        return $this->dispatchAppointmentTemplate($appointment, 'session_start_code', $source);
+    }
+
     protected function dispatchAppointmentTemplate(Appointment $appointment, string $templateKey, string $source): bool
     {
         $appointment->loadMissing(['patient', 'user']);
         $patient = $appointment->patient()->first();
+        $professional = $appointment->user()->first();
         $rule = $this->notificationRule($templateKey);
-        $resolvedTemplateKey = $rule?->whatsapp_template_key ?: $templateKey;
+        $resolvedTemplateKey = $rule?->whatsapp_template_key;
+        $recipientType = $rule?->recipient ?: 'patient';
+        $recipient = $recipientType === 'professional' ? $professional : $patient;
 
         Log::channel('whatsapp')->info('WhatsApp appointment notification flow started', [
             'source' => $source,
@@ -45,24 +58,27 @@ class AppointmentWhatsAppNotifier
             'user_id' => $appointment->user,
             'has_patient' => (bool) $patient,
             'has_patient_phone' => filled($patient?->phone),
+            'recipient' => $recipientType,
+            'has_recipient_phone' => filled($recipient?->phone),
             'rule_active' => $rule?->is_active,
             'rule_channels' => $rule?->channels,
         ]);
 
-        if ($rule && ! $rule->sendsTo('whatsapp')) {
+        if (! $rule || ! $rule->sendsTo('whatsapp') || ! filled($resolvedTemplateKey)) {
             Log::channel('whatsapp')->info('WhatsApp appointment notification skipped by rule', [
                 'source' => $source,
                 'event' => $templateKey,
                 'appointment_id' => $appointment->id,
-                'rule_id' => $rule->id,
-                'channels' => $rule->channels,
+                'rule_id' => $rule?->id,
+                'channels' => $rule?->channels,
+                'has_template_assignment' => filled($resolvedTemplateKey),
             ]);
 
             return false;
         }
 
-        if (! $patient) {
-            Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: patient not found', [
+        if (! $recipient) {
+            Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: recipient not found', [
                 'source' => $source,
                 'event' => $templateKey,
                 'appointment_id' => $appointment->id,
@@ -71,44 +87,51 @@ class AppointmentWhatsAppNotifier
             return false;
         }
 
-        if (! filled($patient->phone)) {
-            Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: missing patient phone', [
+        if (! filled($recipient->phone)) {
+            Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: missing recipient phone', [
                 'source' => $source,
                 'event' => $templateKey,
                 'appointment_id' => $appointment->id,
-                'patient_id' => $patient->id,
+                'recipient' => $recipientType,
+                'recipient_id' => $recipient->id,
             ]);
 
             return false;
         }
 
-        $template = $this->whatsApp->templateName($resolvedTemplateKey);
         $templateConfig = $this->templateConfig($resolvedTemplateKey);
+        if (! $templateConfig || ! filled($templateConfig->template_name)) {
+            Log::channel('whatsapp')->info('WhatsApp appointment notification skipped: template not configured', [
+                'event' => $templateKey,
+                'template_key' => $resolvedTemplateKey,
+                'appointment_id' => $appointment->id,
+            ]);
+
+            return false;
+        }
+
+        $template = $templateConfig->template_name;
         $buttons = $templateConfig?->buttons ?: $this->defaultButtons($appointment, $templateKey);
-        $bodyParameterKeys = match ($templateKey) {
-            'appointment_created' => ['patient_name', 'professional_public_name', 'date', 'time'],
-            'appointment_reminder' => ['patient_name'],
-            default => $templateConfig?->body_parameters ?: [],
-        };
+        $bodyParameterKeys = $templateConfig->body_parameters ?: [];
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
-            'phone' => $patient->phone,
+            'phone' => $recipient->phone,
             'template' => $template,
-            'language' => $templateKey === 'appointment_reminder'
-                ? 'es'
-                : ($templateConfig?->language ?: 'es_MX'),
+            'language' => $templateConfig->language ?: 'es_MX',
             'components' => $this->whatsApp->appointmentTemplateComponents(
                 $appointment,
                 $buttons,
-                $bodyParameterKeys
+                $bodyParameterKeys,
+                $recipientType
             ),
             'context' => [
                 'appointment_id' => $appointment->id,
-                'patient_id' => $patient->id,
+                'patient_id' => $patient?->id,
                 'user_id' => $appointment->user,
                 'event' => $templateKey,
                 'template_key' => $resolvedTemplateKey,
+                'recipient' => $recipientType,
                 'source' => $source,
             ],
         ]);
@@ -117,7 +140,8 @@ class AppointmentWhatsAppNotifier
             'source' => $source,
             'event' => $templateKey,
             'appointment_id' => $appointment->id,
-            'patient_id' => $patient->id,
+            'patient_id' => $patient?->id,
+            'recipient' => $recipientType,
             'template' => $template,
         ]);
 

@@ -9,10 +9,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use App\Services\PaymentSettlementService;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class PaymentsController extends Controller
 {
+    public function __construct(private PaymentSettlementService $settlements)
+    {
+    }
     /**
      * Display a listing of the resource.
      */
@@ -21,13 +25,21 @@ class PaymentsController extends Controller
         $user = auth()->user();
         $payments = Payment::where('user_id', $user->id)
             ->with(['appointment', 'patient'])
+            ->latest()
             ->get()
             ->map(function (Payment $payment) {
-                $payment->collected_by_mindmeet = $this->isMindMeetCollectedPayment($payment);
-                $payment->is_withdrawable = $payment->collected_by_mindmeet && $payment->status === 'completed';
-                $payment->gross_amount = round((float) $payment->amount, 2);
-                $payment->mindmeet_fee_amount = $this->mindmeetFeeAmount($payment);
-                $payment->net_psychologist_amount = $this->netPsychologistAmount($payment);
+                $breakdown = $this->settlements->breakdown($payment);
+                $payment->collected_by_mindmeet = $this->settlements->isMindMeetCollected($payment);
+                $payment->session_concluded = $this->settlements->isSessionConcluded($payment);
+                $payment->is_withdrawable = $this->settlements->isWithdrawable($payment);
+                $payment->gross_amount = $breakdown['patient_charge_amount'];
+                $payment->session_amount = $breakdown['session_amount'];
+                $payment->stripe_fee_amount = $breakdown['stripe_fee_amount'];
+                $payment->stripe_fee_is_estimated = $breakdown['stripe_fee_is_estimated'];
+                $payment->mindmeet_fee_rate = $breakdown['mindmeet_fee_rate'];
+                $payment->mindmeet_fee_amount = $breakdown['mindmeet_fee_amount'];
+                $payment->net_psychologist_amount = $breakdown['net_psychologist_amount'];
+                $payment->availability_status = $payment->is_withdrawable ? 'available' : 'held';
 
                 return $payment;
             });
@@ -40,43 +52,10 @@ class PaymentsController extends Controller
             'net_total' => round($payments->sum('net_psychologist_amount'), 2),
             'withdrawable_total' => round($payments->where('is_withdrawable', true)->sum('net_psychologist_amount'), 2),
             'manual_total' => round($payments->where('collected_by_mindmeet', false)->sum('net_psychologist_amount'), 2),
+            'mindmeet_fee_rate' => $this->settlements->mindmeetFeeRate(),
             'platform_fee_rate' => (float) config('services.checkout.platform_fee_rate', 0.06),
         ], 200);
 
-    }
-
-    private function netPsychologistAmount(Payment $payment): float
-    {
-        if ($payment->psychologist_amount !== null) {
-            return round((float) $payment->psychologist_amount, 2);
-        }
-
-        if ($payment->platform_fee_amount !== null) {
-            return round(max((float) $payment->amount - (float) $payment->platform_fee_amount, 0), 2);
-        }
-
-        if ($this->isMindMeetCollectedPayment($payment)) {
-            $feeRate = (float) config('services.checkout.platform_fee_rate', 0.06);
-
-            return round(((float) $payment->amount) / (1 + $feeRate), 2);
-        }
-
-        return round((float) $payment->amount, 2);
-    }
-
-    private function mindmeetFeeAmount(Payment $payment): float
-    {
-        if ($payment->platform_fee_amount !== null) {
-            return round((float) $payment->platform_fee_amount, 2);
-        }
-
-        return round(max((float) $payment->amount - $this->netPsychologistAmount($payment), 0), 2);
-    }
-
-    private function isMindMeetCollectedPayment(Payment $payment): bool
-    {
-        return filled($payment->stripe_payment_id)
-            && in_array(strtolower((string) $payment->payment_method), ['card', 'oxxo', 'stripe'], true);
     }
 
     /**

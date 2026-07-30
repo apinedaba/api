@@ -14,6 +14,7 @@ class SessionNote extends Model
         'psychologist_id',
         'content',
         'type',
+        'source',
     ];
 
     protected $casts = [

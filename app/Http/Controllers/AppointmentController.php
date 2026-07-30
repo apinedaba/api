@@ -15,7 +15,6 @@ use App\Models\PatientUser;
 use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\CreateAppoinmentMail;
-use App\Notifications\AppointmentRescheduledWhatsAppNotification;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\RecurringAppointmentSeriesNotification;
@@ -24,10 +23,13 @@ use App\Services\AppointmentDeletionService;
 use App\Services\AppointmentService;
 use App\Services\GoogleCalendarService;
 use App\Services\WhatsApp\AppointmentWhatsAppNotifier;
+use App\Services\SessionStartCodeService;
+use App\Services\PaymentSettlementService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -81,6 +83,17 @@ class AppointmentController extends Controller
                 ->with(['user', 'payments', 'cart'])
                 ->orderBy('start')
                 ->get();
+
+            $codes = app(SessionStartCodeService::class);
+            $appointments->each(function (Appointment $appointment) use ($codes): void {
+                $requiresCode = $codes->appliesTo($appointment)
+                    && filled($appointment->session_start_code_encrypted);
+                $appointment->setAttribute('requires_start_code', $requiresCode);
+                $appointment->setAttribute(
+                    'session_start_code',
+                    $requiresCode ? $codes->reveal($appointment) : null
+                );
+            });
         }
 
         return response()->json($appointments, 200);
@@ -515,6 +528,7 @@ class AppointmentController extends Controller
         $appointment = Appointment::where('id', $appointment->id)
             ->with(['patient', 'payments', 'cart', 'user'])
             ->first();
+        $appointment->requires_start_code = app(SessionStartCodeService::class)->appliesTo($appointment);
 
         return response()->json(['appointment' => $appointment], 200);
     }
@@ -530,13 +544,113 @@ class AppointmentController extends Controller
         return response()->json($appointment, 200);
     }
 
+    public function patientSessionStartCode(
+        Request $request,
+        Appointment $appointment,
+        SessionStartCodeService $codes
+    ): JsonResponse {
+        abort_unless((int) $appointment->patient === (int) $request->user()->id, 403);
+
+        if (! $codes->appliesTo($appointment) || ! filled($appointment->session_start_code_encrypted)) {
+            return response()->json([
+                'message' => 'Esta sesión no requiere código de inicio.',
+                'requires_start_code' => false,
+            ]);
+        }
+
+        return response()->json([
+            'requires_start_code' => true,
+            'code' => $codes->reveal($appointment),
+            'appointment_id' => $appointment->id,
+            'lifecycle_status' => $appointment->lifecycle_status,
+        ]);
+    }
+
+    public function startSession(
+        Request $request,
+        Appointment $appointment,
+        SessionStartCodeService $codes,
+        PaymentSettlementService $settlements
+    ): JsonResponse {
+        abort_unless((int) $appointment->user === (int) $request->user()->id, 403);
+        $validated = $request->validate([
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        if (! $codes->appliesTo($appointment)) {
+            return response()->json([
+                'rasson' => 'Esta sesión fue creada por el psicólogo y no requiere código.',
+                'message' => 'Código no requerido',
+            ], 422);
+        }
+
+        if (in_array($appointment->lifecycle_status, ['in_process', 'complete', 'completed'], true)) {
+            return response()->json([
+                'message' => 'La sesión ya fue iniciada.',
+                'appointment' => $appointment->fresh(['payments']),
+            ]);
+        }
+
+        $now = now();
+        $validationOpensAt = $appointment->start->copy()->subMinutes(10);
+        if ($now->lt($validationOpensAt)) {
+            return response()->json([
+                'rasson' => 'El código podrá validarse desde 10 minutos antes de la hora de inicio.',
+                'message' => 'La sesión todavía no comienza',
+            ], 422);
+        }
+        if ($now->gte($appointment->end)) {
+            return response()->json([
+                'rasson' => 'La hora de término de esta sesión ya pasó.',
+                'message' => 'La sesión ya terminó',
+            ], 422);
+        }
+        if ((int) $appointment->session_start_code_attempts >= 5) {
+            return response()->json([
+                'rasson' => 'El código fue bloqueado por demasiados intentos. Contacta a soporte.',
+                'message' => 'Código bloqueado',
+            ], 429);
+        }
+
+        if (! $codes->verify($appointment, $validated['code'])) {
+            $appointment->increment('session_start_code_attempts');
+
+            return response()->json([
+                'rasson' => 'El código de sesión es incorrecto.',
+                'message' => 'Código incorrecto',
+                'attempts_remaining' => max(4 - (int) $appointment->session_start_code_attempts, 0),
+            ], 422);
+        }
+
+        DB::transaction(function () use ($appointment, $settlements, $now) {
+            $appointment->forceFill([
+                'lifecycle_status' => 'in_process',
+                'state' => 'En curso',
+                'started_at' => $now,
+                'session_start_code_verified_at' => $now,
+            ])->save();
+
+            $appointment->loadMissing('payments');
+            foreach ($appointment->payments as $payment) {
+                $settlements->synchronizeSettlementFields(
+                    $payment->setRelation('appointment', $appointment)
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'Sesión iniciada. El saldo ya está disponible para retiro.',
+            'appointment' => $appointment->fresh(['payments']),
+        ]);
+    }
+
     public function patientUpdateStatus(Request $request, Appointment $appointment): JsonResponse
     {
         $patient = $request->user();
         abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:Confirmed,Reschedule Requested,Cancel'],
+            'status' => ['required', 'string', 'in:Confirmed,Reschedule Requested,Cancel,Completed'],
             'comments' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -557,10 +671,17 @@ class AppointmentController extends Controller
                 'Confirmed' => 'Confirmada',
                 'Reschedule Requested' => 'Reprogramacion solicitada',
                 'Cancel' => 'Cancelada',
+                'Completed' => 'Pendiente de conclusion del profesional',
                 default => $appointment->state,
             },
             'notification_meta' => $meta,
         ])->save();
+
+        $appointment->loadMissing('payments');
+        foreach ($appointment->payments as $payment) {
+            app(\App\Services\PaymentSettlementService::class)
+                ->synchronizeSettlementFields($payment->loadMissing('appointment'));
+        }
 
         $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
 
@@ -569,6 +690,7 @@ class AppointmentController extends Controller
                 'Confirmed' => 'Sesion confirmada correctamente.',
                 'Reschedule Requested' => 'Solicitud de reprogramacion enviada.',
                 'Cancel' => 'Sesion cancelada correctamente.',
+                'Completed' => 'Sesion marcada como completada.',
                 default => 'Sesion actualizada.',
             },
             'type' => 'success',
@@ -779,6 +901,14 @@ class AppointmentController extends Controller
                 $appointment->update($fieldsToUpdate);
             }
 
+            if ($request->hasAny(['statusUser', 'statusPatient'])) {
+                $appointment->loadMissing('payments');
+                foreach ($appointment->payments as $payment) {
+                    app(\App\Services\PaymentSettlementService::class)
+                        ->synchronizeSettlementFields($payment->loadMissing('appointment'));
+                }
+            }
+
             if ($appointment->cart) {
                 $cartPayload = [];
                 if ($request->filled('costo')) {
@@ -802,8 +932,8 @@ class AppointmentController extends Controller
             $user = User::find($appointment->user);
 
             if (Carbon::parse($originalData->start)->notEqualTo(Carbon::parse($appointment->start))) {
-                $patient = $appointment->patient()->first();
-                $patient?->notify(new AppointmentRescheduledWhatsAppNotification($appointment));
+                app(AppointmentWhatsAppNotifier::class)
+                    ->appointmentRescheduled($appointment, 'user.appointments.update');
             }
 
             if ($appointment->google_event_id && $user && $user->googleAccount) {

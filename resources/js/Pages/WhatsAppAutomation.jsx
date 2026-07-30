@@ -23,7 +23,7 @@ const channelOptions = [
     { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
-export default function WhatsAppAutomation({ auth, templates, rules, metrics, fallbacks }) {
+export default function WhatsAppAutomation({ auth, templates, rules, metrics, fallbacks, eventCatalog, recipientOptions }) {
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [editingRule, setEditingRule] = useState(null);
 
@@ -174,20 +174,20 @@ export default function WhatsAppAutomation({ auth, templates, rules, metrics, fa
 
             <Modal show={Boolean(editingTemplate)} onClose={() => setEditingTemplate(null)} maxWidth="2xl">
                 {editingTemplate ? (
-                    <TemplateForm template={editingTemplate} onClose={() => setEditingTemplate(null)} />
+                    <TemplateForm template={editingTemplate} eventCatalog={eventCatalog} onClose={() => setEditingTemplate(null)} />
                 ) : null}
             </Modal>
 
             <Modal show={Boolean(editingRule)} onClose={() => setEditingRule(null)} maxWidth="2xl">
                 {editingRule ? (
-                    <RuleForm rule={editingRule} templates={templates} onClose={() => setEditingRule(null)} />
+                    <RuleForm rule={editingRule} templates={templates} recipientOptions={recipientOptions} onClose={() => setEditingRule(null)} />
                 ) : null}
             </Modal>
         </AuthenticatedLayout>
     );
 }
 
-function TemplateForm({ template, onClose }) {
+function TemplateForm({ template, eventCatalog, onClose }) {
     const { data, setData, post, put, processing, errors } = useForm({
         ...emptyTemplate,
         ...template,
@@ -204,13 +204,29 @@ function TemplateForm({ template, onClose }) {
         }
         post(route('whatsapp-automation.templates.store'), options);
     };
+    const availableVariables = eventCatalog?.[data.key]?.variables || {};
+    const updateParameter = (index, value) => {
+        const parameters = [...(data.body_parameters || [])];
+        parameters[index] = value;
+        setData('body_parameters', parameters);
+    };
+    const addParameter = () => setData('body_parameters', [...(data.body_parameters || []), '']);
+    const removeParameter = (index) => setData(
+        'body_parameters',
+        (data.body_parameters || []).filter((_, parameterIndex) => parameterIndex !== index),
+    );
 
     return (
         <form onSubmit={submit} className="space-y-4 p-6">
             <FormTitle eyebrow={template.id ? 'Editar template' : 'Nuevo template'} title="Template de WhatsApp" />
             <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Key MindMeet" error={errors.key}>
-                    <input value={data.key} onChange={event => setData('key', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm" placeholder="appointment_created" />
+                    <select value={data.key} onChange={event => setData('key', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm">
+                        <option value="">Selecciona un evento</option>
+                        {Object.entries(eventCatalog || {}).map(([key, event]) => (
+                            <option key={key} value={key}>{event.label} ({key})</option>
+                        ))}
+                    </select>
                 </Field>
                 <Field label="Nombre Meta" error={errors.template_name}>
                     <input value={data.template_name} onChange={event => setData('template_name', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm" placeholder="confirm_session" />
@@ -227,6 +243,28 @@ function TemplateForm({ template, onClose }) {
             <Field label="Descripcion" error={errors.description}>
                 <textarea value={data.description || ''} onChange={event => setData('description', event.target.value)} rows={3} className="w-full rounded-lg border-slate-200 text-sm" />
             </Field>
+            <Field label="Variables del cuerpo" error={errors.body_parameters}>
+                <p className="mb-3 text-xs font-normal text-slate-500">
+                    El orden debe coincidir con Meta: la primera selección llena {"{{1}}"}, la segunda {"{{2}}"} y así sucesivamente.
+                </p>
+                <div className="space-y-2">
+                    {(data.body_parameters || []).map((parameter, index) => (
+                        <div key={`${index}-${parameter}`} className="flex items-center gap-2">
+                            <span className="w-12 shrink-0 font-mono text-xs text-slate-500">{`{{${index + 1}}}`}</span>
+                            <select value={parameter} onChange={event => updateParameter(index, event.target.value)} className="min-w-0 flex-1 rounded-lg border-slate-200 text-sm">
+                                <option value="">Selecciona un dato</option>
+                                {Object.entries(availableVariables).map(([key, label]) => (
+                                    <option key={key} value={key}>{label} · {key}</option>
+                                ))}
+                            </select>
+                            <button type="button" onClick={() => removeParameter(index)} className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600">Quitar</button>
+                        </div>
+                    ))}
+                </div>
+                <button type="button" onClick={addParameter} disabled={!data.key} className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">
+                    Agregar variable
+                </button>
+            </Field>
             <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={data.is_active} onChange={() => setData('is_active', !data.is_active)} className="rounded border-slate-300" />
                 Template activo
@@ -236,7 +274,7 @@ function TemplateForm({ template, onClose }) {
     );
 }
 
-function RuleForm({ rule, templates, onClose }) {
+function RuleForm({ rule, templates, recipientOptions, onClose }) {
     const { data, setData, put, processing, errors } = useForm({
         ...rule,
         channels: rule.channels || [],
@@ -281,6 +319,16 @@ function RuleForm({ rule, templates, onClose }) {
                         <option key={template.key} value={template.key}>{template.key} - {template.template_name}</option>
                     ))}
                 </select>
+            </Field>
+            <Field label="Enviar a" error={errors.recipient}>
+                <select value={data.recipient || 'patient'} onChange={event => setData('recipient', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm">
+                    {Object.entries(recipientOptions || {}).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                    ))}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                    Si el destinatario no tiene teléfono, la notificación se omite y queda registrada en logs.
+                </span>
             </Field>
             <Field label="Asunto email" error={errors.email_subject}>
                 <input value={data.email_subject || ''} onChange={event => setData('email_subject', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm" />

@@ -29,6 +29,13 @@ class Appointment extends Model
         'statusUser',
         'statusPatient',
         'state',
+        'lifecycle_status',
+        'started_at',
+        'completed_at',
+        'session_start_code_hash',
+        'session_start_code_encrypted',
+        'session_start_code_attempts',
+        'session_start_code_verified_at',
         'comments',
         'objective',
         'session_description',
@@ -65,12 +72,21 @@ class Appointment extends Model
     protected $casts = [
         'start' => 'datetime',
         'end' => 'datetime',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'session_start_code_attempts' => 'integer',
+        'session_start_code_verified_at' => 'datetime',
         'recurrence_until' => 'date',
         'synced_with_google' => 'boolean',
         'extendedProps' => 'array',
         'notification_meta' => 'array',
         'psychometric_scales' => 'array',
         'mental_exam' => 'array',
+    ];
+
+    protected $hidden = [
+        'session_start_code_hash',
+        'session_start_code_encrypted',
     ];
 
     public function patient_user()

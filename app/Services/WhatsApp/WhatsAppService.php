@@ -2,18 +2,76 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Jobs\SendWhatsAppMessageJob;
 use App\Models\Appointment;
 use App\Models\Patient;
+use App\Models\User;
 use App\Models\WhatsAppMessage;
+use App\Models\WhatsAppNotificationRule;
 use App\Models\WhatsAppTemplate;
 use App\Support\PhoneNormalizer;
+use App\Support\ProfessionalContact;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use App\Services\SessionStartCodeService;
 
 class WhatsAppService
 {
+    public function queueConfiguredProfessionalTemplate(
+        string $eventKey,
+        User $professional,
+        array $values,
+        array $context = []
+    ): bool {
+        $rule = WhatsAppNotificationRule::query()->where('event_key', $eventKey)->first();
+        $templateKey = $rule?->whatsapp_template_key;
+
+        if (! $rule || ! $rule->sendsTo('whatsapp') || $rule->recipient !== 'professional' || ! filled($templateKey)) {
+            return false;
+        }
+
+        $template = WhatsAppTemplate::query()->active()->where('key', $templateKey)->first();
+        $phone = ProfessionalContact::whatsapp($professional);
+
+        if (! $template || ! filled($template->template_name) || ! filled($phone)) {
+            Log::channel('whatsapp')->info('Configured Meta WhatsApp notification skipped', [
+                'event' => $eventKey,
+                'template_key' => $templateKey,
+                'has_template' => (bool) $template,
+                'has_phone' => filled($phone),
+            ]);
+
+            return false;
+        }
+
+        $parameters = collect($template->body_parameters ?: [])
+            ->map(fn ($key): string => (string) ($values[(string) $key] ?? ''))
+            ->values()
+            ->all();
+
+        SendWhatsAppMessageJob::dispatch([
+            'message_type' => 'template',
+            'phone' => $phone,
+            'template' => $template->template_name,
+            'language' => $template->language ?: 'es_MX',
+            'components' => array_values(array_filter([
+                $this->bodyParametersComponent($parameters),
+                ...$this->buttonComponents($template->buttons ?: []),
+            ])),
+            'context' => [
+                ...$context,
+                'event' => $eventKey,
+                'template_key' => $templateKey,
+                'recipient' => 'professional',
+                'provider' => 'meta_cloud_api',
+            ],
+        ]);
+
+        return true;
+    }
+
     public function sendText(string $phone, string $message, array $context = []): array
     {
         $payload = [
@@ -250,7 +308,8 @@ class WhatsAppService
     public function appointmentTemplateComponents(
         Appointment $appointment,
         array $buttons = [],
-        array $bodyParameterKeys = []
+        array $bodyParameterKeys = [],
+        string $recipient = 'patient'
     ): array
     {
         $appointment->loadMissing(['patient', 'user']);
@@ -258,6 +317,8 @@ class WhatsAppService
         $professional = $appointment->user()->first();
         $start = optional($appointment->start)->timezone(config('app.timezone'));
 
+        $publicUrl = rtrim((string) config('app.front_url_user'), '/')
+            .'/cita/'.($appointment->public_uuid ?: $appointment->id);
         $values = [
             'patient_name' => $patient?->name ?: 'paciente',
             'professional_name' => data_get($professional?->contacto, 'publicname')
@@ -268,13 +329,23 @@ class WhatsAppService
                 ?: 'tu profesional',
             'date' => $start?->format('d/m/Y') ?: '',
             'time' => $start?->format('H:i') ?: '',
+            'appointment_date' => $start?->format('d/m/Y') ?: '',
+            'appointment_time' => $start?->format('H:i') ?: '',
+            'new_date' => $start?->format('d/m/Y H:i') ?: '',
+            'session_time' => $start?->format('d/m/Y H:i') ?: '',
+            'appointment_end_time' => optional($appointment->end)?->timezone(config('app.timezone'))?->format('H:i') ?: '',
+            'appointment_title' => $appointment->title ?: 'Sesión MindMeet',
+            'appointment_url' => $publicUrl,
+            'patient_portal_url' => rtrim((string) config('app.perfil_paciente_url'), '/').'/dashboard',
+            'counterpart_name' => $recipient === 'professional'
+                ? ($patient?->name ?: 'paciente')
+                : (data_get($professional?->contacto, 'publicname') ?: $professional?->name ?: 'tu profesional'),
+            'session_start_code' => filled($appointment->session_start_code_encrypted)
+                ? app(SessionStartCodeService::class)->reveal($appointment)
+                : '',
         ];
 
-        $parameterKeys = $bodyParameterKeys !== []
-            ? $bodyParameterKeys
-            : ['patient_name', 'professional_public_name', 'date', 'time'];
-
-        $bodyParameters = collect($parameterKeys)
+        $bodyParameters = collect($bodyParameterKeys)
             ->map(fn ($key): string => (string) ($values[(string) $key] ?? ''))
             ->values()
             ->all();

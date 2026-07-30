@@ -17,6 +17,7 @@ class WhatsAppNotificationRule extends Model
         'description',
         'channels',
         'whatsapp_template_key',
+        'recipient',
         'email_subject',
         'email_body',
         'sms_body',

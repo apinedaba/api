@@ -23,6 +23,21 @@ class PaymentSettlementService
             return false;
         }
 
+        $lifecycleCompleted = in_array(strtolower((string) $payment->appointment->lifecycle_status), [
+            'in_process',
+            'in_progress',
+            'complete',
+            'completed',
+        ], true);
+
+        if (app(SessionStartCodeService::class)->appliesTo($payment->appointment)) {
+            return $lifecycleCompleted;
+        }
+
+        if ($lifecycleCompleted) {
+            return true;
+        }
+
         return $this->isCompletedStatus($payment->appointment->statusUser)
             && $this->isCompletedStatus($payment->appointment->statusPatient);
     }

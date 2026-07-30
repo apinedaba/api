@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\PatientUser;
 use App\Models\SessionAttachment;
 use App\Models\SessionNote;
+use App\Services\SessionStartCodeService;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -41,6 +42,14 @@ class PatientTimelineController extends Controller
             ])
             ->get();
 
+        $startCodes = app(SessionStartCodeService::class);
+        $sessions->each(function (Appointment $session) use ($startCodes): void {
+            $session->setAttribute(
+                'requires_start_code',
+                $startCodes->appliesTo($session) && filled($session->session_start_code_hash)
+            );
+        });
+
         return response()->json([
             'patient' => $patient->patient,
             'timeline' => $sessions
@@ -60,7 +69,8 @@ class PatientTimelineController extends Controller
 
         $validator = Validator::make($request->all(), [
             'content' => 'required|string',
-            'type' => 'required|in:post_sesion,pre_sesion,adicional,riesgo,administrativa'
+            'type' => 'required|in:post_sesion,pre_sesion,adicional,riesgo,administrativa',
+            'source' => 'nullable|in:written,dictation,voice',
         ]);
 
         if ($validator->fails()) {
@@ -72,6 +82,7 @@ class PatientTimelineController extends Controller
             'psychologist_id' => $psychologist->id,
             'content' => $request->content,
             'type' => $request->type,
+            'source' => $request->input('source', 'written'),
         ]);
 
         return response()->json($note);

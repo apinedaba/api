@@ -7,7 +7,6 @@ use App\Models\Appointment;
 use App\Models\Availabiliti;
 use App\Models\ClinicMembership;
 use App\Notifications\CreateAppoinmentMail;
-use App\Notifications\AppointmentRescheduledWhatsAppNotification;
 use App\Notifications\ProfessionalAppointmentCreatedNotification;
 use App\Notifications\ProfessionalAppointmentStatusNotification;
 use App\Notifications\StateAppoinmentMail;
@@ -274,8 +273,8 @@ class AdminAppointmentController extends Controller
 
             $appointment->load('user', 'patient');
             if (Carbon::parse($originalAppointment->start)->notEqualTo(Carbon::parse($appointment->start))) {
-                $patient = $appointment->patient()->first();
-                $patient?->notify(new AppointmentRescheduledWhatsAppNotification($appointment));
+                app(AppointmentWhatsAppNotifier::class)
+                    ->appointmentRescheduled($appointment, 'admin.appointments.update');
             }
             if ($request->has('state')) {
                 $this->notifyAppointmentStatusUpdated($appointment, $originalAppointment);

@@ -8,7 +8,7 @@ use App\Models\DeviceToken;
 use App\Models\DiscountCoupon;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
-use App\Services\TwilioWhatsAppService;
+use App\Services\WhatsApp\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
@@ -137,9 +137,20 @@ class ConsultaContactoController extends Controller
             }
 
             try {
-                app(TwilioWhatsAppService::class)->sendToUser(
+                app(WhatsAppService::class)->queueConfiguredProfessionalTemplate(
+                    'new_lead',
                     $psicologo,
-                    $this->newLeadWhatsAppMessage($consulta)
+                    [
+                        'professional_name' => $psicologo->name,
+                        'lead_name' => $consulta->nombre,
+                        'lead_type' => $consulta->lead_type === 'package'
+                            ? ($consulta->package_name ?: 'Paquete de sesiones')
+                            : ($consulta->tipo_sesion ?: 'Sesión'),
+                        'lead_date' => trim(($consulta->fecha ?: '').' '.($consulta->hora ?: '')),
+                        'lead_phone' => $consulta->telefono,
+                        'leads_url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/').'/leads',
+                    ],
+                    ['lead_id' => $consulta->id, 'user_id' => $psicologo->id]
                 );
             } catch (\Throwable $th) {
                 $notificationErrors[] = 'whatsapp_notification_failed';

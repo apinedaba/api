@@ -8,6 +8,8 @@ use Cloudinary\Configuration\Configuration;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\ServiceProvider;
 use Stripe\Stripe;
+use App\Models\Appointment;
+use App\Observers\AppointmentObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Appointment::observe(AppointmentObserver::class);
         Notification::extend('whatsapp', fn ($app) => $app->make(WhatsAppChannel::class));
 
         Carbon::setLocale('es');

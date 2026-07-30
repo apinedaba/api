@@ -34,6 +34,14 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->timezone('America/Mexico_City')
             ->withoutOverlapping();
+        $schedule->command('appointments:sync-lifecycle')
+            ->everyMinute()
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
+        $schedule->command('appointments:repair-paid')
+            ->everyFiveMinutes()
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         $schedule->command('subscriptions:notify-upcoming-charges')
             ->dailyAt('10:00')
             ->timezone('America/Mexico_City');

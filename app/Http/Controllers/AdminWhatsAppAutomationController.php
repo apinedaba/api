@@ -31,6 +31,8 @@ class AdminWhatsAppAutomationController extends Controller
                 'month_by_template' => $this->countsBy('template', $monthStart),
             ],
             'fallbacks' => config('services.whatsapp.templates', []),
+            'eventCatalog' => config('whatsapp_notifications.events', []),
+            'recipientOptions' => config('whatsapp_notifications.recipients', []),
         ]);
     }
 
@@ -62,7 +64,12 @@ class AdminWhatsAppAutomationController extends Controller
             'description' => ['nullable', 'string'],
             'channels' => ['nullable', 'array'],
             'channels.*' => [Rule::in(['database', 'email', 'sms', 'whatsapp'])],
-            'whatsapp_template_key' => ['nullable', 'string', 'max:100'],
+            'whatsapp_template_key' => ['nullable', 'string', 'max:100', 'exists:whatsapp_templates,key'],
+            'recipient' => [
+                'required',
+                'string',
+                Rule::in(array_keys(config('whatsapp_notifications.recipients', []))),
+            ],
             'email_subject' => ['nullable', 'string', 'max:255'],
             'email_body' => ['nullable', 'string'],
             'sms_body' => ['nullable', 'string'],
@@ -79,7 +86,7 @@ class AdminWhatsAppAutomationController extends Controller
 
     protected function validateTemplate(Request $request, ?WhatsAppTemplate $template = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'key' => [
                 'required',
                 'string',
@@ -91,9 +98,29 @@ class AdminWhatsAppAutomationController extends Controller
             'category' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
             'body_parameters' => ['nullable', 'array'],
+            'body_parameters.*' => ['string', 'max:100'],
             'buttons' => ['nullable', 'array', 'max:3'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        $allowedVariables = array_keys(
+            config("whatsapp_notifications.events.{$data['key']}.variables", [])
+        );
+        $invalidVariables = array_diff($data['body_parameters'] ?? [], $allowedVariables);
+
+        if ($invalidVariables !== []) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'body_parameters' => 'Hay variables que no pertenecen al evento seleccionado.',
+            ]);
+        }
+
+        $data['body_parameters'] = array_values(array_filter(
+            $data['body_parameters'] ?? [],
+            fn ($value) => filled($value)
+        ));
+        $data['is_active'] = (bool) ($data['is_active'] ?? false);
+
+        return $data;
     }
 
     protected function countsBy(string $column, mixed $since = null): array

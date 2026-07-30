@@ -176,10 +176,20 @@ class ProfessionalPayoutController extends Controller
                 $this->createConnectedAccountPayout($withdrawal, $user);
             }
         } catch (\Throwable $exception) {
+            $stripeCode = $exception instanceof ApiErrorException ? $exception->getStripeCode() : null;
+            $insufficientFunds = in_array($stripeCode, ['balance_insufficient', 'insufficient_funds'], true)
+                || str_contains(strtolower($exception->getMessage()), 'insufficient available funds');
+            $stripeTestMode = str_starts_with((string) config('services.stripe.secret_key'), 'sk_test_');
+            $publicMessage = $insufficientFunds
+                ? ($stripeTestMode
+                    ? 'La cuenta de Stripe en modo de prueba no tiene saldo disponible. Realiza un pago de prueba con la tarjeta 4000 0000 0000 0077 y vuelve a solicitar el retiro.'
+                    : 'Stripe todavía no tiene fondos disponibles suficientes para procesar este retiro. Intenta nuevamente cuando el saldo pase de pendiente a disponible.')
+                : 'No se pudo procesar el retiro en Stripe.';
+
             $withdrawal->update([
                 'status' => ProfessionalWithdrawal::STATUS_FAILED,
                 'failed_at' => now(),
-                'failure_code' => $exception instanceof ApiErrorException ? $exception->getStripeCode() : null,
+                'failure_code' => $stripeCode,
                 'failure_message' => $exception->getMessage(),
             ]);
 
@@ -205,8 +215,10 @@ class ProfessionalPayoutController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'No se pudo procesar el retiro en Stripe.',
-                'reason' => $exception->getMessage(),
+                'message' => $publicMessage,
+                'reason' => $publicMessage,
+                'error_code' => $insufficientFunds ? 'stripe_balance_insufficient' : ($stripeCode ?: 'stripe_withdrawal_failed'),
+                'retryable' => $insufficientFunds,
                 'withdrawal' => $withdrawal->fresh(),
             ], 422);
         }

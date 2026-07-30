@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\PatientUser;
 use App\Models\SessionAttachment;
 use App\Models\SessionNote;
+use App\Services\SessionStartCodeService;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -29,14 +30,25 @@ class PatientTimelineController extends Controller
 
         // Obtener sesiones + notas + adjuntos
         $sessions = Appointment::where('patient', $patientId)
+            ->where('user', $psychologist->id)
             ->orderBy('start', 'desc')
             ->with([
                 'notes' => function ($q) {
                     $q->orderBy('created_at', 'desc');
                 },
-                'attachments'
+                'attachments',
+                'payments',
+                'cart',
             ])
             ->get();
+
+        $startCodes = app(SessionStartCodeService::class);
+        $sessions->each(function (Appointment $session) use ($startCodes): void {
+            $session->setAttribute(
+                'requires_start_code',
+                $startCodes->appliesTo($session) && filled($session->session_start_code_hash)
+            );
+        });
 
         return response()->json([
             'patient' => $patient->patient,
@@ -57,7 +69,8 @@ class PatientTimelineController extends Controller
 
         $validator = Validator::make($request->all(), [
             'content' => 'required|string',
-            'type' => 'required|in:post_sesion,pre_sesion,adicional,riesgo,administrativa'
+            'type' => 'required|in:post_sesion,pre_sesion,adicional,riesgo,administrativa',
+            'source' => 'nullable|in:written,dictation,voice',
         ]);
 
         if ($validator->fails()) {
@@ -69,6 +82,7 @@ class PatientTimelineController extends Controller
             'psychologist_id' => $psychologist->id,
             'content' => $request->content,
             'type' => $request->type,
+            'source' => $request->input('source', 'written'),
         ]);
 
         return response()->json($note);
@@ -86,14 +100,24 @@ class PatientTimelineController extends Controller
 
         $request->validate([
             'url' => 'required|string',
-            'public_id' => 'required|string'
+            'public_id' => 'required|string',
+            'filename' => 'nullable|string|max:255',
+            'extension' => 'nullable|string|max:20',
+            'size' => 'nullable|integer|min:0',
         ]);
+
+        $filename = $this->sanitizeAttachmentFilename(
+            $request->input('filename') ?: basename(parse_url($request->url, PHP_URL_PATH) ?: $request->url)
+        );
+        $extension = $request->input('extension') ?: pathinfo($filename, PATHINFO_EXTENSION);
 
         $attachment = SessionAttachment::create([
             'session_id' => $session->id,
-            'filename' => basename($request->url),
+            'filename' => $filename,
             'url' => $request->url,
             'public_id' => $request->public_id,
+            'extension' => strtolower($extension ?: ''),
+            'size' => $request->input('size'),
         ]);
 
         return response()->json($attachment);
@@ -102,6 +126,7 @@ class PatientTimelineController extends Controller
     public function deleteAttachment($id)
     {
         $attachment = SessionAttachment::findOrFail($id);
+        $this->authorizeAttachment($attachment, auth()->user());
 
         // Eliminar de Cloudinary
         Cloudinary::destroy($attachment->public_id);
@@ -119,17 +144,44 @@ class PatientTimelineController extends Controller
     {
         $note = SessionNote::findOrFail($noteId);
 
-        $this->authorizeSession($note->session, auth()->user());
+        $session = Appointment::findOrFail($note->session_id);
+        $this->authorizeSession($session, auth()->user());
+        $this->abortIfArchived($session, auth()->user());
 
         $note->delete();
 
         return response()->json(['message' => 'Nota eliminada']);
     }
 
+    public function updateNote(Request $request, $noteId)
+    {
+        $note = SessionNote::findOrFail($noteId);
+        $session = Appointment::findOrFail($note->session_id);
+        $psychologist = auth()->user();
+
+        $this->authorizeSession($session, $psychologist);
+        $this->abortIfArchived($session, $psychologist);
+
+        $validated = $request->validate([
+            'content' => 'required|string|max:50000',
+        ]);
+
+        $note->update([
+            'content' => $validated['content'],
+        ]);
+
+        return response()->json([
+            'message' => 'Nota actualizada',
+            'note' => $note->fresh(),
+        ]);
+    }
+
     public function streamAttachment($id)
     {
         $attachment = SessionAttachment::findOrFail($id);
-        // URL de Cloudinary (PDF)
+        $this->authorizeAttachment($attachment, auth()->user());
+
+        // URL de Cloudinary
         $url = $attachment->url;
 
         // Descargar el archivo desde Cloudinary
@@ -139,8 +191,12 @@ class PatientTimelineController extends Controller
             return response()->json(['error' => 'No se pudo cargar el archivo'], 400);
         }
 
+        $contentType = $response->header('Content-Type') ?: $this->mimeTypeForExtension($attachment->extension);
+        $filename = str_replace('"', '', $attachment->display_name ?: 'archivo');
+
         return response($response->body(), 200)
-            ->header('Content-Type', 'application/pdf');
+            ->header('Content-Type', $contentType)
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 
     /**
@@ -163,5 +219,38 @@ class PatientTimelineController extends Controller
         if ($isArchived) {
             abort(423, 'Paciente archivado. Reactivalo para modificar su expediente.');
         }
+    }
+
+    private function authorizeAttachment(SessionAttachment $attachment, $psychologist): void
+    {
+        $session = $attachment->session;
+
+        if (!$session) {
+            abort(404, 'Sesion no encontrada.');
+        }
+
+        $this->authorizeSession($session, $psychologist);
+    }
+
+    private function mimeTypeForExtension(?string $extension): string
+    {
+        return match (strtolower($extension ?? '')) {
+            'pdf' => 'application/pdf',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            default => 'application/octet-stream',
+        };
+    }
+
+    private function sanitizeAttachmentFilename(string $filename): string
+    {
+        $filename = trim(basename(str_replace('\\', '/', $filename)));
+        $filename = preg_replace('/[\r\n"]+/', '', $filename) ?: 'archivo';
+
+        return mb_substr($filename, 0, 255);
     }
 }

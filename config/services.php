@@ -32,6 +32,7 @@ return [
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),
+        'mindmeet_fee_rate' => (float) env('MINDMEET_PROFESSIONAL_COMMISSION_RATE', 0.10),
     ],
 
     'ses' => [
@@ -46,6 +47,13 @@ return [
     ],
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
+    ],
+    'deepseek' => [
+        'api_key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+        'timeout' => (int) env('DEEPSEEK_TIMEOUT', 35),
+        'max_tokens' => (int) env('DEEPSEEK_MAX_TOKENS', 2600),
     ],
     // config/services.php
 
@@ -62,11 +70,31 @@ return [
         'sms_key' => env('BREVO_SMS_KEY'),
     ],
 
-    'twilio' => [
-        'account_sid' => env('TWILIO_ACCOUNT_SID'),
-        'auth_token' => env('TWILIO_AUTH_TOKEN'),
-        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
-        'enabled' => env('TWILIO_WHATSAPP_ENABLED', false),
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v25.0'),
+        'webhook_url' => env('WHATSAPP_WEBHOOK_URL'),
+        'templates' => [
+            'appointment_created' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CREATED', 'confirm_session'),
+            'appointment_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER', 'confirma_tu_cita'),
+            'appointment_cancelled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_CANCELLED', 'confirm_session'),
+            'patient_invitation' => env('WHATSAPP_TEMPLATE_PATIENT_INVITATION', 'patient_invitation'),
+            'daily_appointments' => env('WHATSAPP_TEMPLATE_DAILY_APPOINTMENTS', 'citas_hoy'),
+            'membership_payment_failed' => env('WHATSAPP_TEMPLATE_MEMBERSHIP_PAYMENT_FAILED', 'pago_fallido'),
+            'appointment_rescheduled' => env('WHATSAPP_TEMPLATE_APPOINTMENT_RESCHEDULED', 'cita_reprogramada'),
+            'appointment_session_reminder' => env('WHATSAPP_TEMPLATE_APPOINTMENT_SESSION_REMINDER', 'cita_recordatorio'),
+        ],
+    ],
+
+    'browsershot' => [
+        'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
+        'node_binary' => env('BROWSERSHOT_NODE_BINARY'),
+        'npm_binary' => env('BROWSERSHOT_NPM_BINARY'),
+        'node_module_path' => env('BROWSERSHOT_NODE_MODULE_PATH'),
+        'include_path' => env('BROWSERSHOT_INCLUDE_PATH'),
     ],
 
 ];

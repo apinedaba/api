@@ -22,6 +22,7 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
     public $user;
     public $action; // 'create', 'update', o 'delete'
     public $googleEventIdToDelete; // Para guardar el ID si la cita se borra
+    public bool $notifyProfessional;
 
     /**
      * Create a new job instance.
@@ -30,10 +31,11 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
      * @param \App\Models\User $user El profesional (dueño del calendario).
      * @param string $action La operación a realizar.
      */
-    public function __construct(Appointment $appointment, User $user, string $action)
+    public function __construct(Appointment $appointment, User $user, string $action, bool $notifyProfessional = true)
     {
         $this->user = $user;
         $this->action = $action;
+        $this->notifyProfessional = $notifyProfessional;
 
         // Si la acción es 'delete', guardamos el ID de Google antes de que la cita se elimine.
         if ($this->action === 'delete') {
@@ -62,7 +64,7 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
         try {
             // Usamos un 'match' para ejecutar el código correcto según la acción.
             match ($this->action) {
-                'create' => $googleCalendarService->createEvent($this->appointment, $this->user),
+                'create' => $googleCalendarService->createEvent($this->appointment, $this->user, $this->notifyProfessional),
                 'update' => $googleCalendarService->updateEvent($this->appointment, $this->user),
                 'delete' => $googleCalendarService->deleteEvent($this->googleEventIdToDelete, $this->user),
             };

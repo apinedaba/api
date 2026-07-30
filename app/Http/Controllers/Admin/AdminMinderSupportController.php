@@ -13,18 +13,25 @@ use Inertia\Response;
 
 class AdminMinderSupportController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $status = $request->query('status', 'all');
+        $status = in_array($status, ['all', 'open', 'closed'], true) ? $status : 'all';
+
         $threads = MinderSupportThread::with([
             'user:id,name,image',
             'messages' => fn($q) => $q->latest()->limit(1),
         ])
             ->withCount(['messages as unread_count' => fn($q) => $q->where('is_read', false)->where('sender_type', 'App\\Models\\User')])
+            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->orderByDesc('last_message_at')
             ->paginate(25);
 
         return Inertia::render('Minder/Support', [
             'threads' => $threads,
+            'filters' => [
+                'status' => $status,
+            ],
         ]);
     }
 

@@ -28,11 +28,13 @@ class ProfessionalAppointmentCreatedNotification extends Notification
 
         return (new MailMessage)
             ->subject('MindMeet | Nueva sesion programada')
-            ->greeting('Hola ' . ($notifiable->name ?? ''))
-            ->line("Se programo una nueva sesion con " . ($patient?->name ?: 'tu paciente') . '.')
-            ->line('Fecha: ' . $start->translatedFormat('d \\d\\e F \\d\\e Y'))
-            ->line('Hora: ' . $start->format('H:i'))
-            ->action('Ver agenda', $this->professionalAgendaUrl());
+            ->view('email.professional-appointment-created', [
+                'name' => $notifiable->name ?? '',
+                'patientName' => $patient?->name ?: 'tu paciente',
+                'date' => $start->translatedFormat('d \\d\\e F \\d\\e Y'),
+                'time' => $start->format('H:i'),
+                'agendaUrl' => $this->professionalAgendaUrl(),
+            ]);
     }
 
     public function toArray(object $notifiable): array

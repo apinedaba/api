@@ -10,6 +10,8 @@ use App\Models\SessionAttachment;
 use App\Models\SessionNote;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
@@ -17,6 +19,7 @@ class Appointment extends Model
 
     protected $fillable = [
         'organization_id',
+        'public_uuid',
         'user',
         'patient',
         'clinic_id',
@@ -26,6 +29,13 @@ class Appointment extends Model
         'statusUser',
         'statusPatient',
         'state',
+        'lifecycle_status',
+        'started_at',
+        'completed_at',
+        'session_start_code_hash',
+        'session_start_code_encrypted',
+        'session_start_code_attempts',
+        'session_start_code_verified_at',
         'comments',
         'objective',
         'session_description',
@@ -33,6 +43,8 @@ class Appointment extends Model
         'interventions',
         'action_plan',
         'observations',
+        'psychometric_scales',
+        'mental_exam',
         'payment_status',
         'video_call_room',
         'cart_id',
@@ -48,13 +60,33 @@ class Appointment extends Model
         'notification_meta',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (Appointment $appointment) {
+            if (Schema::hasColumn($appointment->getTable(), 'public_uuid') && ! $appointment->public_uuid) {
+                $appointment->public_uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     protected $casts = [
         'start' => 'datetime',
         'end' => 'datetime',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'session_start_code_attempts' => 'integer',
+        'session_start_code_verified_at' => 'datetime',
         'recurrence_until' => 'date',
         'synced_with_google' => 'boolean',
         'extendedProps' => 'array',
         'notification_meta' => 'array',
+        'psychometric_scales' => 'array',
+        'mental_exam' => 'array',
+    ];
+
+    protected $hidden = [
+        'session_start_code_hash',
+        'session_start_code_encrypted',
     ];
 
     public function patient_user()

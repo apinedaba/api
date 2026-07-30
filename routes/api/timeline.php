@@ -15,6 +15,7 @@ Route::prefix('user')->middleware(['auth:sanctum', 'handle_invalid_token', 'user
 
     // Eliminar nota
     Route::delete('/notes/{id}', [PatientTimelineController::class, 'deleteNote']);
+    Route::patch('/notes/{id}', [PatientTimelineController::class, 'updateNote']);
 
     // Eliminar archivo
     Route::delete('/attachments/{id}', [PatientTimelineController::class, 'deleteAttachment']);

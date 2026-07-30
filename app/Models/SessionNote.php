@@ -14,6 +14,7 @@ class SessionNote extends Model
         'psychologist_id',
         'content',
         'type',
+        'source',
     ];
 
     protected $casts = [
@@ -23,7 +24,7 @@ class SessionNote extends Model
     // Nota pertenece a una sesión
     public function session()
     {
-        return $this->belongsTo(Sesion::class, 'session_id');
+        return $this->belongsTo(Appointment::class, 'session_id');
     }
 
     // Nota pertenece a un psicólogo

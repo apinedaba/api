@@ -1,2 +1,6 @@
 node_modules
 vendor
+.git
+.env
+.env.production
+storage/logs/*

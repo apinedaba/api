@@ -2,11 +2,10 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Traits\NotificaInternamente;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use App\Notifications\Traits\NotificaInternamente;
 
 class NuevoPacienteBienvenida extends Notification
 {
@@ -26,17 +25,18 @@ class NuevoPacienteBienvenida extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        // ✅ Notificación interna
         $asunto = 'Nuevo paciente registrado en MindMeet';
-        $cuerpo = "Nuevo registro de paciente:\n\nNombre: {$this->patient->name}\nCorreo: {$this->patient->email}\n\nEl paciente se registró por su cuenta.";
+        $cuerpo = "Nuevo registro de paciente:\n\nNombre: {$this->patient->name}\nCorreo: {$this->patient->email}\n\nEl paciente se registro por su cuenta.";
         $this->enviarNotificacionInterna($this->patient, $asunto, $cuerpo);
 
-        // 📩 Correo de bienvenida para el paciente
         return (new MailMessage)
-            ->subject('¡Bienvenido(a) a MindMeet!')
-            ->line('Gracias por registrarte en nuestra plataforma.')
-            ->line('Estamos aquí para apoyarte en tu camino hacia el bienestar.');
+            ->subject('Bienvenido(a) a MindMeet')
+            ->view('email.patient-welcome', [
+                'patientName' => $this->patient->name ?? $notifiable->name ?? '',
+                'dashboardUrl' => rtrim(config('app.perfil_paciente_url'), '/') . '/dashboard',
+            ]);
     }
+
     public function toArray(object $notifiable): array
     {
         return [

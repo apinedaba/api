@@ -9,6 +9,7 @@ use App\Models\PatientUser;
 use App\Models\Patient_Medication;
 use App\Models\Sintomas;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 
@@ -58,12 +59,30 @@ class ClinicalRecordPdfService
             'mentalLabels' => $this->mentalLabels(),
         ])->render();
 
-        return Browsershot::html($html)
+        $this->prepareBrowsershotRuntime();
+
+        $browsershot = Browsershot::html($html)
             ->format('A4')
             ->margins(12, 12, 14, 12)
             ->showBackground()
             ->noSandbox()
-            ->pdf();
+            ->addChromiumArguments([
+                'disable-dev-shm-usage',
+                'disable-gpu',
+                'disable-breakpad',
+                'disable-crashpad',
+                'disable-crash-reporter',
+                'disable-setuid-sandbox',
+                'no-default-browser-check',
+                'no-first-run',
+                'no-zygote',
+                'crash-dumps-dir' => storage_path('app/browsershot/crashpad'),
+                'user-data-dir' => storage_path('app/browsershot/chrome-profile'),
+            ]);
+
+        $this->configureBrowsershot($browsershot);
+
+        return $browsershot->pdf();
     }
 
     public function filename(Patient $patient): string
@@ -120,5 +139,56 @@ class ClinicalRecordPdfService
             'pensamiento_juicio' => 'Pensamiento y juicio',
             'autoconcepto_personalidad' => 'Autoconcepto y personalidad',
         ];
+    }
+
+    private function configureBrowsershot(Browsershot $browsershot): void
+    {
+        $chromePath = config('services.browsershot.chrome_path');
+        $nodeBinary = config('services.browsershot.node_binary');
+        $npmBinary = config('services.browsershot.npm_binary');
+        $nodeModulePath = config('services.browsershot.node_module_path');
+        $includePath = config('services.browsershot.include_path');
+
+        if ($chromePath) {
+            $browsershot->setChromePath($chromePath);
+        }
+
+        if ($nodeBinary) {
+            $browsershot->setNodeBinary($nodeBinary);
+        }
+
+        if ($npmBinary) {
+            $browsershot->setNpmBinary($npmBinary);
+        }
+
+        if ($nodeModulePath) {
+            $browsershot->setNodeModulePath($nodeModulePath);
+        }
+
+        if ($includePath) {
+            $browsershot->setIncludePath($includePath);
+        }
+    }
+
+    private function prepareBrowsershotRuntime(): void
+    {
+        $paths = [
+            'HOME' => storage_path('app/browsershot/home'),
+            'XDG_CACHE_HOME' => storage_path('app/browsershot/cache'),
+            'XDG_CONFIG_HOME' => storage_path('app/browsershot/config'),
+            'XDG_DATA_HOME' => storage_path('app/browsershot/data'),
+        ];
+
+        foreach ([...array_values($paths), storage_path('app/browsershot/chrome-profile'), storage_path('app/browsershot/crashpad')] as $path) {
+            if (!File::isDirectory($path)) {
+                File::makeDirectory($path, 0775, true);
+            }
+        }
+
+        foreach ($paths as $key => $path) {
+            putenv("{$key}={$path}");
+            $_ENV[$key] = $path;
+            $_SERVER[$key] = $path;
+        }
     }
 }

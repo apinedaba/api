@@ -41,6 +41,8 @@ class ProfessionalAnalyticsController extends Controller
     {
         [$from, $to] = $this->resolveRange($request);
         $uniqueVisitorExpression = "COALESCE(session_id, ip_hash, CONCAT('event-', id))";
+        $leadStatus = $request->query('lead_status');
+        $activeLeadStatuses = ['new', 'viewed', 'contacted', 'created'];
 
         $events = ProfessionalAnalyticsEvent::query()
             ->whereBetween('created_at', [$from, $to])
@@ -76,6 +78,7 @@ class ProfessionalAnalyticsController extends Controller
         $leadCounts = ConsultaContacto::query()
             ->whereBetween('created_at', [$from, $to])
             ->whereNotNull('user_id')
+            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses))
             ->selectRaw("user_id, COUNT(*) as total")
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
@@ -83,6 +86,7 @@ class ProfessionalAnalyticsController extends Controller
         $leadSources = ConsultaContacto::query()
             ->whereBetween('created_at', [$from, $to])
             ->whereNotNull('user_id')
+            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses))
             ->selectRaw("COALESCE(lead_source, 'sin_fuente') as source, COUNT(*) as total")
             ->groupBy('source')
             ->orderByDesc('total')
@@ -187,6 +191,7 @@ class ProfessionalAnalyticsController extends Controller
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
                 'only_activity' => $request->boolean('only_activity', true),
+                'lead_status' => $leadStatus,
             ],
         ]);
     }

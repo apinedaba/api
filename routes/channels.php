@@ -32,3 +32,7 @@ Broadcast::channel('minder.group.{groupId}', function ($user, $groupId) {
 Broadcast::channel('minder.support.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 });
+
+// Canal público de Mentes en Red: cualquier usuario autenticado puede suscribirse
+// Se usa un canal público (Channel) por lo que no requiere autorización aquí,
+// pero lo documentamos para referencia.

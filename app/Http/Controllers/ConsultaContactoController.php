@@ -8,13 +8,14 @@ use App\Models\DeviceToken;
 use App\Models\DiscountCoupon;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Services\Fcm;
-use App\Services\TwilioWhatsAppService;
+use App\Services\WhatsApp\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\NuevoContacto;
 use App\Notifications\NuevoPosiblePaciente;
 use App\Notifications\ConfirmacionPaciente;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ConsultaContactoController extends Controller
@@ -65,6 +66,7 @@ class ConsultaContactoController extends Controller
         }
 
         $payload = $validator->validated();
+        $payload['status'] = ConsultaContacto::STATUS_NEW;
         $payload['lead_type'] = $payload['lead_type'] ?? 'session';
         $payload['tipo_sesion'] = $payload['tipo_sesion'] ?? 'Paquete de sesiones';
         $couponCode = strtoupper(trim($payload['codigo_descuento'] ?? $payload['coupon_code'] ?? ''));
@@ -135,9 +137,20 @@ class ConsultaContactoController extends Controller
             }
 
             try {
-                app(TwilioWhatsAppService::class)->sendToUser(
+                app(WhatsAppService::class)->queueConfiguredProfessionalTemplate(
+                    'new_lead',
                     $psicologo,
-                    $this->newLeadWhatsAppMessage($consulta)
+                    [
+                        'professional_name' => $psicologo->name,
+                        'lead_name' => $consulta->nombre,
+                        'lead_type' => $consulta->lead_type === 'package'
+                            ? ($consulta->package_name ?: 'Paquete de sesiones')
+                            : ($consulta->tipo_sesion ?: 'Sesión'),
+                        'lead_date' => trim(($consulta->fecha ?: '').' '.($consulta->hora ?: '')),
+                        'lead_phone' => $consulta->telefono,
+                        'leads_url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/').'/leads',
+                    ],
+                    ['lead_id' => $consulta->id, 'user_id' => $psicologo->id]
                 );
             } catch (\Throwable $th) {
                 $notificationErrors[] = 'whatsapp_notification_failed';
@@ -247,10 +260,22 @@ class ConsultaContactoController extends Controller
 
         return $missing;
     }
-    public function getData()
+    public function getData(Request $request)
     {
         $userId = auth()->id();
-        $consultas = \App\Models\ConsultaContacto::where('user_id', $userId)
+        $status = $request->query('status', 'active');
+        $consultas = \App\Models\ConsultaContacto::with([
+                'patient:id,name,email,phone',
+                'appointment:id,start,end,title',
+            ])
+            ->where('user_id', $userId)
+            ->when($status === 'active', function ($query) {
+                $query->whereNotIn('status', [
+                    ConsultaContacto::STATUS_CONVERTED,
+                    ConsultaContacto::STATUS_DISCARDED,
+                ]);
+            })
+            ->when($status !== 'active' && $status !== 'all', fn ($query) => $query->where('status', $status))
             ->latest()
             ->get();
 
@@ -258,5 +283,52 @@ class ConsultaContactoController extends Controller
             'status' => 'success',
             'data' => $consultas
         ], 200);
+    }
+
+    public function updateStatus(Request $request, ConsultaContacto $lead)
+    {
+        abort_unless((int) $lead->user_id === (int) auth()->id(), 403);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in([
+                ConsultaContacto::STATUS_NEW,
+                ConsultaContacto::STATUS_VIEWED,
+                ConsultaContacto::STATUS_CONTACTED,
+                ConsultaContacto::STATUS_DISCARDED,
+            ])],
+            'notes' => 'nullable|string|max:2000',
+        ]);
+
+        $updates = [
+            'status' => $data['status'],
+        ];
+
+        if (array_key_exists('notes', $data)) {
+            $updates['notes'] = $data['notes'];
+        }
+
+        if ($data['status'] === ConsultaContacto::STATUS_VIEWED && ! $lead->viewed_at) {
+            $updates['viewed_at'] = now();
+        }
+
+        if ($data['status'] === ConsultaContacto::STATUS_CONTACTED && ! $lead->contacted_at) {
+            $updates['contacted_at'] = now();
+            $updates['viewed_at'] = $lead->viewed_at ?: now();
+        }
+
+        if ($data['status'] === ConsultaContacto::STATUS_DISCARDED) {
+            $updates['discarded_at'] = now();
+        }
+
+        if (in_array($data['status'], [ConsultaContacto::STATUS_NEW, ConsultaContacto::STATUS_VIEWED, ConsultaContacto::STATUS_CONTACTED], true)) {
+            $updates['discarded_at'] = null;
+        }
+
+        $lead->update($updates);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $lead->fresh(['patient:id,name,email,phone', 'appointment:id,start,end,title']),
+        ]);
     }
 }

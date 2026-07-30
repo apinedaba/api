@@ -9,6 +9,7 @@ const navigationGroups = [
         items: [
             { label: 'Dashboard', href: 'dashboard', match: ['dashboard'] },
             { label: 'Analytics', href: 'analytics', match: ['analytics'] },
+            { label: 'Evaluaciones MindMeet', href: 'mindmeet-feedback.index', match: ['mindmeet-feedback.*'] },
             { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
         ],
@@ -25,6 +26,7 @@ const navigationGroups = [
         title: 'Growth',
         items: [
             { label: 'Catalogo Facebook', href: 'facebook-catalog.index', match: ['facebook-catalog.*'] },
+            { label: 'WhatsApp automation', href: 'whatsapp-automation.index', match: ['whatsapp-automation.*'] },
             { label: 'Cupones', href: 'coupons', match: ['coupons', 'coupons.*'] },
             { label: 'Vendedores', href: 'vendedores', match: ['vendedores', 'vendedores.*'] },
             { label: 'Pagos vendedores', href: 'seller-commissions', match: ['seller-commissions', 'seller-commissions.*'] },
@@ -33,7 +35,9 @@ const navigationGroups = [
     {
         title: 'Comunidad',
         items: [
-            { label: 'Comunidad Minder', href: 'minder.groups.index', match: ['minder.*'] },
+            { label: 'Mentes en Red', href: 'minder.forum-reports.index', match: ['minder.forum-reports.*', 'minder.forum-taxonomy.*'] },
+            { label: 'Soporte MindMeet', href: 'minder.support.index', match: ['minder.support.*', 'minder.support-appointments.*'] },
+            { label: 'Comunidad Minder', href: 'minder.groups.index', match: ['minder.groups.*', 'minder.reports.*', 'minder.metrics.*'] },
         ],
     },
 ];

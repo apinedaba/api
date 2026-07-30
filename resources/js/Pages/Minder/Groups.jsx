@@ -119,10 +119,10 @@ export default function MinderGroups({ auth, groups }) {
             <Head title="Comunidad Minder" />
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="flex gap-4 mb-6">
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
                         <Link href={route('minder.reports.index')} className="text-sm text-blue-700 hover:underline">Reportes pendientes</Link>
                         <Link href={route('minder.metrics.index')} className="text-sm text-blue-700 hover:underline">Métricas</Link>
-                        <Link href={route('minder.support.index')} className="text-sm text-blue-700 hover:underline">Soporte</Link>
+                        <Link href={route('minder.support.index')} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">Soporte MindMeet</Link>
                     </div>
                     <div className="bg-white shadow sm:rounded-lg overflow-hidden">
                         <DataTable

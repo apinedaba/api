@@ -95,6 +95,31 @@ class ProfileController extends Controller
         ];
         return response()->json($response, 200);
     }
+
+    public function updateServiceSetupProgress(Request $request)
+    {
+        $validated = $request->validate([
+            'current_step' => ['required', 'string', 'in:license,specialties,schedule,services,certifications'],
+            'completed_step' => ['nullable', 'string', 'in:license,specialties,schedule,services,certifications'],
+        ]);
+
+        $user = $request->user();
+        $configurations = $user->configurations ?? [];
+        $completedSteps = collect(data_get($configurations, 'service_setup_completed_steps', []))
+            ->filter(fn ($step) => in_array($step, ['license', 'specialties', 'schedule', 'services', 'certifications'], true));
+
+        if (filled($validated['completed_step'] ?? null)) {
+            $completedSteps->push($validated['completed_step']);
+        }
+
+        $configurations['service_setup_current_step'] = $validated['current_step'];
+        $configurations['service_setup_completed_steps'] = $completedSteps->unique()->values()->all();
+        $configurations['service_setup_updated_at'] = now()->toISOString();
+
+        $user->forceFill(['configurations' => $configurations])->save();
+
+        return response()->json($user->fresh()->load('subscription', 'escuelas'));
+    }
     public function upload(Request $request)
     {
         $request->validate([

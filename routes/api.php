@@ -22,6 +22,7 @@ use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\ElenaAssistantController;
+use App\Http\Controllers\PatientSummaryAiController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\GoogleCalendarController;
@@ -147,6 +148,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
     Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
+    Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
@@ -202,6 +204,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
     Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index']);
     Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate']);
+    Route::get('user/patients/{patient}/summary-ai', [PatientSummaryAiController::class, 'index']);
+    Route::post('user/patients/{patient}/summary-ai/generate', [PatientSummaryAiController::class, 'generate']);
+    Route::put('user/patients/{patient}/summary-ai/{summary}', [PatientSummaryAiController::class, 'update']);
     Route::post('user/patients/{id}/consent-link', [PatientController::class, 'generateConsentLink']);
     Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);

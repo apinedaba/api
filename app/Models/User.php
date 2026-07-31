@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\IdentityVerificationStatus;
+
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -82,6 +84,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'stripe_connect_charges_enabled' => 'boolean',
         'stripe_connect_payouts_enabled' => 'boolean',
     ];
+
+    public function setIdentityVerificationStatusAttribute($value): void
+    {
+        $this->attributes['identity_verification_status'] = IdentityVerificationStatus::validate($value);
+    }
     public function patientUsers()
     {
         return $this->hasMany(PatientUser::class, 'user', 'id')->with('patient');

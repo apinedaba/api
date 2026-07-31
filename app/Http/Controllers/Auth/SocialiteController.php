@@ -103,6 +103,7 @@ class SocialiteController extends Controller
                 $patient = Patient::create([
                     'name' => $socialUser->name,
                     'email' => $socialUser->email,
+                    'registration_source' => 'website',
                     'provider_name' => $provider,
                     'provider_id' => $socialUser->id,
                     'avatar' => $socialUser->avatar,

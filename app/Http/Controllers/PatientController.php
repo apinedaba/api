@@ -98,7 +98,17 @@ class PatientController extends Controller
 
     public function getAllPatients()
     {
-        $patients = Patient::with('connections')->with('connections.user')->with('expediente')->get();
+        $patients = Patient::query()
+            ->where('registration_source', 'website')
+            ->with(['connections.user:id,name,email,image', 'expediente'])
+            ->latest()
+            ->get()
+            ->map(function (Patient $patient) {
+                $patient->setAttribute('registered_at', optional($patient->created_at)->toIso8601String());
+
+                return $patient;
+            });
+
         return Inertia::render('Pacientes', [
             'pacientes' => $patients,
             'status' => session('status'),
@@ -177,6 +187,7 @@ class PatientController extends Controller
             ]);
             $data = array_merge($data, $attributes, [
                 'organization_id' => $request->input('organization_id') ?: $request->attributes->get('active_organization')?->id,
+                'registration_source' => 'professional',
                 'password' => Hash::make($passwordSeed),
                 'historiaClinica' => $historiaClinica,
             ]);

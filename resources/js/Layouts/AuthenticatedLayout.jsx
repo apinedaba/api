@@ -18,7 +18,7 @@ const navigationGroups = [
         title: 'Operacion',
         items: [
             { label: 'Psicologos', href: 'psicologos', match: ['psicologos', 'psicologoShow', 'psicologo.*', 'psicologos.*'] },
-            { label: 'Pacientes', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
+            { label: 'Registros web', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
             { label: 'Carritos', href: 'carts', match: ['carts', 'cartByPatient'] },
         ],
     },

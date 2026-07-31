@@ -301,6 +301,7 @@ class RegisterController extends Controller
             'email' => $email,
             'phone' => $phone,
             'contacto' => $attributes['contacto'],
+            'registration_source' => 'website',
             'password' => Hash::make($request->password)
         ]);
         try {

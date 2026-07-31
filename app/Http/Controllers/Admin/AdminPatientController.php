@@ -99,6 +99,7 @@ class AdminPatientController extends Controller
 
             // Crear contraseña: usar la proporcionada o el teléfono
             $data = array_merge($data, $attributes);
+            $data['registration_source'] = 'admin';
             $data['password'] = Hash::make($request->input('password', $telefono ?: $email));
             $data['activo'] = $request->input('activo', true);
             $data['status'] = 'Registrado';

@@ -55,6 +55,7 @@ class ElenaAssistantController extends Controller
         return match ($intent['intent']) {
             'search_patient' => $this->searchPatient($user, $intent),
             'next_session' => $this->nextSession($user, $intent),
+            'today_sessions' => $this->todaySessions($user, $now),
             'schedule_session' => $this->scheduleProposal($user, $intent, $timezone),
             'help' => response()->json($this->helpResponse()),
             default => response()->json([
@@ -239,6 +240,46 @@ class ElenaAssistantController extends Controller
             'message' => "La siguiente sesion con {$patient->name} es {$this->humanDate($appointment->start)}.",
             'patient' => $this->serializePatient($patient),
             'appointment' => $this->serializeAppointment($appointment),
+        ]);
+    }
+
+    private function todaySessions(User $user, Carbon $now): JsonResponse
+    {
+        $start = $now->copy()->startOfDay();
+        $end = $start->copy()->addDay();
+
+        $appointments = Appointment::query()
+            ->with('patient:id,name,email,contacto')
+            ->where('user', $user->id)
+            ->where('start', '>=', $start)
+            ->where('start', '<', $end)
+            ->where(fn ($query) => $query->whereNull('statusUser')->orWhereNotIn('statusUser', ['Cancel', 'Cancelado', 'Cancelada', 'cancel', 'cancelado', 'cancelada']))
+            ->where(fn ($query) => $query->whereNull('statusPatient')->orWhereNotIn('statusPatient', ['Cancel', 'Cancelado', 'Cancelada', 'cancel', 'cancelado', 'cancelada']))
+            ->where(fn ($query) => $query->whereNull('state')->orWhereNotIn('state', ['Cancel', 'Cancelado', 'Cancelada', 'cancel', 'cancelado', 'cancelada']))
+            ->orderBy('start')
+            ->get();
+
+        if ($appointments->isEmpty()) {
+            return response()->json([
+                'type' => 'today_sessions',
+                'message' => 'No tienes sesiones programadas para hoy.',
+                'appointments' => [],
+            ]);
+        }
+
+        $schedule = $appointments->map(function (Appointment $appointment): string {
+            $time = Carbon::parse($appointment->start)->timezone(self::TIMEZONE)->format('H:i');
+
+            return "{$time} con ".($appointment->patient?->name ?: 'paciente sin nombre');
+        })->implode("\n");
+
+        return response()->json([
+            'type' => 'today_sessions',
+            'message' => "Hoy tienes {$this->formatCount($appointments->count(), 'sesion', 'sesiones')}:\n{$schedule}",
+            'appointments' => $appointments->map(fn (Appointment $appointment) => [
+                ...$this->serializeAppointment($appointment),
+                'patient' => $appointment->patient ? $this->serializePatient($appointment->patient) : null,
+            ])->values(),
         ]);
     }
 
@@ -630,7 +671,7 @@ class ElenaAssistantController extends Controller
     {
         return [
             'type' => 'message',
-            'message' => 'Puedo buscar pacientes, decirte la siguiente sesion y preparar sesiones nuevas. Ejemplos: "busca a Adrian Pineda", "cuando es la siguiente sesion con Adrian Pineda", "agenda una sesion para Adrian Pineda el martes a las 5pm".',
+            'message' => 'Puedo decirte con quien tienes sesiones hoy, buscar pacientes, consultar la siguiente sesion y preparar sesiones nuevas. Ejemplos: "con quien tengo sesiones hoy", "busca a Adrian Pineda" o "agenda una sesion para Adrian Pineda el martes a las 5pm".',
         ];
     }
 }

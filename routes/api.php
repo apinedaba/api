@@ -32,6 +32,7 @@ use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\PatientDocumentRequestController;
 use App\Http\Controllers\PatientExerciseAiController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
@@ -82,6 +83,8 @@ Route::post('public/appointments/{uuid}/reschedule', [AppointmentController::cla
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
 Route::get('public/consents/{token}', [PatientController::class, 'showPublicConsent']);
 Route::post('public/consents/{token}/sign', [PatientController::class, 'signPublicConsent']);
+Route::get('public/documents/{token}', [PatientDocumentRequestController::class, 'showPublic']);
+Route::post('public/documents/{token}/sign', [PatientDocumentRequestController::class, 'signPublic']);
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit.user');
 Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
@@ -151,6 +154,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
     Route::get('user/document-preferences', [ProfileController::class, 'documentPreferences']);
     Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
+    Route::get('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'index']);
+    Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store']);
+    Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel']);
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);

@@ -127,6 +127,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'consent_content' => data_get($preferences, 'consent_content'),
+            'minor_authorization_content' => data_get($preferences, 'minor_authorization_content'),
             'professional_signature_data_url' => data_get($preferences, 'professional_signature_data_url'),
             'documents' => array_values(data_get($preferences, 'documents', [])),
             'updated_at' => data_get($preferences, 'updated_at'),
@@ -137,6 +138,7 @@ class ProfileController extends Controller
     {
         $validated = $request->validate([
             'consent_content' => ['required', 'string', 'max:30000'],
+            'minor_authorization_content' => ['required', 'string', 'max:30000'],
             'professional_signature_data_url' => ['nullable', 'string', 'max:2000000'],
             'documents' => ['sometimes', 'array', 'max:100'],
             'documents.*.id' => ['required', 'string', 'max:100'],
@@ -149,6 +151,7 @@ class ProfileController extends Controller
         $configurations = $user->configurations ?? [];
         $configurations['document_preferences'] = [
             'consent_content' => trim($validated['consent_content']),
+            'minor_authorization_content' => trim($validated['minor_authorization_content']),
             'professional_signature_data_url' => $validated['professional_signature_data_url'] ?? null,
             'documents' => collect($validated['documents'] ?? data_get($configurations, 'document_preferences.documents', []))
                 ->map(fn ($document) => [

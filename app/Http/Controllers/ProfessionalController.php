@@ -39,6 +39,7 @@ class ProfessionalController extends Controller
         $lng = $this->normalizeCoordinate($params['lng'] ?? $params['longitude'] ?? null, -180, 180);
         $radius = $this->normalizeRadius($params['radius'] ?? null);
         $hasGeoFilter = $lat !== null && $lng !== null;
+        $locationMode = ($params['location_mode'] ?? 'all') === 'nearby' ? 'nearby' : 'all';
         $estados = $this->normalizedStateFilters($params['estado'] ?? null);
 
 
@@ -72,11 +73,12 @@ class ProfessionalController extends Controller
 
         if ($hasGeoFilter) {
             $distanceSql = $this->distanceSql();
-
-            $q->whereNotNull('active_offices.latitude')
-                ->whereNotNull('active_offices.longitude')
-                ->selectRaw("{$distanceSql} as distance_km", [$lat, $lng, $lat])
-                ->whereRaw("{$distanceSql} <= ?", [$lat, $lng, $lat, $radius]);
+            $q->selectRaw("{$distanceSql} as distance_km", [$lat, $lng, $lat]);
+            if ($locationMode === 'nearby') {
+                $q->whereNotNull('active_offices.latitude')
+                    ->whereNotNull('active_offices.longitude')
+                    ->whereRaw("{$distanceSql} <= ?", [$lat, $lng, $lat, $radius]);
+            }
         }
 
         /*
@@ -210,7 +212,8 @@ class ProfessionalController extends Controller
          * pero si rote la exposicion con el tiempo.
          */
         if ($hasGeoFilter) {
-            $q->orderBy('distance_km')
+            $q->orderByRaw('distance_km IS NULL')
+                ->orderBy('distance_km')
                 ->orderBy('users.id');
         } else {
             $seedSource = $params['seed'] ?? now()->format('Y-m-d');

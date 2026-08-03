@@ -280,19 +280,15 @@ class UserController extends Controller
 
     public function ensurePublicVisibility(Request $request, string $id)
     {
-        $request->validate([
-            'grant_lifetime_access' => ['nullable', 'boolean'],
-        ]);
-
         $user = User::with('subscription')->findOrFail($id);
         $subscription = $user->subscription;
         $hasBillableAccess = $user->has_lifetime_access
             || optional($subscription)->stripe_status === 'active'
             || (optional($subscription)->stripe_status === 'trialing' && filled(optional($subscription)->stripe_id));
 
-        if (!$hasBillableAccess && !$request->boolean('grant_lifetime_access')) {
+        if (!$hasBillableAccess) {
             throw ValidationException::withMessages([
-                'grant_lifetime_access' => 'Este psicologo no tiene suscripcion activa/prueba activa. Autoriza acceso permanente para hacerlo visible sin Stripe.',
+                'membership_type' => 'Este psicologo no tiene una membresia activa. Asigna una membresia antes de habilitar su visibilidad.',
             ]);
         }
 
@@ -301,12 +297,38 @@ class UserController extends Controller
             'isProfileComplete' => true,
             'identity_verification_status' => 'approved',
             'email_verified_at' => $user->email_verified_at ?: now(),
-            'has_lifetime_access' => $user->has_lifetime_access || $request->boolean('grant_lifetime_access'),
         ])->save();
 
         return redirect()
             ->route('psicologoShow', $user->id)
             ->with('status', 'Psicologo listo para visibilidad publica.');
+    }
+
+    public function updateMembership(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'membership_type' => ['required', 'in:none,lifetime,content_creator'],
+        ]);
+
+        $user = User::findOrFail($id);
+        $membershipType = $validated['membership_type'] === 'none'
+            ? null
+            : $validated['membership_type'];
+
+        $user->forceFill([
+            'membership_type' => $membershipType,
+            'has_lifetime_access' => $membershipType !== null,
+        ])->save();
+
+        $label = match ($membershipType) {
+            'content_creator' => 'Creador de contenido',
+            'lifetime' => 'Acceso permanente',
+            default => 'Sin membresia especial',
+        };
+
+        return redirect()
+            ->route('psicologoShow', $user->id)
+            ->with('status', "Membresia actualizada: {$label}.");
     }
 
     private function publicVisibilitySummary(User $user): array
@@ -346,7 +368,9 @@ class UserController extends Controller
                 'key' => 'billable_access',
                 'label' => 'Suscripcion o acceso permanente',
                 'ok' => $hasBillableAccess,
-                'detail' => $user->has_lifetime_access ? 'Acceso permanente' : ($subscriptionStatus ?: 'Sin suscripcion'),
+                'detail' => $user->has_lifetime_access
+                    ? ($user->membership_type === 'content_creator' ? 'Creador de contenido' : 'Acceso permanente')
+                    : ($subscriptionStatus ?: 'Sin suscripcion'),
             ],
         ];
 

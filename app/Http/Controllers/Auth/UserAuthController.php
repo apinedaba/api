@@ -45,6 +45,10 @@ class UserAuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => $user,
+            'requires_email_verification' => !$user->hasVerifiedEmail(),
+            'message' => $user->hasVerifiedEmail()
+                ? 'Login correcto'
+                : 'Credenciales correctas. Verifica tu correo para continuar.',
         ], 200);
     }
 

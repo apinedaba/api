@@ -10,12 +10,13 @@ use App\Models\SessionAttachment;
 use App\Models\SessionNote;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'organization_id',

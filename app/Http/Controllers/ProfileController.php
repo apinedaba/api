@@ -120,6 +120,49 @@ class ProfileController extends Controller
 
         return response()->json($user->fresh()->load('subscription', 'escuelas'));
     }
+
+    public function documentPreferences(Request $request)
+    {
+        $preferences = data_get($request->user()->configurations, 'document_preferences', []);
+
+        return response()->json([
+            'consent_content' => data_get($preferences, 'consent_content'),
+            'professional_signature_data_url' => data_get($preferences, 'professional_signature_data_url'),
+            'documents' => array_values(data_get($preferences, 'documents', [])),
+            'updated_at' => data_get($preferences, 'updated_at'),
+        ]);
+    }
+
+    public function updateDocumentPreferences(Request $request)
+    {
+        $validated = $request->validate([
+            'consent_content' => ['required', 'string', 'max:30000'],
+            'professional_signature_data_url' => ['nullable', 'string', 'max:2000000'],
+            'documents' => ['sometimes', 'array', 'max:100'],
+            'documents.*.id' => ['required', 'string', 'max:100'],
+            'documents.*.title' => ['required', 'string', 'max:160'],
+            'documents.*.content' => ['required', 'string', 'max:30000'],
+            'documents.*.requires_signature' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $configurations = $user->configurations ?? [];
+        $configurations['document_preferences'] = [
+            'consent_content' => trim($validated['consent_content']),
+            'professional_signature_data_url' => $validated['professional_signature_data_url'] ?? null,
+            'documents' => collect($validated['documents'] ?? data_get($configurations, 'document_preferences.documents', []))
+                ->map(fn ($document) => [
+                    'id' => $document['id'],
+                    'title' => trim($document['title']),
+                    'content' => trim($document['content']),
+                    'requires_signature' => (bool) $document['requires_signature'],
+                ])->values()->all(),
+            'updated_at' => now()->toISOString(),
+        ];
+        $user->forceFill(['configurations' => $configurations])->save();
+
+        return $this->documentPreferences($request);
+    }
     public function upload(Request $request)
     {
         $request->validate([

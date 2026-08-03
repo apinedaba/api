@@ -22,11 +22,17 @@ class SubscriptionStatusService
         $subscription = $user->subscription;
 
         if ($user->has_lifetime_access) {
+            $isContentCreator = $user->membership_type === 'content_creator';
+
             return [
-                'status_key' => 'lifetime',
-                'status_label' => 'Vitalicio',
-                'headline' => 'Tu acceso vitalicio está activo.',
-                'description' => 'Tienes acceso completo a MindMeet sin renovaciones ni cobros recurrentes.',
+                'status_key' => $isContentCreator ? 'content_creator' : 'lifetime',
+                'status_label' => $isContentCreator ? 'Creador de contenido' : 'Vitalicio',
+                'headline' => $isContentCreator
+                    ? 'Tu membresía de creador de contenido está activa.'
+                    : 'Tu acceso vitalicio está activo.',
+                'description' => $isContentCreator
+                    ? 'Tienes acceso especial a MindMeet como parte del programa de creadores de contenido.'
+                    : 'Tienes acceso completo a MindMeet sin renovaciones ni cobros recurrentes.',
                 'can_access' => true,
                 'can_manage' => false,
                 'show_available_plans' => false,

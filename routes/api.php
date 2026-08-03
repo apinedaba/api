@@ -149,6 +149,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
     Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
     Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
+    Route::get('user/document-preferences', [ProfileController::class, 'documentPreferences']);
+    Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);

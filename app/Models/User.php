@@ -46,6 +46,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'verification_code',
         'code_expires_at',
         'has_lifetime_access',
+        'membership_type',
         'activo',
         'cedula_selfie_url',
         'ine_selfie_url',

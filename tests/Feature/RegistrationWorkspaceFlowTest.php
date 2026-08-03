@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class RegistrationWorkspaceFlowTest extends TestCase
@@ -127,6 +128,48 @@ class RegistrationWorkspaceFlowTest extends TestCase
                 ->where('role', 'psychologist')
                 ->exists()
         );
+    }
+
+    public function test_registering_again_resumes_an_unverified_account(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'pendiente+' . uniqid() . '@mindmeet.test',
+            'email_verified_at' => null,
+            'verification_code' => '123456',
+            'code_expires_at' => now()->addMinutes(10),
+        ]);
+
+        $this->postJson('/api/user/register', [
+            'account_type' => 'independent',
+            'name' => 'Cuenta Pendiente',
+            'email' => strtoupper($user->email),
+            'password' => 'secret123',
+            'contacto' => ['telefono' => '5512345678'],
+        ])
+            ->assertStatus(409)
+            ->assertJsonPath('existing_unverified', true)
+            ->assertJsonPath('requires_email_verification', true)
+            ->assertJsonPath('email', $user->email);
+
+        $this->assertSame(1, User::where('email', $user->email)->count());
+    }
+
+    public function test_unverified_user_can_login_to_continue_email_verification(): void
+    {
+        $password = 'secret123';
+        $user = User::factory()->create([
+            'email_verified_at' => null,
+            'password' => Hash::make($password),
+        ]);
+
+        $this->postJson('/api/user/login', [
+            'email' => $user->email,
+            'password' => $password,
+        ])
+            ->assertOk()
+            ->assertJsonPath('requires_email_verification', true)
+            ->assertJsonPath('user.email_verified_at', null)
+            ->assertJsonStructure(['token', 'user']);
     }
 
     private function verifyAndGetToken(string $email, string $code): string

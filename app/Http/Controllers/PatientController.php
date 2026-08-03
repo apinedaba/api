@@ -353,6 +353,20 @@ class PatientController extends Controller
             ->where('user', auth()->id())
             ->firstOrFail();
 
+        $validated = $request->validate([
+            'consent_content' => ['nullable', 'string', 'max:30000'],
+            'professional_signature_data_url' => ['nullable', 'string', 'max:2000000'],
+        ]);
+
+        $content = trim((string) ($validated['consent_content'] ?? data_get($patient->consentimiento, 'content', '')));
+        $professionalSignature = $validated['professional_signature_data_url'] ?? data_get($patient->consentimiento, 'professional_signature_data_url');
+        if ($content === '' || ! $professionalSignature) {
+            return response()->json([
+                'message' => 'Agrega el texto del consentimiento y la firma del profesional antes de generar el enlace.',
+                'type' => 'error',
+            ], 422);
+        }
+
         $token = Str::random(72);
         $consent = array_merge($patient->consentimiento ?? [], [
             'status' => data_get($patient->consentimiento, 'status', 'pending'),
@@ -362,6 +376,11 @@ class PatientController extends Controller
             'public_generated_at' => now()->toIso8601String(),
             'public_expires_at' => now()->addDays(30)->toIso8601String(),
             'source' => 'mindmeet_consent_v1',
+            'content' => $content,
+            'professional_signature_data_url' => $professionalSignature,
+            'professional_signed_by' => auth()->id(),
+            'professional_signed_name' => data_get(auth()->user(), 'contacto.publicName') ?: auth()->user()?->name,
+            'professional_signed_at' => now()->toIso8601String(),
             'updated_at' => now()->toIso8601String(),
         ]);
 
@@ -413,6 +432,10 @@ class PatientController extends Controller
                 'status' => data_get($consent, 'status', 'pending'),
                 'signed_at' => data_get($consent, 'signed_at'),
                 'expires_at' => data_get($consent, 'public_expires_at'),
+                'content' => data_get($consent, 'content'),
+                'professional_signature_data_url' => data_get($consent, 'professional_signature_data_url'),
+                'professional_signed_name' => data_get($consent, 'professional_signed_name'),
+                'professional_signed_at' => data_get($consent, 'professional_signed_at'),
             ],
         ]);
     }
@@ -420,7 +443,7 @@ class PatientController extends Controller
     public function signPublicConsent(Request $request, string $token): JsonResponse
     {
         $request->validate([
-            'consent_signature_data_url' => ['required', 'string'],
+            'consent_signature_data_url' => ['required', 'string', 'max:2000000'],
             'patient_name' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -788,6 +811,14 @@ class PatientController extends Controller
         $consent = $request->input('consentimiento', []);
         $fileUrl = $request->input('consent_file_url', data_get($consent, 'file_url'));
         $type = $request->input('consent_type', data_get($consent, 'type'));
+        $content = trim((string) $request->input('consent_content', data_get($consent, 'content', data_get($patient->consentimiento, 'content', ''))));
+        $professionalSignature = $request->input('professional_signature_data_url', data_get($consent, 'professional_signature_data_url'));
+
+        $request->validate([
+            'consent_content' => ['nullable', 'string', 'max:30000'],
+            'professional_signature_data_url' => ['nullable', 'string', 'max:2000000'],
+            'consent_signature_data_url' => ['nullable', 'string', 'max:2000000'],
+        ]);
 
         if (!$forcePending && !$signatureDataUrl && !$fileUrl && !$type && empty($consent)) {
             return;
@@ -799,6 +830,19 @@ class PatientController extends Controller
             'source' => 'mindmeet_consent_v1',
             'updated_at' => now()->toIso8601String(),
         ];
+
+        if ($content !== '') {
+            $nextConsent['content'] = $content;
+        }
+
+        if ($professionalSignature) {
+            $nextConsent = array_merge($nextConsent, [
+                'professional_signature_data_url' => $professionalSignature,
+                'professional_signed_by' => auth()->id(),
+                'professional_signed_name' => data_get(auth()->user(), 'contacto.publicName') ?: auth()->user()?->name,
+                'professional_signed_at' => now()->toIso8601String(),
+            ]);
+        }
 
         if ($fileUrl) {
             $nextConsent = array_merge($nextConsent, [

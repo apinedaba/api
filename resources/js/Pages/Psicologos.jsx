@@ -29,6 +29,7 @@ const subscriptionMap = {
     past_due: { label: 'Vencida', className: 'bg-red-50 text-red-700 ring-red-100' },
     trial_expired: { label: 'Prueba expirada', className: 'bg-orange-50 text-orange-700 ring-orange-100' },
     lifetime: { label: 'Permanente', className: 'bg-sky-50 text-sky-700 ring-sky-100' },
+    content_creator: { label: 'Creador de contenido', className: 'bg-violet-50 text-violet-700 ring-violet-100' },
     none: { label: 'Sin suscripción', className: 'bg-slate-100 text-slate-600 ring-slate-200' },
 };
 
@@ -283,7 +284,9 @@ function Badge({ meta }) {
 
 function getSubscriptionMeta(row) {
     if (row?.has_lifetime_access) {
-        return subscriptionMap.lifetime;
+        return row?.membership_type === 'content_creator'
+            ? subscriptionMap.content_creator
+            : subscriptionMap.lifetime;
     }
 
     return subscriptionMap[row?.subscription?.stripe_status] || subscriptionMap.none;

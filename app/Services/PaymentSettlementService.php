@@ -38,8 +38,7 @@ class PaymentSettlementService
             return true;
         }
 
-        return $this->isCompletedStatus($payment->appointment->statusUser)
-            && $this->isCompletedStatus($payment->appointment->statusPatient);
+        return $this->isCompletedStatus($payment->appointment->statusUser);
     }
 
     public function isWithdrawable(Payment $payment): bool

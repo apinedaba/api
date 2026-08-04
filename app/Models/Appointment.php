@@ -90,6 +90,45 @@ class Appointment extends Model
         'session_start_code_encrypted',
     ];
 
+    public function sessionFormat(): ?string
+    {
+        $value = $this->cart?->formato
+            ?: data_get($this->extendedProps, 'formato')
+            ?: data_get($this->extendedProps, 'tipo');
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return Str::of($value)->lower()->ascii()->trim()->toString();
+    }
+
+    public function isInPerson(): bool
+    {
+        return in_array($this->sessionFormat(), [
+            'presencial',
+            'consultorio',
+            'in person',
+            'in-person',
+        ], true);
+    }
+
+    public function isProfessionallyCompleted(): bool
+    {
+        $completed = [
+            'completed',
+            'complete',
+            'completada',
+            'completado',
+            'concluida',
+            'terminada',
+            'finalizada',
+        ];
+
+        return in_array(Str::of((string) $this->statusUser)->lower()->ascii()->trim()->toString(), $completed, true)
+            || in_array(Str::of((string) $this->lifecycle_status)->lower()->ascii()->trim()->toString(), $completed, true);
+    }
+
     public function patient_user()
     {
         return $this->belongsTo(PatientUser::class, 'patient_user', 'id');

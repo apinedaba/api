@@ -649,6 +649,14 @@ class AppointmentController extends Controller
         $patient = $request->user();
         abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
 
+        if ($appointment->isProfessionallyCompleted()) {
+            return response()->json([
+                'message' => 'La sesión ya fue completada por el profesional; no requiere validación adicional del paciente.',
+                'type' => 'info',
+                'appointment' => $appointment->fresh(['cart', 'user', 'payments']),
+            ], 200);
+        }
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:Confirmed,Reschedule Requested,Cancel,Completed'],
             'comments' => ['nullable', 'string', 'max:1000'],
@@ -863,6 +871,9 @@ class AppointmentController extends Controller
             return $this->destroy($request, $appointment);
         }
 
+        $professionalCompleted = $request->exists('statusUser')
+            && (new Appointment(['statusUser' => $request->input('statusUser')]))->isProfessionallyCompleted();
+
         foreach ($updatedData as $key => $value) {
             if (! array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
                 continue;
@@ -877,6 +888,13 @@ class AppointmentController extends Controller
             if ($hasChanged) {
                 $fieldsToUpdate[$key] = $value;
             }
+        }
+
+        if ($professionalCompleted) {
+            unset($fieldsToUpdate['statusPatient']);
+            $fieldsToUpdate['lifecycle_status'] = 'complete';
+            $fieldsToUpdate['state'] = 'Completada';
+            $fieldsToUpdate['completed_at'] = $appointment->completed_at ?: now();
         }
 
         if ($request->exists('comments')) {

@@ -17,6 +17,7 @@ class EmotionLogController extends Controller
                             ->get();
         }
 
+        $this->ensureGuardianUsesOwnProfile($request);
         $patient = $request->user(); 
         return EmotionLog::where('patient_id', $patient->id)
                         ->with('patient')
@@ -28,6 +29,7 @@ class EmotionLogController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureGuardianUsesOwnProfile($request);
         $patient = $request->user(); // auth:patient
 
         $validated = $request->validate([
@@ -85,5 +87,25 @@ class EmotionLogController extends Controller
     public function destroy(EmotionLog $emotionLog)
     {
         //
+    }
+
+    private function ensureGuardianUsesOwnProfile(Request $request): void
+    {
+        $patient = $request->user();
+        $birthDate = data_get($patient, 'relevantes.fechaNac');
+        abort_if(
+            $birthDate && now()->diffInYears($birthDate) < 18,
+            403,
+            'El diario personal no está disponible para pacientes menores de edad.'
+        );
+
+        if (! $request->attributes->get('guardian_account')) return;
+
+        $permissions = $request->attributes->get('guardian_patient_permissions');
+        abort_unless(
+            $permissions && $permissions->relationship === 'Titular',
+            403,
+            'El diario personal solo está disponible al seleccionar tu propio perfil.'
+        );
     }
 }

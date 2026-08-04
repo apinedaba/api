@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\PatientUserController;
 use App\Models\Patient;
 use App\Models\PatientUser;
+use App\Models\GuardianAccount;
 use App\Models\Expediente;
 use App\Notifications\PatientAssignedEmailNotification;
 use App\Notifications\PatientConsentSignedNotification;
@@ -22,6 +23,7 @@ use Illuminate\Support\Str;
 use App\Models\User;
 use Cloudinary\Configuration\Configuration;
 use Inertia\Inertia;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class PatientController extends Controller
@@ -267,6 +269,7 @@ class PatientController extends Controller
 
         $this->saveInitialClinicalIntake($request, $patient);
         $this->saveConsentFromRequest($request, $patient);
+        $this->syncRegisteredGuardian($patient);
 
         $consentUrl = null;
         if ($request->boolean('generate_consent_link')) {
@@ -405,6 +408,7 @@ class PatientController extends Controller
             ]);
         }
         $patient->save();
+        $this->syncRegisteredGuardian($patient);
 
         return response()->json(
             [
@@ -530,6 +534,8 @@ class PatientController extends Controller
         $representative = collect($patient->relationships ?? [])
             ->first(fn ($relationship) => filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN));
         $isMinorAuthorization = data_get($consent, 'document_kind') === 'minor_therapy_authorization';
+        $birthDate = data_get($patient->relevantes, 'fechaNac');
+        $isMinor = $birthDate && now()->diffInYears($birthDate) < 18;
         if ($this->publicConsentExpired($consent)) {
             return response()->json([
                 'message' => 'Este enlace de consentimiento expiro. Solicita uno nuevo a tu psicologo.',
@@ -556,15 +562,17 @@ class PatientController extends Controller
                 'expires_at' => data_get($consent, 'public_expires_at'),
                 'content' => data_get($consent, 'content'),
                 'document_kind' => data_get($consent, 'document_kind', 'informed_consent'),
-                'expected_signer_name' => $isMinorAuthorization
+                'expected_signer_name' => ($isMinor || $isMinorAuthorization)
                     ? data_get($representative, 'nombre')
                     : data_get($consent, 'expected_signer_name'),
-                'signer_role' => $isMinorAuthorization
+                'signer_role' => ($isMinor || $isMinorAuthorization)
                     ? (data_get($representative, 'parentesco') ?: 'Representante legal')
                     : data_get($consent, 'signer_role'),
-                'professional_signature_data_url' => data_get($consent, 'professional_signature_data_url'),
+                'signed_patient_name' => data_get($consent, 'signed_patient_name'),
                 'professional_signed_name' => data_get($consent, 'professional_signed_name'),
                 'professional_signed_at' => data_get($consent, 'professional_signed_at'),
+                'pdf_url' => data_get($consent, 'status') === 'signed'
+                    ? url('/api/public/consents/'.$token.'/pdf') : null,
             ],
         ]);
     }
@@ -591,7 +599,9 @@ class PatientController extends Controller
 
         $signedName = $request->input('patient_name');
         $signerRole = $request->input('signer_role', data_get($consent, 'signer_role'));
-        if (data_get($consent, 'document_kind') === 'minor_therapy_authorization') {
+        $birthDate = data_get($patient->relevantes, 'fechaNac');
+        $isMinor = $birthDate && now()->diffInYears($birthDate) < 18;
+        if ($isMinor || data_get($consent, 'document_kind') === 'minor_therapy_authorization') {
             $representative = collect($patient->relationships ?? [])
                 ->first(fn ($relationship) => filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN));
             abort_unless($representative && filled(data_get($representative, 'nombre')), 422, 'El expediente no tiene un representante legal registrado.');
@@ -618,8 +628,36 @@ class PatientController extends Controller
             'consent' => [
                 'status' => 'signed',
                 'signed_at' => data_get($patient->consentimiento, 'signed_at'),
+                'signed_patient_name' => data_get($patient->consentimiento, 'signed_patient_name'),
+                'signer_role' => data_get($patient->consentimiento, 'signer_role'),
+                'pdf_url' => url('/api/public/consents/'.$token.'/pdf'),
             ],
         ]);
+    }
+
+    public function publicConsentPdf(string $token)
+    {
+        $patient = Patient::query()->where('consentimiento->public_token', $token)->firstOrFail();
+        $consent = $patient->consentimiento ?? [];
+        abort_unless(data_get($consent, 'status') === 'signed', 409, 'El consentimiento todavía no ha sido firmado.');
+
+        $professional = User::find(data_get($consent, 'public_generated_by'));
+        $content = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', data_get($consent, 'content', ''));
+        $signature = $this->pdfSignature(data_get($consent, 'signature_data_url'));
+        $professionalSignature = $this->pdfSignature(data_get($consent, 'professional_signature_data_url'));
+        $title = data_get($consent, 'document_kind') === 'minor_therapy_authorization'
+            ? 'Autorización para terapia de menores' : 'Consentimiento informado';
+        $signedAt = data_get($consent, 'signed_at') ? Carbon::parse(data_get($consent, 'signed_at'))->timezone('America/Mexico_City')->format('d/m/Y H:i') : '';
+        $html = '<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:34px 42px}body{font-family:DejaVu Sans,Arial,sans-serif;color:#1e293b;font-size:11px;line-height:1.65}.header{border-bottom:2px solid #087ca7;padding-bottom:14px;margin-bottom:24px}.brand{font-size:22px;font-weight:700;color:#087ca7}.meta{color:#64748b;margin-top:5px}h1{font-size:20px}.content{font-size:12px}.signatures{width:100%;margin-top:42px}.signature{width:48%;display:inline-block;text-align:center;vertical-align:top}.signature img{max-width:220px;max-height:90px}.line{border-top:1px solid #64748b;padding-top:7px;margin:8px 14px 0}.footer{margin-top:36px;border-top:1px solid #cbd5e1;padding-top:10px;color:#64748b;font-size:9px}</style></head><body><div class="header"><div class="brand">MindMeet</div><div class="meta">Documento: '.e($title).' · Paciente: '.e($patient->name).' · Fecha de firma: '.e($signedAt).'</div></div><h1>'.e($title).'</h1><div class="content">'.$content.'</div><div class="signatures"><div class="signature">'.$signature.'<div class="line">'.e(data_get($consent, 'signed_patient_name')).'<br>'.e(data_get($consent, 'signer_role', 'Paciente')).'</div></div><div class="signature">'.$professionalSignature.'<div class="line">'.e($professional?->name).'<br>Profesional</div></div></div><div class="footer">Emitido y firmado digitalmente mediante MindMeet.</div></body></html>';
+
+        return Pdf::loadHTML($html)->setPaper('a4')->stream(Str::slug($title).'.pdf');
+    }
+
+    private function pdfSignature(?string $value): string
+    {
+        return $value && str_starts_with($value, 'data:image/')
+            ? '<img src="'.e($value).'" alt="Firma">'
+            : '<div style="height:90px"></div>';
     }
 
     protected function notifyConsentSigned(Patient $patient): void
@@ -926,6 +964,23 @@ class PatientController extends Controller
             ->where('user', auth()->id())
             ->whereNotNull('archived_at')
             ->exists();
+    }
+
+    private function syncRegisteredGuardian(Patient $patient): void
+    {
+        collect($patient->relationships ?? [])->filter(fn ($relationship) =>
+            filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN)
+            && filled(data_get($relationship, 'correo'))
+        )->each(function ($relationship) use ($patient) {
+            $email = Str::lower(trim((string) data_get($relationship, 'correo')));
+            $guardian = GuardianAccount::whereRaw('LOWER(email) = ?', [$email])->first();
+            if (! $guardian) return;
+            $guardian->patients()->syncWithoutDetaching([$patient->id => [
+                'relationship' => data_get($relationship, 'parentesco', 'Representante legal'),
+                'can_manage' => true, 'can_sign' => true,
+                'representation_reason' => 'Representante registrado por el profesional', 'status' => 'active',
+            ]]);
+        });
     }
 
     private function saveInitialClinicalIntake(Request $request, Patient $patient): void

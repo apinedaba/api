@@ -5,6 +5,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>Laravel</title>
+        <link rel="icon" type="image/x-icon" href="https://res.cloudinary.com/dabwvv94x/image/upload/v1773885819/favicon_lgexfk.ico">
+        <link rel="shortcut icon" type="image/x-icon" href="https://res.cloudinary.com/dabwvv94x/image/upload/v1773885819/favicon_lgexfk.ico">
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

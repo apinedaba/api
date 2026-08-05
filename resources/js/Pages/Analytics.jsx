@@ -28,11 +28,12 @@ const statusLabels = {
 };
 
 const growthMetrics = {
-    leads: { label: 'Leads', color: '#2563eb', type: 'area' },
-    psychologists_registered: { label: 'Nuevos registros', color: '#7c3aed', type: 'line' },
-    psychologists_active: { label: 'Nuevos activos', color: '#10b981', type: 'line' },
-    profile_views: { label: 'Vistas de perfil', color: '#f59e0b', type: 'line' },
-    contact_clicks: { label: 'Clicks de contacto', color: '#ec4899', type: 'line' },
+    leads: { label: 'Leads', color: '#2563eb', type: 'area', axis: 'activity' },
+    psychologists_registered: { label: 'Nuevos psicólogos', color: '#7c3aed', type: 'line', axis: 'psychologists' },
+    patients_registered: { label: 'Nuevos pacientes', color: '#06b6d4', type: 'line', axis: 'psychologists' },
+    psychologists_active: { label: 'Nuevos activos', color: '#10b981', type: 'line', axis: 'psychologists' },
+    profile_views: { label: 'Vistas de perfil', color: '#f59e0b', type: 'line', axis: 'activity' },
+    contact_clicks: { label: 'Clicks de contacto', color: '#ec4899', type: 'line', axis: 'activity' },
 };
 
 export default function Analytics({ auth, analytics, filters }) {
@@ -44,7 +45,7 @@ export default function Analytics({ auth, analytics, filters }) {
         granularity: filters?.granularity || 'day',
         search: '',
     });
-    const [visibleMetrics, setVisibleMetrics] = useState(['leads', 'psychologists_registered', 'psychologists_active']);
+    const [visibleMetrics, setVisibleMetrics] = useState(['psychologists_registered', 'patients_registered']);
     const [chartMode, setChartMode] = useState('period');
 
     const professionals = analytics?.professionals || [];
@@ -226,7 +227,7 @@ export default function Analytics({ auth, analytics, filters }) {
                     </section>
 
                     <section className="space-y-6">
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                             <GrowthKpi
                                 title="Leads del periodo"
                                 value={analytics?.growth?.period?.leads}
@@ -240,6 +241,13 @@ export default function Analytics({ auth, analytics, filters }) {
                                 change={analytics?.growth?.changes?.psychologists_registered}
                                 detail={`+${number(analytics?.growth?.period?.psychologists_registered)} en el periodo`}
                                 tone="violet"
+                            />
+                            <GrowthKpi
+                                title="Pacientes registrados"
+                                value={analytics?.growth?.totals?.patients}
+                                change={analytics?.growth?.changes?.patients_registered}
+                                detail={`+${number(analytics?.growth?.period?.patients_registered)} en el periodo`}
+                                tone="cyan"
                             />
                             <GrowthKpi
                                 title="Psicólogos activos"
@@ -382,6 +390,7 @@ function GrowthKpi({ title, value, change, detail, tone }) {
         violet: 'from-violet-600 to-fuchsia-500',
         emerald: 'from-emerald-600 to-teal-500',
         amber: 'from-amber-500 to-orange-500',
+        cyan: 'from-cyan-500 to-sky-500',
     };
     const hasComparableChange = change !== null && change !== undefined;
     const isPositive = Number(change) >= 0;
@@ -408,7 +417,12 @@ function GrowthChart({ data, visibleMetrics, mode }) {
         return <div className="flex h-full items-center justify-center rounded-2xl bg-slate-50 text-sm font-semibold text-slate-500">No hay datos para graficar en este periodo.</div>;
     }
 
-    const tooltipFormatter = (value, key) => [number(value), growthMetrics[key]?.label || (key === 'registered_total' ? 'Registrados acumulados' : 'Activos acumulados')];
+    const accumulatedLabels = {
+        registered_total: 'Psicólogos acumulados',
+        active_total: 'Psicólogos activos acumulados',
+        patients_total: 'Pacientes acumulados',
+    };
+    const tooltipFormatter = (value, key) => [number(value), growthMetrics[key]?.label || accumulatedLabels[key] || key];
 
     return (
         <ResponsiveContainer width="100%" height="100%">
@@ -425,18 +439,35 @@ function GrowthChart({ data, visibleMetrics, mode }) {
                 </defs>
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 6" vertical={false} />
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} minTickGap={24} />
-                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
+                <YAxis
+                    yAxisId="activity"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#2563eb', fontSize: 11 }}
+                    label={{ value: mode === 'total' ? 'Personas' : 'Interacciones', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10 }}
+                />
+                <YAxis
+                    yAxisId="psychologists"
+                    orientation="right"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#7c3aed', fontSize: 11 }}
+                    label={{ value: 'Registros', angle: 90, position: 'insideRight', fill: '#7c3aed', fontSize: 10 }}
+                />
                 <Tooltip formatter={tooltipFormatter} contentStyle={{ borderRadius: 16, borderColor: '#e2e8f0', boxShadow: '0 16px 40px rgba(15, 23, 42, .12)' }} />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 14 }} />
                 {mode === 'total' ? (
                     <>
-                        <Area type="monotone" dataKey="registered_total" name="Registrados acumulados" stroke="#7c3aed" fill="url(#registeredGradient)" strokeWidth={3} />
-                        <Line type="monotone" dataKey="active_total" name="Activos acumulados" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+                        <Area yAxisId="activity" type="monotone" dataKey="registered_total" name="Psicólogos acumulados" stroke="#7c3aed" fill="url(#registeredGradient)" strokeWidth={3} />
+                        <Line yAxisId="activity" type="monotone" dataKey="patients_total" name="Pacientes acumulados" stroke="#06b6d4" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+                        <Line yAxisId="activity" type="monotone" dataKey="active_total" name="Psicólogos activos" stroke="#10b981" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} />
                     </>
                 ) : Object.entries(growthMetrics).map(([key, metric]) => visibleMetrics.includes(key) && (
                     metric.type === 'area'
-                        ? <Area key={key} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} fill="url(#leadsGradient)" strokeWidth={3} />
-                        : <Line key={key} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                        ? <Area key={key} yAxisId={metric.axis} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} fill="url(#leadsGradient)" strokeWidth={3} />
+                        : <Line key={key} yAxisId={metric.axis} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} strokeWidth={3} dot={{ r: 2, fill: metric.color }} activeDot={{ r: 6 }} />
                 ))}
             </AreaChart>
         </ResponsiveContainer>

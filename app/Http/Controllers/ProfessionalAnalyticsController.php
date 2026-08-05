@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConsultaContacto;
+use App\Models\Patient;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Models\User;
 use Carbon\Carbon;
@@ -223,11 +224,16 @@ class ProfessionalAnalyticsController extends Controller
         $previousRegistrations = User::query()->whereBetween('created_at', [$previousFrom, $previousTo])->count();
         $currentActiveRegistrations = User::query()->where('activo', true)->whereBetween('created_at', [$from, $to])->count();
         $previousActiveRegistrations = User::query()->where('activo', true)->whereBetween('created_at', [$previousFrom, $previousTo])->count();
+        $currentPatientRegistrations = Patient::query()->whereBetween('created_at', [$from, $to])->count();
+        $previousPatientRegistrations = Patient::query()->whereBetween('created_at', [$previousFrom, $previousTo])->count();
 
         $leadDates = $leadQuery($from, $to)->pluck('created_at');
         $registrationRows = User::query()
             ->whereBetween('created_at', [$from, $to])
             ->get(['created_at', 'activo']);
+        $patientRegistrationDates = Patient::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->pluck('created_at');
         $eventRows = ProfessionalAnalyticsEvent::query()
             ->whereBetween('created_at', [$from, $to])
             ->whereIn('event_type', ['profile_view', 'phone_click', 'whatsapp_click', 'facebook_click', 'instagram_click', 'linkedin_click', 'website_click'])
@@ -237,17 +243,21 @@ class ProfessionalAnalyticsController extends Controller
         $leadCounts = $leadDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
         $registrationCounts = $registrationRows->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
         $activeRegistrationCounts = $registrationRows->where('activo', true)->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
+        $patientRegistrationCounts = $patientRegistrationDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
         $viewCounts = $eventRows->where('event_type', 'profile_view')->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
         $contactCounts = $eventRows->where('event_type', '!=', 'profile_view')->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
 
         $registeredRunning = User::query()->where('created_at', '<', $from)->count();
         $activeRunning = User::query()->where('activo', true)->where('created_at', '<', $from)->count();
-        $series = $buckets->map(function (Carbon $bucket) use ($granularity, $leadCounts, $registrationCounts, $activeRegistrationCounts, $viewCounts, $contactCounts, &$registeredRunning, &$activeRunning) {
+        $patientRunning = Patient::query()->where('created_at', '<', $from)->count();
+        $series = $buckets->map(function (Carbon $bucket) use ($granularity, $leadCounts, $registrationCounts, $activeRegistrationCounts, $patientRegistrationCounts, $viewCounts, $contactCounts, &$registeredRunning, &$activeRunning, &$patientRunning) {
             $key = $this->bucketKey($bucket, $granularity);
             $registrations = (int) ($registrationCounts[$key] ?? 0);
             $activeRegistrations = (int) ($activeRegistrationCounts[$key] ?? 0);
+            $patientRegistrations = (int) ($patientRegistrationCounts[$key] ?? 0);
             $registeredRunning += $registrations;
             $activeRunning += $activeRegistrations;
+            $patientRunning += $patientRegistrations;
 
             return [
                 'date' => $key,
@@ -255,8 +265,10 @@ class ProfessionalAnalyticsController extends Controller
                 'leads' => (int) ($leadCounts[$key] ?? 0),
                 'psychologists_registered' => $registrations,
                 'psychologists_active' => $activeRegistrations,
+                'patients_registered' => $patientRegistrations,
                 'registered_total' => $registeredRunning,
                 'active_total' => $activeRunning,
+                'patients_total' => $patientRunning,
                 'profile_views' => (int) ($viewCounts[$key] ?? 0),
                 'contact_clicks' => (int) ($contactCounts[$key] ?? 0),
             ];
@@ -265,6 +277,7 @@ class ProfessionalAnalyticsController extends Controller
         $totalRegistered = User::query()->count();
         $totalActive = User::query()->where('activo', true)->count();
         $totalVisible = User::query()->publiclyVisible()->count();
+        $totalPatients = Patient::query()->count();
         $leadStatuses = $leadQuery($from, $to)
             ->selectRaw("COALESCE(status, 'sin_estado') as status, COUNT(*) as total")
             ->groupBy('status')
@@ -280,6 +293,7 @@ class ProfessionalAnalyticsController extends Controller
                 'registered' => $totalRegistered,
                 'active' => $totalActive,
                 'visible' => $totalVisible,
+                'patients' => $totalPatients,
                 'activation_rate' => $totalRegistered > 0 ? round(($totalActive / $totalRegistered) * 100, 1) : 0,
                 'visibility_rate' => $totalRegistered > 0 ? round(($totalVisible / $totalRegistered) * 100, 1) : 0,
             ],
@@ -287,11 +301,13 @@ class ProfessionalAnalyticsController extends Controller
                 'leads' => $this->percentageChange($currentLeads, $previousLeads),
                 'psychologists_registered' => $this->percentageChange($currentRegistrations, $previousRegistrations),
                 'psychologists_active' => $this->percentageChange($currentActiveRegistrations, $previousActiveRegistrations),
+                'patients_registered' => $this->percentageChange($currentPatientRegistrations, $previousPatientRegistrations),
             ],
             'period' => [
                 'leads' => $currentLeads,
                 'psychologists_registered' => $currentRegistrations,
                 'psychologists_active' => $currentActiveRegistrations,
+                'patients_registered' => $currentPatientRegistrations,
             ],
             'lead_statuses' => $leadStatuses,
         ];

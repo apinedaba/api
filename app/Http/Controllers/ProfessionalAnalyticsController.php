@@ -6,10 +6,11 @@ use App\Models\ConsultaContacto;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Validator;
 
 class ProfessionalAnalyticsController extends Controller
 {
@@ -40,6 +41,7 @@ class ProfessionalAnalyticsController extends Controller
     public function adminIndex(Request $request): Response
     {
         [$from, $to] = $this->resolveRange($request);
+        $granularity = $this->resolveGranularity($request, $from, $to);
         $uniqueVisitorExpression = "COALESCE(session_id, ip_hash, CONCAT('event-', id))";
         $leadStatus = $request->query('lead_status');
         $activeLeadStatuses = ['new', 'viewed', 'contacted', 'created'];
@@ -79,7 +81,7 @@ class ProfessionalAnalyticsController extends Controller
             ->whereBetween('created_at', [$from, $to])
             ->whereNotNull('user_id')
             ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses))
-            ->selectRaw("user_id, COUNT(*) as total")
+            ->selectRaw('user_id, COUNT(*) as total')
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
 
@@ -173,6 +175,8 @@ class ProfessionalAnalyticsController extends Controller
                 : 0,
         ];
 
+        $growth = $this->buildGrowthAnalytics($from, $to, $granularity, $leadStatus, $activeLeadStatuses);
+
         return Inertia::render('Analytics', [
             'analytics' => [
                 'range' => [
@@ -186,21 +190,173 @@ class ProfessionalAnalyticsController extends Controller
                 'topInteractionSources' => $interactionSources,
                 'topCampaigns' => $campaigns,
                 'countingMethod' => 'unique_by_session_or_ip',
+                'growth' => $growth,
             ],
             'filters' => [
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
                 'only_activity' => $request->boolean('only_activity', true),
                 'lead_status' => $leadStatus,
+                'granularity' => $granularity,
             ],
         ]);
+    }
+
+    private function buildGrowthAnalytics(
+        Carbon $from,
+        Carbon $to,
+        string $granularity,
+        ?string $leadStatus,
+        array $activeLeadStatuses
+    ): array {
+        $days = $from->diffInDays($to) + 1;
+        $previousTo = $from->copy()->subSecond();
+        $previousFrom = $previousTo->copy()->subDays($days)->addSecond()->startOfDay();
+
+        $leadQuery = fn (Carbon $start, Carbon $end) => ConsultaContacto::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses));
+
+        $currentLeads = $leadQuery($from, $to)->count();
+        $previousLeads = $leadQuery($previousFrom, $previousTo)->count();
+        $currentRegistrations = User::query()->whereBetween('created_at', [$from, $to])->count();
+        $previousRegistrations = User::query()->whereBetween('created_at', [$previousFrom, $previousTo])->count();
+        $currentActiveRegistrations = User::query()->where('activo', true)->whereBetween('created_at', [$from, $to])->count();
+        $previousActiveRegistrations = User::query()->where('activo', true)->whereBetween('created_at', [$previousFrom, $previousTo])->count();
+
+        $leadDates = $leadQuery($from, $to)->pluck('created_at');
+        $registrationRows = User::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->get(['created_at', 'activo']);
+        $eventRows = ProfessionalAnalyticsEvent::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->whereIn('event_type', ['profile_view', 'phone_click', 'whatsapp_click', 'facebook_click', 'instagram_click', 'linkedin_click', 'website_click'])
+            ->get(['created_at', 'event_type']);
+
+        $buckets = $this->growthBuckets($from, $to, $granularity);
+        $leadCounts = $leadDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
+        $registrationCounts = $registrationRows->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
+        $activeRegistrationCounts = $registrationRows->where('activo', true)->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
+        $viewCounts = $eventRows->where('event_type', 'profile_view')->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
+        $contactCounts = $eventRows->where('event_type', '!=', 'profile_view')->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
+
+        $registeredRunning = User::query()->where('created_at', '<', $from)->count();
+        $activeRunning = User::query()->where('activo', true)->where('created_at', '<', $from)->count();
+        $series = $buckets->map(function (Carbon $bucket) use ($granularity, $leadCounts, $registrationCounts, $activeRegistrationCounts, $viewCounts, $contactCounts, &$registeredRunning, &$activeRunning) {
+            $key = $this->bucketKey($bucket, $granularity);
+            $registrations = (int) ($registrationCounts[$key] ?? 0);
+            $activeRegistrations = (int) ($activeRegistrationCounts[$key] ?? 0);
+            $registeredRunning += $registrations;
+            $activeRunning += $activeRegistrations;
+
+            return [
+                'date' => $key,
+                'label' => $this->bucketLabel($bucket, $granularity),
+                'leads' => (int) ($leadCounts[$key] ?? 0),
+                'psychologists_registered' => $registrations,
+                'psychologists_active' => $activeRegistrations,
+                'registered_total' => $registeredRunning,
+                'active_total' => $activeRunning,
+                'profile_views' => (int) ($viewCounts[$key] ?? 0),
+                'contact_clicks' => (int) ($contactCounts[$key] ?? 0),
+            ];
+        })->values();
+
+        $totalRegistered = User::query()->count();
+        $totalActive = User::query()->where('activo', true)->count();
+        $totalVisible = User::query()->publiclyVisible()->count();
+        $leadStatuses = $leadQuery($from, $to)
+            ->selectRaw("COALESCE(status, 'sin_estado') as status, COUNT(*) as total")
+            ->groupBy('status')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => ['status' => $row->status, 'total' => (int) $row->total])
+            ->values();
+
+        return [
+            'granularity' => $granularity,
+            'series' => $series,
+            'totals' => [
+                'registered' => $totalRegistered,
+                'active' => $totalActive,
+                'visible' => $totalVisible,
+                'activation_rate' => $totalRegistered > 0 ? round(($totalActive / $totalRegistered) * 100, 1) : 0,
+                'visibility_rate' => $totalRegistered > 0 ? round(($totalVisible / $totalRegistered) * 100, 1) : 0,
+            ],
+            'changes' => [
+                'leads' => $this->percentageChange($currentLeads, $previousLeads),
+                'psychologists_registered' => $this->percentageChange($currentRegistrations, $previousRegistrations),
+                'psychologists_active' => $this->percentageChange($currentActiveRegistrations, $previousActiveRegistrations),
+            ],
+            'period' => [
+                'leads' => $currentLeads,
+                'psychologists_registered' => $currentRegistrations,
+                'psychologists_active' => $currentActiveRegistrations,
+            ],
+            'lead_statuses' => $leadStatuses,
+        ];
+    }
+
+    private function resolveGranularity(Request $request, Carbon $from, Carbon $to): string
+    {
+        $requested = $request->query('granularity', 'auto');
+        if (in_array($requested, ['day', 'week', 'month'], true)) {
+            return $requested;
+        }
+
+        $days = $from->diffInDays($to) + 1;
+
+        return $days <= 62 ? 'day' : ($days <= 240 ? 'week' : 'month');
+    }
+
+    private function growthBuckets(Carbon $from, Carbon $to, string $granularity)
+    {
+        $start = match ($granularity) {
+            'week' => $from->copy()->startOfWeek(),
+            'month' => $from->copy()->startOfMonth(),
+            default => $from->copy()->startOfDay(),
+        };
+        $interval = match ($granularity) {
+            'week' => '1 week',
+            'month' => '1 month',
+            default => '1 day',
+        };
+
+        return collect(CarbonPeriod::create($start, $interval, $to))->map(fn ($date) => Carbon::instance($date));
+    }
+
+    private function bucketKey(Carbon $date, string $granularity): string
+    {
+        return match ($granularity) {
+            'week' => $date->copy()->startOfWeek()->toDateString(),
+            'month' => $date->format('Y-m'),
+            default => $date->toDateString(),
+        };
+    }
+
+    private function bucketLabel(Carbon $date, string $granularity): string
+    {
+        return match ($granularity) {
+            'week' => 'Sem '.$date->copy()->startOfWeek()->format('d M'),
+            'month' => $date->translatedFormat('M Y'),
+            default => $date->format('d M'),
+        };
+    }
+
+    private function percentageChange(int $current, int $previous): ?float
+    {
+        if ($previous === 0) {
+            return $current === 0 ? 0 : null;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 1);
     }
 
     public function track(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
-            'event_type' => 'required|string|in:' . implode(',', self::ALLOWED_EVENTS),
+            'event_type' => 'required|string|in:'.implode(',', self::ALLOWED_EVENTS),
             'source' => 'nullable|string|max:80',
             'medium' => 'nullable|string|max:80',
             'campaign' => 'nullable|string|max:160',
@@ -220,7 +376,7 @@ class ProfessionalAnalyticsController extends Controller
 
         $payload = $validator->validated();
         $payload['ip_hash'] = $request->ip()
-            ? hash('sha256', $request->ip() . '|' . config('app.key'))
+            ? hash('sha256', $request->ip().'|'.config('app.key'))
             : null;
 
         ProfessionalAnalyticsEvent::create($payload);

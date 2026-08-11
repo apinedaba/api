@@ -142,9 +142,11 @@ class UserController extends Controller
     public function active($id)
     {
         $user = User::where('id', $id)->first();
-        $user->update([
-            'activo' => true
-        ]);
+        if (! $user->syncOperationalStatus()) {
+            throw ValidationException::withMessages([
+                'activo' => 'El psicologo necesita telefono, perfil, especialidades, horarios y al menos un servicio antes de activar su cuenta.',
+            ]);
+        }
         return Inertia::render('Psicologos/Edit', [
             'psicologo' => $user
         ]);
@@ -255,7 +257,23 @@ class UserController extends Controller
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
-        $user->update($request->all());
+        $data = $request->all();
+
+        if ($request->has('contacto')) {
+            $contact = array_merge($user->contacto ?? [], $request->input('contacto', []));
+            $phone = User::normalizePhone(data_get($contact, 'telefono'));
+
+            if (preg_match('/^\d{10}$/', $phone) !== 1) {
+                throw ValidationException::withMessages([
+                    'contacto.telefono' => 'El telefono es obligatorio y debe contener exactamente 10 digitos.',
+                ]);
+            }
+
+            $data['contacto'] = array_merge($contact, ['telefono' => $phone]);
+        }
+
+        $user->update($data);
+        $user->refresh()->syncOperationalStatus();
         return Inertia::render('Psicologos/Edit', [
             'psicologo' => $user
         ]);
@@ -292,9 +310,14 @@ class UserController extends Controller
             ]);
         }
 
+        if (! $user->hasOperationalSetup()) {
+            throw ValidationException::withMessages([
+                'activo' => 'Completa el telefono, perfil, especialidades, horarios y al menos un servicio antes de habilitar la visibilidad.',
+            ]);
+        }
+
         $user->forceFill([
             'activo' => true,
-            'isProfileComplete' => true,
             'identity_verification_status' => 'approved',
             'email_verified_at' => $user->email_verified_at ?: now(),
         ])->save();

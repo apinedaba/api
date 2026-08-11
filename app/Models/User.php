@@ -338,6 +338,51 @@ class User extends Authenticatable implements MustVerifyEmail
         return "user.{$this->id}";
     }
 
+    public function hasOperationalSetup(): bool
+    {
+        $specialties = data_get($this->educacion, 'especialidades', []);
+        $services = data_get($this->configurations, 'sesiones', []);
+        $schedule = $this->horarios ?? [];
+
+        $hasSpecialties = is_array($specialties) && count(array_filter($specialties)) > 0;
+        $hasServices = is_array($services) && count(array_filter($services)) > 0;
+        $hasSchedule = collect(is_array($schedule) ? $schedule : [])
+            ->contains(fn ($slots) => is_array($slots) && count($slots) > 0);
+
+        return (bool) $this->isProfileComplete
+            && $this->hasValidPhone()
+            && $hasSpecialties
+            && $hasSchedule
+            && $hasServices;
+    }
+
+    public function hasValidPhone(): bool
+    {
+        return preg_match('/^\d{10}$/', self::normalizePhone(data_get($this->contacto, 'telefono'))) === 1;
+    }
+
+    public static function normalizePhone(mixed $value): string
+    {
+        $phone = preg_replace('/\D+/', '', (string) $value);
+
+        if (strlen($phone) === 12 && str_starts_with($phone, '52')) {
+            $phone = substr($phone, 2);
+        }
+
+        return $phone;
+    }
+
+    public function syncOperationalStatus(): bool
+    {
+        $shouldBeActive = $this->hasOperationalSetup();
+
+        if ((bool) $this->activo !== $shouldBeActive) {
+            $this->forceFill(['activo' => $shouldBeActive])->saveQuietly();
+        }
+
+        return $shouldBeActive;
+    }
+
     public function scopePubliclyVisible(Builder $query): Builder
     {
         return $query

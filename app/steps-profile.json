@@ -466,5 +466,56 @@
         }
       }
     ]
+  },
+  {
+    "id": 7,
+    "title": "Cuéntanos sobre ti",
+    "description": "Dos preguntas breves para entender qué buscas y cómo conociste MindMeet.",
+    "fields": [
+      {
+        "name": "configurations.onboarding_quiz.expectation",
+        "label": "¿Qué espero de MindMeet?",
+        "type": "radio",
+        "options": [
+          { "value": "more_patients", "label": "Más pacientes" },
+          { "value": "organize_practice", "label": "Organizar mejor mi consultorio" },
+          { "value": "explore", "label": "Ver qué es" },
+          { "value": "connect_psychologists", "label": "Conectar con otros psicólogos" },
+          { "value": "other", "label": "Otro" }
+        ],
+        "rules": { "required": true }
+      },
+      {
+        "name": "configurations.onboarding_quiz.expectation_other",
+        "label": "Cuéntanos qué esperas",
+        "type": "text",
+        "placeholder": "Escribe una respuesta breve",
+        "conditionalOn": "configurations.onboarding_quiz.expectation",
+        "conditionalValue": "other",
+        "rules": { "required": true, "maxLength": 255 }
+      },
+      {
+        "name": "configurations.onboarding_quiz.source",
+        "label": "¿Cómo supiste de MindMeet?",
+        "type": "radio",
+        "options": [
+          { "value": "meta", "label": "Facebook / Instagram (Meta)" },
+          { "value": "colleague", "label": "Recomendación de un colega" },
+          { "value": "tiktok", "label": "TikTok" },
+          { "value": "google", "label": "Google" },
+          { "value": "other", "label": "Otro" }
+        ],
+        "rules": { "required": true }
+      },
+      {
+        "name": "configurations.onboarding_quiz.source_other",
+        "label": "¿Dónde conociste MindMeet?",
+        "type": "text",
+        "placeholder": "Escribe una respuesta breve",
+        "conditionalOn": "configurations.onboarding_quiz.source",
+        "conditionalValue": "other",
+        "rules": { "required": true, "maxLength": 255 }
+      }
+    ]
   }
 ]

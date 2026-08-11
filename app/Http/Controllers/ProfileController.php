@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
 use Cloudinary\Api\Upload\UploadApi;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Arr;
 
 
 class ProfileController extends Controller
@@ -47,6 +47,7 @@ class ProfileController extends Controller
         }
 
         $request->user()->save();
+        $request->user()->refresh()->syncOperationalStatus();
 
         return Redirect::route('profile.edit.su');
     }
@@ -76,13 +77,58 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
-        $data = $request->except(['email_verified_at', 'created_at', 'updated_at', 'id', 'password']);
+        $data = Arr::only($request->all(), [
+            'name',
+            'personales',
+            'address',
+            'contacto',
+            'educacion',
+            'configurations',
+            'horarios',
+            'image',
+        ]);
 
-        if ($request->has('password')) {
-            $data['password'] = Hash::make($request->password);
+        if ($request->has('contacto')) {
+            $prospectiveContact = array_merge($user->contacto ?? [], $request->input('contacto', []));
+            $phone = User::normalizePhone(data_get($prospectiveContact, 'telefono'));
+
+            if (preg_match('/^\d{10}$/', $phone) !== 1) {
+                throw ValidationException::withMessages([
+                    'contacto.telefono' => 'El telefono es obligatorio y debe contener exactamente 10 digitos.',
+                ]);
+            }
+
+            $data['contacto'] = array_merge($prospectiveContact, ['telefono' => $phone]);
+        }
+
+        if (array_key_exists('configurations', $data)) {
+            $existingConfigurations = $user->configurations ?? [];
+            $incomingConfigurations = is_array($data['configurations']) ? $data['configurations'] : [];
+            $protectedKeys = [
+                'active_organization_id',
+                'workspace_type',
+                'registration_mode',
+                'clinic_managed',
+                'clinic_id',
+                'clinic_name',
+                'workspace_plan_key',
+                'clinic_plan_key',
+                'plan_key',
+            ];
+
+            $configurations = array_merge($existingConfigurations, Arr::except($incomingConfigurations, $protectedKeys));
+            foreach ($protectedKeys as $key) {
+                if (array_key_exists($key, $existingConfigurations)) {
+                    $configurations[$key] = $existingConfigurations[$key];
+                } else {
+                    unset($configurations[$key]);
+                }
+            }
+            $data['configurations'] = $configurations;
         }
         if ($user instanceof \Illuminate\Database\Eloquent\Model) {
             $user->update($data);
+            $user->refresh()->syncOperationalStatus();
         } else {
             return response()->json(['error' => 'Usuario no válido'], 400);
         }
@@ -117,6 +163,7 @@ class ProfileController extends Controller
         $configurations['service_setup_updated_at'] = now()->toISOString();
 
         $user->forceFill(['configurations' => $configurations])->save();
+        $user->refresh()->syncOperationalStatus();
 
         return response()->json($user->fresh()->load('subscription', 'escuelas'));
     }

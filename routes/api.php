@@ -30,6 +30,7 @@ use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
+use App\Http\Controllers\MindmeetBenefitController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\GuardianAccountController;
@@ -187,6 +188,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/professional-analytics/summary', [ProfessionalAnalyticsController::class, 'summary']);
     Route::get('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'show']);
     Route::post('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'store']);
+    Route::get('user/benefits', [MindmeetBenefitController::class, 'index']);
     Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
     Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
     Route::post('user/identity/upload', [IdentityController::class, 'store']);

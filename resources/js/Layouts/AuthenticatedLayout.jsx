@@ -10,6 +10,7 @@ const navigationGroups = [
             { label: 'Dashboard', href: 'dashboard', match: ['dashboard'] },
             { label: 'Analytics', href: 'analytics', match: ['analytics'] },
             { label: 'Evaluaciones MindMeet', href: 'mindmeet-feedback.index', match: ['mindmeet-feedback.*'] },
+            { label: 'Beneficios MindMeet', href: 'mindmeet-benefits.index', match: ['mindmeet-benefits.*'] },
             { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
         ],
@@ -18,7 +19,7 @@ const navigationGroups = [
         title: 'Operacion',
         items: [
             { label: 'Psicologos', href: 'psicologos', match: ['psicologos', 'psicologoShow', 'psicologo.*', 'psicologos.*'] },
-            { label: 'Pacientes', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
+            { label: 'Registros web', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
             { label: 'Carritos', href: 'carts', match: ['carts', 'cartByPatient'] },
         ],
     },

@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminMinderReportController;
 use App\Http\Controllers\Admin\AdminMinderSupportAppointmentController;
 use App\Http\Controllers\Admin\AdminMinderSupportController;
 use App\Http\Controllers\Admin\AdminMindmeetFeedbackController;
+use App\Http\Controllers\Admin\AdminMindmeetBenefitController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
@@ -222,6 +223,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/psicologos', [UserController::class, 'getAllUsers'])->name('psicologos');
     Route::get('/analytics', [ProfessionalAnalyticsController::class, 'adminIndex'])->name('analytics');
     Route::get('/mindmeet-feedback', [AdminMindmeetFeedbackController::class, 'index'])->name('mindmeet-feedback.index');
+    Route::get('/mindmeet-benefits', [AdminMindmeetBenefitController::class, 'index'])->name('mindmeet-benefits.index');
+    Route::post('/mindmeet-benefits', [AdminMindmeetBenefitController::class, 'store'])->name('mindmeet-benefits.store');
+    Route::put('/mindmeet-benefits/{mindmeetBenefit}', [AdminMindmeetBenefitController::class, 'update'])->name('mindmeet-benefits.update');
+    Route::delete('/mindmeet-benefits/{mindmeetBenefit}', [AdminMindmeetBenefitController::class, 'destroy'])->name('mindmeet-benefits.destroy');
     Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/whatsapp-automation', [AdminWhatsAppAutomationController::class, 'index'])->name('whatsapp-automation.index');
@@ -267,6 +272,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
     Route::patch('/psicologo/{id}/ensure-public-visibility', [UserController::class, 'ensurePublicVisibility'])->name('psicologo.ensure-public-visibility');
+    Route::patch('/psicologo/{id}/membership', [UserController::class, 'updateMembership'])->name('psicologo.membership.update');
     Route::post('user/psicologo/{id}/solicitud', [UserController::class, 'solicitudDeVerificacion'])->name('user.psicologo.solicitud');
     Route::patch('/psicologo/{id}/validate-identity', [UserController::class, 'validateIdentity'])->name('psicologos.validate');
 

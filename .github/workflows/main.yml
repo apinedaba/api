@@ -118,6 +118,9 @@ jobs:
             # Laravel cleanup seguro
             php artisan optimize:clear
 
+            # Mantener el esquema versionado. --force es obligatorio en produccion.
+            php artisan migrate --force
+
             # Opcional (solo si quieres cachear en prod)
             php artisan config:cache
             php artisan route:cache

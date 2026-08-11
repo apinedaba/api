@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\IdentityVerificationStatus;
+
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -44,6 +46,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'verification_code',
         'code_expires_at',
         'has_lifetime_access',
+        'membership_type',
         'activo',
         'cedula_selfie_url',
         'ine_selfie_url',
@@ -82,6 +85,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'stripe_connect_charges_enabled' => 'boolean',
         'stripe_connect_payouts_enabled' => 'boolean',
     ];
+
+    public function setIdentityVerificationStatusAttribute($value): void
+    {
+        $this->attributes['identity_verification_status'] = IdentityVerificationStatus::validate($value);
+    }
     public function patientUsers()
     {
         return $this->hasMany(PatientUser::class, 'user', 'id')->with('patient');
@@ -328,6 +336,51 @@ class User extends Authenticatable implements MustVerifyEmail
     public function notificationBroadcastChannel(): string
     {
         return "user.{$this->id}";
+    }
+
+    public function hasOperationalSetup(): bool
+    {
+        $specialties = data_get($this->educacion, 'especialidades', []);
+        $services = data_get($this->configurations, 'sesiones', []);
+        $schedule = $this->horarios ?? [];
+
+        $hasSpecialties = is_array($specialties) && count(array_filter($specialties)) > 0;
+        $hasServices = is_array($services) && count(array_filter($services)) > 0;
+        $hasSchedule = collect(is_array($schedule) ? $schedule : [])
+            ->contains(fn ($slots) => is_array($slots) && count($slots) > 0);
+
+        return (bool) $this->isProfileComplete
+            && $this->hasValidPhone()
+            && $hasSpecialties
+            && $hasSchedule
+            && $hasServices;
+    }
+
+    public function hasValidPhone(): bool
+    {
+        return preg_match('/^\d{10}$/', self::normalizePhone(data_get($this->contacto, 'telefono'))) === 1;
+    }
+
+    public static function normalizePhone(mixed $value): string
+    {
+        $phone = preg_replace('/\D+/', '', (string) $value);
+
+        if (strlen($phone) === 12 && str_starts_with($phone, '52')) {
+            $phone = substr($phone, 2);
+        }
+
+        return $phone;
+    }
+
+    public function syncOperationalStatus(): bool
+    {
+        $shouldBeActive = $this->hasOperationalSetup();
+
+        if ((bool) $this->activo !== $shouldBeActive) {
+            $this->forceFill(['activo' => $shouldBeActive])->saveQuietly();
+        }
+
+        return $shouldBeActive;
     }
 
     public function scopePubliclyVisible(Builder $query): Builder

@@ -61,7 +61,7 @@ class ElenaAssistantService
                     'Para agendar, si el usuario dice un dia relativo como "martes", usa la siguiente ocurrencia futura segun fecha_actual.',
                     'Si la hora no especifica am/pm, infiere horario laboral razonable; 5 = 17:00 salvo que diga manana/madrugada.',
                     'Responde solo JSON valido con llaves:',
-                    'intent: search_patient | next_session | schedule_session | help | unknown',
+                    'intent: search_patient | next_session | today_sessions | schedule_session | help | unknown',
                     'patient_name: string|null',
                     'datetime_iso: string|null en zona horaria indicada, formato YYYY-MM-DDTHH:mm:ss',
                     'duration_minutes: integer|null, usa 50 si es sesion y no se especifica',
@@ -93,7 +93,7 @@ class ElenaAssistantService
     private function normalizeIntent(array $decoded): array
     {
         $intent = Arr::get($decoded, 'intent', 'unknown');
-        if (! in_array($intent, ['search_patient', 'next_session', 'schedule_session', 'help', 'unknown'], true)) {
+        if (! in_array($intent, ['search_patient', 'next_session', 'today_sessions', 'schedule_session', 'help', 'unknown'], true)) {
             $intent = 'unknown';
         }
 
@@ -120,7 +120,9 @@ class ElenaAssistantService
         $normalized = Str::lower($message);
         $intent = 'unknown';
 
-        if (Str::contains($normalized, ['siguiente sesion', 'proxima sesion', 'cuándo', 'cuando'])) {
+        if (Str::contains($normalized, ['sesiones de hoy', 'sesiones tengo hoy', 'citas de hoy', 'citas tengo hoy', 'agenda de hoy', 'veo hoy', 'atiendo hoy', 'con quien tengo'])) {
+            $intent = 'today_sessions';
+        } elseif (Str::contains($normalized, ['siguiente sesion', 'proxima sesion', 'cuándo', 'cuando'])) {
             $intent = 'next_session';
         } elseif (Str::contains($normalized, ['agenda', 'agendar', 'crea una sesion', 'crear una sesion', 'programa'])) {
             $intent = 'schedule_session';

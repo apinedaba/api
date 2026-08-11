@@ -131,32 +131,41 @@ class GoogleCalendarService
     public function createEvent(Appointment $appointment, User $user, bool $notifyProfessional = true): void
     {
         logger("Entrando a create");
+        $appointment->loadMissing('cart');
+        $isInPerson = $appointment->isInPerson();
         $client = $this->getAuthenticatedClient($user);
         $calendarService = new GoogleCalendar($client);
 
-        $event = new GoogleCalendarEvent([
+        $eventPayload = [
             'summary' => $appointment->title,
             'description' => 'Cita agendada a través de tu plataforma.',
             'start' => ['dateTime' => (new \DateTime($appointment->start))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
             'end' => ['dateTime' => (new \DateTime($appointment->end))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
-            'conferenceData' => [
+        ];
+
+        if (! $isInPerson) {
+            $eventPayload['conferenceData'] = [
                 'createRequest' => [
                     'requestId' => "meet-" . $appointment->id . "-" . time(),
                     'conferenceSolutionKey' => ['type' => 'hangoutsMeet'],
                 ],
-            ],
-        ]);
+            ];
+        }
 
-        $options = ['conferenceDataVersion' => 1];
+        $event = new GoogleCalendarEvent($eventPayload);
+        $options = $isInPerson ? [] : ['conferenceDataVersion' => 1];
         $createdEvent = $calendarService->events->insert('primary', $event, $options);
 
         $appointment->google_event_id = $createdEvent->getId();
-        $appointment->link = $createdEvent->getHangoutLink(); // Guardamos en tu campo 'link'
+        $appointment->link = $isInPerson ? null : $createdEvent->getHangoutLink();
         $appointment->save();
         logger($appointment->user);
         logger("Se mando el evento y la sesion a google");
         if ($notifyProfessional) {
-            event(new NewNotification("user.{$appointment->user}", "Cita, Sincronizada con google, ¡Link de meet disponible!"));
+            $message = $isInPerson
+                ? 'Sesión presencial sincronizada con Google Calendar.'
+                : 'Cita sincronizada con Google. ¡Link de Meet disponible!';
+            event(new NewNotification("user.{$appointment->user}", $message));
         }
         // Enviar email al paciente con el enlace de la sesión
         $patient = Patient::find($appointment->patient);
@@ -205,6 +214,8 @@ class GoogleCalendarService
         $calendarService = new GoogleCalendar($client);
 
         try {
+            $appointment->loadMissing('cart');
+            $isInPerson = $appointment->isInPerson();
             // Obtenemos el evento existente de Google.
             $event = $calendarService->events->get('primary', $appointment->google_event_id);
 
@@ -223,22 +234,34 @@ class GoogleCalendarService
             $end->setTimeZone(config('app.timezone'));
             $event->setEnd($end);
 
+            if ($isInPerson) {
+                $event->setConferenceData(null);
+            }
+
             // FIN DE LA CORRECCIÓN
 
-            $updatedEvent = $calendarService->events->update('primary', $event->getId(), $event);
+            $updatedEvent = $calendarService->events->update(
+                'primary',
+                $event->getId(),
+                $event,
+                ['conferenceDataVersion' => 1]
+            );
             Log::info("Evento de Google {$appointment->google_event_id} actualizado para la cita {$appointment->id}.");
             // Verificar si el enlace de Meet cambió y actualizarlo
-            $newLink = $updatedEvent->getHangoutLink();
+            $newLink = $isInPerson ? null : $updatedEvent->getHangoutLink();
 
             $linkChanged = false;
-            if ($newLink && $newLink != $appointment->link) {
+            if ($newLink !== $appointment->link) {
                 $appointment->link = $newLink;
                 $appointment->save();
                 $linkChanged = true;
             }
             logger($user->id);
             logger("Se actualizo el evento y la sesion a google");
-            event(new NewNotification("user.{$appointment->user}", "Link disponible en la sesion"));
+            event(new NewNotification(
+                "user.{$appointment->user}",
+                $isInPerson ? 'Sesión presencial actualizada en Google Calendar.' : 'Link disponible en la sesión.'
+            ));
             // Enviar email al paciente informando de la actualización
             $patient = Patient::find($appointment->patient);
             if ($patient && $appointment->link && filled($patient->email)) {

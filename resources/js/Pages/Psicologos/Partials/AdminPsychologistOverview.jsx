@@ -25,8 +25,11 @@ const asArray = (value) => {
 };
 
 export default function AdminPsychologistOverview({ psicologo, publicVisibility }) {
-    const [grantLifetimeAccess, setGrantLifetimeAccess] = useState(false);
+    const [membershipType, setMembershipType] = useState(
+        psicologo?.membership_type || (psicologo?.has_lifetime_access ? 'lifetime' : 'none')
+    );
     const [processing, setProcessing] = useState(false);
+    const [membershipProcessing, setMembershipProcessing] = useState(false);
 
     const sessions = psicologo?.configurations?.sesiones || [];
     const packages = psicologo?.session_packages || [];
@@ -47,12 +50,22 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
         setProcessing(true);
         router.patch(
             route('psicologo.ensure-public-visibility', psicologo.id),
-            {
-                grant_lifetime_access: grantLifetimeAccess,
-            },
+            {},
             {
                 preserveScroll: true,
                 onFinish: () => setProcessing(false),
+            }
+        );
+    };
+
+    const updateMembership = () => {
+        setMembershipProcessing(true);
+        router.patch(
+            route('psicologo.membership.update', psicologo.id),
+            { membership_type: membershipType },
+            {
+                preserveScroll: true,
+                onFinish: () => setMembershipProcessing(false),
             }
         );
     };
@@ -107,22 +120,37 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                         <h3 className="text-base font-semibold text-gray-900">Preparar visibilidad publica</h3>
                         <p className="text-sm text-gray-600">
                             Esta accion marca la cuenta activa, perfil completo, identidad aprobada y correo verificado.
-                            Si no hay suscripcion activa/prueba activa, puedes autorizar acceso permanente.
+                            La membresia se administra por separado y esta accion no la modifica.
                         </p>
-                        {!hasActiveAccess && (
-                            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                                <input
-                                    type="checkbox"
-                                    checked={grantLifetimeAccess}
-                                    onChange={() => setGrantLifetimeAccess((value) => !value)}
-                                    className="rounded border-gray-300"
-                                />
-                                Autorizar acceso permanente si no tiene suscripcion activa
-                            </label>
-                        )}
                     </div>
-                    <PrimaryButton onClick={ensureVisibility} disabled={processing || (!hasActiveAccess && !grantLifetimeAccess)}>
+                    <PrimaryButton onClick={ensureVisibility} disabled={processing || !hasActiveAccess}>
                         {processing ? 'Actualizando...' : 'Dejar visible'}
+                    </PrimaryButton>
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-violet-100 bg-violet-50 p-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div className="flex-1">
+                        <h3 className="text-base font-semibold text-gray-900">Membresia especial</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                            Asignar o retirar una membresia solo modifica el acceso. No completa el perfil, no aprueba identidad y no verifica el correo.
+                        </p>
+                        <label className="mt-4 block max-w-md text-sm font-medium text-gray-700">
+                            Tipo de membresia
+                            <select
+                                value={membershipType}
+                                onChange={(event) => setMembershipType(event.target.value)}
+                                className="mt-1 block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                            >
+                                <option value="none">Sin membresia especial</option>
+                                <option value="lifetime">Acceso permanente</option>
+                                <option value="content_creator">Creador de contenido</option>
+                            </select>
+                        </label>
+                    </div>
+                    <PrimaryButton onClick={updateMembership} disabled={membershipProcessing}>
+                        {membershipProcessing ? 'Guardando...' : 'Guardar membresia'}
                     </PrimaryButton>
                 </div>
             </div>
@@ -133,6 +161,7 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                     <p><strong>Stripe ID:</strong> {subscription?.stripe_id || 'No disponible'}</p>
                     <p><strong>Plan:</strong> {subscription?.stripe_plan || 'No disponible'}</p>
                     <p><strong>Acceso permanente:</strong> {psicologo?.has_lifetime_access ? 'Si' : 'No'}</p>
+                    <p><strong>Membresia especial:</strong> {psicologo?.membership_type === 'content_creator' ? 'Creador de contenido' : psicologo?.has_lifetime_access ? 'Acceso permanente' : 'No asignada'}</p>
                     <p><strong>Fin de prueba:</strong> {subscription?.trial_ends_at || 'No aplica'}</p>
                     <p><strong>Termina en:</strong> {subscription?.ends_at || 'No aplica'}</p>
                 </InfoCard>

@@ -22,6 +22,7 @@ use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\DocumentacionController;
 use App\Http\Controllers\EducationUserController;
 use App\Http\Controllers\ElenaAssistantController;
+use App\Http\Controllers\PatientSummaryAiController;
 use App\Http\Controllers\EmotionLogController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\GoogleCalendarController;
@@ -29,8 +30,11 @@ use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
+use App\Http\Controllers\MindmeetBenefitController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\GuardianAccountController;
+use App\Http\Controllers\PatientDocumentRequestController;
 use App\Http\Controllers\PatientExerciseAiController;
 use App\Http\Controllers\PatientMedicationController;
 use App\Http\Controllers\PatientUserController;
@@ -81,6 +85,10 @@ Route::post('public/appointments/{uuid}/reschedule', [AppointmentController::cla
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
 Route::get('public/consents/{token}', [PatientController::class, 'showPublicConsent']);
 Route::post('public/consents/{token}/sign', [PatientController::class, 'signPublicConsent']);
+Route::get('public/consents/{token}/pdf', [PatientController::class, 'publicConsentPdf']);
+Route::get('public/documents/{token}', [PatientDocumentRequestController::class, 'showPublic']);
+Route::post('public/documents/{token}/sign', [PatientDocumentRequestController::class, 'signPublic']);
+Route::get('public/documents/{token}/pdf', [PatientDocumentRequestController::class, 'publicPdf']);
 Route::post('user/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
     ->name('questionnaire.public.submit.user');
 Route::post('patient/questionnaires/{token}/submit', [QuestionnaireController::class, 'submitResponses'])
@@ -147,6 +155,12 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/steps-form/{id}', [UserStepsController::class, 'getStepsForm']);
     Route::patch('user/save-step/{id}', [UserStepsController::class, 'saveStep']);
     Route::post('user/complete-profile/{id}', [UserStepsController::class, 'completeProfile']);
+    Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
+    Route::get('user/document-preferences', [ProfileController::class, 'documentPreferences']);
+    Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
+    Route::get('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'index']);
+    Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store']);
+    Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel']);
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
@@ -174,6 +188,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/professional-analytics/summary', [ProfessionalAnalyticsController::class, 'summary']);
     Route::get('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'show']);
     Route::post('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'store']);
+    Route::get('user/benefits', [MindmeetBenefitController::class, 'index']);
     Route::post('user/profile/avatar/upload-profile-image', [ProfileController::class, 'upload']);
     Route::post('user/upload/photo', [PhotoUploadController::class, 'upload']);
     Route::post('user/identity/upload', [IdentityController::class, 'store']);
@@ -202,6 +217,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
     Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index']);
     Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate']);
+    Route::get('user/patients/{patient}/summary-ai', [PatientSummaryAiController::class, 'index']);
+    Route::post('user/patients/{patient}/summary-ai/generate', [PatientSummaryAiController::class, 'generate']);
+    Route::put('user/patients/{patient}/summary-ai/{summary}', [PatientSummaryAiController::class, 'update']);
     Route::post('user/patients/{id}/consent-link', [PatientController::class, 'generateConsentLink']);
     Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);
@@ -281,11 +299,24 @@ Route::get('psychologists/search', [\App\Http\Controllers\Api\OfficeController::
 
 // Rutas para Pacientes
 
+Route::post('patient/guardian/register', [GuardianAccountController::class, 'register']);
+Route::middleware(['auth:sanctum', 'handle_invalid_token'])->prefix('patient/guardian')->group(function () {
+    Route::get('family', [GuardianAccountController::class, 'index']);
+    Route::post('family', [GuardianAccountController::class, 'storeRelative']);
+});
+
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
     Route::get('info', function (Request $request) {
-        return $request->user();
+        $guardian = $request->attributes->get('guardian_account');
+        if ($guardian) return array_merge($request->user()->toArray(), [
+            'account_type' => 'guardian',
+            'guardian' => app(GuardianAccountController::class)->sessionPayload($guardian),
+            'selected_patient_id' => $request->user()->id,
+        ]);
+        return array_merge($request->user()->toArray(), ['account_type' => 'patient']);
     });
     Route::put('profile', [PatientController::class, 'updateFromUser']);
+    Route::get('document-requests', [PatientDocumentRequestController::class, 'patientIndex']);
     Route::post('avatar/upload', [PatientController::class, 'uploadAvatar']);
     // Cuestionarios asignados al paciente autenticado
     Route::get('questionnaires', [QuestionnaireController::class, 'getQuestionnairesForPatient']);
@@ -300,6 +331,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('appointment-requests', [AppointmentRequestController::class, 'indexByPatient']);
     Route::post('appointment-requests', [AppointmentRequestController::class, 'store']);
     Route::get('profesional/current', [PatientUserController::class, 'getCurrentProfesional']);
+    Route::get('profesionales/history', [PatientUserController::class, 'getProfessionalHistory']);
     Route::post('logout', [PatientAuthController::class, 'logout']);
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);

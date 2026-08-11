@@ -157,9 +157,9 @@ class PatientUserController extends Controller
         return $patientUser->first();
     }
 
-    public function getCurrentProfesional()
+    public function getCurrentProfesional(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
         if (!$user->id) {
             return response()->json([
                 'rasson' => "Tenemos problemas con tu usuario",
@@ -198,6 +198,48 @@ class PatientUserController extends Controller
         }
 
         return response()->json(data: $currentRelation, status: 200);
+    }
+
+    public function getProfessionalHistory(Request $request): JsonResponse
+    {
+        $patient = $request->user();
+        $relations = PatientUser::query()
+            ->where('patient', $patient->id)
+            ->with('user')
+            ->orderByDesc('updated_at')
+            ->get()
+            ->keyBy('user');
+
+        $appointments = Appointment::query()
+            ->where('patient', $patient->id)
+            ->with('user')
+            ->orderBy('start')
+            ->get()
+            ->groupBy('user');
+
+        $professionalIds = $relations->keys()->merge($appointments->keys())->unique()->values();
+        $currentRelationId = $relations->first(fn ($relation) => $relation->activo && ! $relation->archived_at)?->id;
+
+        $history = $professionalIds->map(function ($professionalId) use ($relations, $appointments, $currentRelationId) {
+            $relation = $relations->get($professionalId);
+            $sessions = $appointments->get($professionalId, collect());
+            $professional = $relation?->user ?: $sessions->first()?->user;
+            if (! $professional) return null;
+
+            return [
+                'id' => $relation?->id ?: 'appointments-'.$professionalId,
+                'professional' => $professional,
+                'status' => $relation?->status ?: 'Histórico',
+                'is_current' => $relation?->id === $currentRelationId,
+                'linked_at' => $relation?->created_at?->toISOString() ?: $sessions->min('start'),
+                'archived_at' => $relation?->archived_at?->toISOString(),
+                'sessions_count' => $sessions->count(),
+                'first_session_at' => $sessions->min('start'),
+                'last_session_at' => $sessions->max('start'),
+            ];
+        })->filter()->sortByDesc(fn ($item) => $item['last_session_at'] ?: $item['linked_at'])->values();
+
+        return response()->json($history);
     }
 
     /**

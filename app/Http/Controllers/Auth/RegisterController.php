@@ -43,6 +43,32 @@ class RegisterController extends Controller
         OrganizationService $organizationService
     )
     {
+        $normalizedEmail = mb_strtolower(trim((string) $request->input('email')));
+        $existingUser = $normalizedEmail !== ''
+            ? User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first()
+            : null;
+
+        if ($existingUser) {
+            $isPendingVerification = !$existingUser->hasVerifiedEmail();
+
+            return response()->json([
+                'message' => $isPendingVerification
+                    ? 'Tu cuenta ya fue creada, pero falta verificar el correo.'
+                    : 'Ya existe una cuenta con este correo. Inicia sesion para continuar.',
+                'rasson' => $isPendingVerification
+                    ? 'Continua con el codigo que recibiste o solicita uno nuevo.'
+                    : 'El correo ya esta registrado y verificado.',
+                'existing_unverified' => $isPendingVerification,
+                'requires_email_verification' => $isPendingVerification,
+                'email' => $existingUser->email,
+                'errors' => [
+                    'email' => [$isPendingVerification
+                        ? 'La cuenta existe y esta pendiente de verificacion.'
+                        : 'Ya existe una cuenta con este correo.'],
+                ],
+            ], 409);
+        }
+
         $validateUser = Validator::make($request->all(), $this->registerValidationRules);
 
         if ($validateUser->fails()) {
@@ -301,6 +327,7 @@ class RegisterController extends Controller
             'email' => $email,
             'phone' => $phone,
             'contacto' => $attributes['contacto'],
+            'registration_source' => 'website',
             'password' => Hash::make($request->password)
         ]);
         try {

@@ -24,6 +24,7 @@
         "puppeteer": "^25.1.0",
         "react-data-table-component": "^7.7.0",
         "react-hot-toast": "^2.6.0",
+        "recharts": "^2.15.4",
         "styled-components": "^6.1.19"
     }
 }

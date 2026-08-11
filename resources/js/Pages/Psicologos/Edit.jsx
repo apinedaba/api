@@ -7,6 +7,7 @@ import { Head } from '@inertiajs/react';
 import ValidatePsicologo from './Partials/ValidatePsicologo';
 import EducacionUser from './Partials/EducacionUser';
 import AdminPsychologistOverview from './Partials/AdminPsychologistOverview';
+import OnboardingQuizAnswers from './Partials/OnboardingQuizAnswers';
 
 export default function Edit({ auth, psicologo, publicVisibility }) {
     return (
@@ -28,6 +29,9 @@ export default function Edit({ auth, psicologo, publicVisibility }) {
                             psicologo={psicologo}
                             publicVisibility={publicVisibility}
                         />
+                    </div>
+                    <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+                        <OnboardingQuizAnswers psychologist={psicologo} />
                     </div>
                     <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
                         <ValidatePsicologo

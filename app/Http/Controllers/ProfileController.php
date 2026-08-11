@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
 use Cloudinary\Api\Upload\UploadApi;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Arr;
 
 
 class ProfileController extends Controller
@@ -47,6 +47,7 @@ class ProfileController extends Controller
         }
 
         $request->user()->save();
+        $request->user()->refresh()->syncOperationalStatus();
 
         return Redirect::route('profile.edit.su');
     }
@@ -76,13 +77,58 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
-        $data = $request->except(['email_verified_at', 'created_at', 'updated_at', 'id', 'password']);
+        $data = Arr::only($request->all(), [
+            'name',
+            'personales',
+            'address',
+            'contacto',
+            'educacion',
+            'configurations',
+            'horarios',
+            'image',
+        ]);
 
-        if ($request->has('password')) {
-            $data['password'] = Hash::make($request->password);
+        if ($request->has('contacto')) {
+            $prospectiveContact = array_merge($user->contacto ?? [], $request->input('contacto', []));
+            $phone = User::normalizePhone(data_get($prospectiveContact, 'telefono'));
+
+            if (preg_match('/^\d{10}$/', $phone) !== 1) {
+                throw ValidationException::withMessages([
+                    'contacto.telefono' => 'El telefono es obligatorio y debe contener exactamente 10 digitos.',
+                ]);
+            }
+
+            $data['contacto'] = array_merge($prospectiveContact, ['telefono' => $phone]);
+        }
+
+        if (array_key_exists('configurations', $data)) {
+            $existingConfigurations = $user->configurations ?? [];
+            $incomingConfigurations = is_array($data['configurations']) ? $data['configurations'] : [];
+            $protectedKeys = [
+                'active_organization_id',
+                'workspace_type',
+                'registration_mode',
+                'clinic_managed',
+                'clinic_id',
+                'clinic_name',
+                'workspace_plan_key',
+                'clinic_plan_key',
+                'plan_key',
+            ];
+
+            $configurations = array_merge($existingConfigurations, Arr::except($incomingConfigurations, $protectedKeys));
+            foreach ($protectedKeys as $key) {
+                if (array_key_exists($key, $existingConfigurations)) {
+                    $configurations[$key] = $existingConfigurations[$key];
+                } else {
+                    unset($configurations[$key]);
+                }
+            }
+            $data['configurations'] = $configurations;
         }
         if ($user instanceof \Illuminate\Database\Eloquent\Model) {
             $user->update($data);
+            $user->refresh()->syncOperationalStatus();
         } else {
             return response()->json(['error' => 'Usuario no válido'], 400);
         }
@@ -94,6 +140,78 @@ class ProfileController extends Controller
             'type' => "success"
         ];
         return response()->json($response, 200);
+    }
+
+    public function updateServiceSetupProgress(Request $request)
+    {
+        $validated = $request->validate([
+            'current_step' => ['required', 'string', 'in:license,specialties,schedule,services,certifications'],
+            'completed_step' => ['nullable', 'string', 'in:license,specialties,schedule,services,certifications'],
+        ]);
+
+        $user = $request->user();
+        $configurations = $user->configurations ?? [];
+        $completedSteps = collect(data_get($configurations, 'service_setup_completed_steps', []))
+            ->filter(fn ($step) => in_array($step, ['license', 'specialties', 'schedule', 'services', 'certifications'], true));
+
+        if (filled($validated['completed_step'] ?? null)) {
+            $completedSteps->push($validated['completed_step']);
+        }
+
+        $configurations['service_setup_current_step'] = $validated['current_step'];
+        $configurations['service_setup_completed_steps'] = $completedSteps->unique()->values()->all();
+        $configurations['service_setup_updated_at'] = now()->toISOString();
+
+        $user->forceFill(['configurations' => $configurations])->save();
+        $user->refresh()->syncOperationalStatus();
+
+        return response()->json($user->fresh()->load('subscription', 'escuelas'));
+    }
+
+    public function documentPreferences(Request $request)
+    {
+        $preferences = data_get($request->user()->configurations, 'document_preferences', []);
+
+        return response()->json([
+            'consent_content' => data_get($preferences, 'consent_content'),
+            'minor_authorization_content' => data_get($preferences, 'minor_authorization_content'),
+            'professional_signature_data_url' => data_get($preferences, 'professional_signature_data_url'),
+            'documents' => array_values(data_get($preferences, 'documents', [])),
+            'updated_at' => data_get($preferences, 'updated_at'),
+        ]);
+    }
+
+    public function updateDocumentPreferences(Request $request)
+    {
+        $validated = $request->validate([
+            'consent_content' => ['required', 'string', 'max:30000'],
+            'minor_authorization_content' => ['required', 'string', 'max:30000'],
+            'professional_signature_data_url' => ['nullable', 'string', 'max:2000000'],
+            'documents' => ['sometimes', 'array', 'max:100'],
+            'documents.*.id' => ['required', 'string', 'max:100'],
+            'documents.*.title' => ['required', 'string', 'max:160'],
+            'documents.*.content' => ['required', 'string', 'max:30000'],
+            'documents.*.requires_signature' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $configurations = $user->configurations ?? [];
+        $configurations['document_preferences'] = [
+            'consent_content' => trim($validated['consent_content']),
+            'minor_authorization_content' => trim($validated['minor_authorization_content']),
+            'professional_signature_data_url' => $validated['professional_signature_data_url'] ?? null,
+            'documents' => collect($validated['documents'] ?? data_get($configurations, 'document_preferences.documents', []))
+                ->map(fn ($document) => [
+                    'id' => $document['id'],
+                    'title' => trim($document['title']),
+                    'content' => trim($document['content']),
+                    'requires_signature' => (bool) $document['requires_signature'],
+                ])->values()->all(),
+            'updated_at' => now()->toISOString(),
+        ];
+        $user->forceFill(['configurations' => $configurations])->save();
+
+        return $this->documentPreferences($request);
     }
     public function upload(Request $request)
     {

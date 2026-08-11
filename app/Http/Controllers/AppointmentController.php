@@ -649,6 +649,14 @@ class AppointmentController extends Controller
         $patient = $request->user();
         abort_unless((int) $appointment->patient === (int) $patient->id, 403, 'No puedes modificar esta sesion.');
 
+        if ($appointment->isProfessionallyCompleted()) {
+            return response()->json([
+                'message' => 'La sesión ya fue completada por el profesional; no requiere validación adicional del paciente.',
+                'type' => 'info',
+                'appointment' => $appointment->fresh(['cart', 'user', 'payments']),
+            ], 200);
+        }
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:Confirmed,Reschedule Requested,Cancel,Completed'],
             'comments' => ['nullable', 'string', 'max:1000'],
@@ -798,6 +806,8 @@ class AppointmentController extends Controller
 
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
+        $this->authorizeAppointmentManagement($request, $appointment);
+
         $request->validate([
             'comments' => ['nullable', 'string'],
             'objective' => ['nullable', 'string'],
@@ -808,7 +818,8 @@ class AppointmentController extends Controller
             'observations' => ['nullable', 'string'],
             'psychometric_scales' => ['nullable', 'array'],
             'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string'],
-            'psychometric_scales.*.label' => ['required_with:psychometric_scales', 'string'],
+            'psychometric_scales.*.label' => ['nullable', 'string'],
+            'psychometric_scales.*.name' => ['nullable', 'string'],
             'psychometric_scales.*.items' => ['required_with:psychometric_scales', 'array'],
             'psychometric_scales.*.items.*.id' => ['required', 'string'],
             'psychometric_scales.*.items.*.label' => ['required', 'string'],
@@ -841,12 +852,27 @@ class AppointmentController extends Controller
             'link',
             'video_call_room',
         ]);
+        if ($request->exists('psychometric_scales')) {
+            $updatedData['psychometric_scales'] = collect($request->input('psychometric_scales', []))
+                ->map(function (array $scale): array {
+                    $name = trim((string) ($scale['label'] ?? $scale['name'] ?? 'Escala'));
+                    $scale['label'] = $name;
+                    $scale['name'] = $name;
+
+                    return $scale;
+                })
+                ->values()
+                ->all();
+        }
         $fieldsToUpdate = [];
         $arrayOriginal = $originalData->toArray();
 
         if ($this->isCancellationRequest($request)) {
             return $this->destroy($request, $appointment);
         }
+
+        $professionalCompleted = $request->exists('statusUser')
+            && (new Appointment(['statusUser' => $request->input('statusUser')]))->isProfessionallyCompleted();
 
         foreach ($updatedData as $key => $value) {
             if (! array_key_exists($key, $arrayOriginal) || in_array($key, ['created_at', 'updated_at'], true)) {
@@ -862,6 +888,13 @@ class AppointmentController extends Controller
             if ($hasChanged) {
                 $fieldsToUpdate[$key] = $value;
             }
+        }
+
+        if ($professionalCompleted) {
+            unset($fieldsToUpdate['statusPatient']);
+            $fieldsToUpdate['lifecycle_status'] = 'complete';
+            $fieldsToUpdate['state'] = 'Completada';
+            $fieldsToUpdate['completed_at'] = $appointment->completed_at ?: now();
         }
 
         if ($request->exists('comments')) {
@@ -960,6 +993,8 @@ class AppointmentController extends Controller
 
     public function destroy(Request $request, Appointment $appointment): JsonResponse
     {
+        $this->authorizeAppointmentManagement($request, $appointment);
+
         $scope = $request->input('scope', 'single');
         $targets = $this->resolveCancellationTargets($appointment, $scope);
 
@@ -988,6 +1023,38 @@ class AppointmentController extends Controller
             'type' => 'success',
             'count' => $deletedCount,
         ], 200);
+    }
+
+    private function authorizeAppointmentManagement(Request $request, Appointment $appointment): void
+    {
+        $user = $request->user();
+        if ($user && (int) $appointment->user === (int) $user->id) {
+            return;
+        }
+
+        $organization = $request->attributes->get('active_organization');
+        $membership = $request->attributes->get('organization_membership');
+        $permissions = $membership?->permissions ?: [];
+        $canManage = $membership && (
+            in_array($membership->role, [
+                OrganizationMembership::ROLE_OWNER,
+                OrganizationMembership::ROLE_ADMIN,
+                OrganizationMembership::ROLE_RECEPTIONIST,
+            ], true)
+            || in_array('*', $permissions, true)
+            || in_array('appointments.manage', $permissions, true)
+            || in_array('schedule.manage', $permissions, true)
+            || (is_array($permissions) && ! empty($permissions['appointments.manage']))
+            || (is_array($permissions) && ! empty($permissions['schedule.manage']))
+        );
+
+        abort_unless(
+            $canManage
+            && $organization
+            && (int) $appointment->organization_id === (int) $organization->id,
+            403,
+            'No puedes modificar esta sesión.'
+        );
     }
 
     private function buildRecurringOccurrences(Carbon $start, Carbon $end, string $frequency, string $until, int $interval): array

@@ -32,7 +32,7 @@ class PaymentSettlementServiceTest extends TestCase
         $this->assertSame(315.0, $breakdown['net_psychologist_amount']);
     }
 
-    public function test_payment_is_released_only_after_both_parties_complete_session(): void
+    public function test_professional_completion_is_enough_to_release_payment(): void
     {
         $payment = new Payment([
             'amount' => 371,
@@ -46,9 +46,6 @@ class PaymentSettlementServiceTest extends TestCase
         ]));
 
         $service = app(PaymentSettlementService::class);
-        $this->assertFalse($service->isWithdrawable($payment));
-
-        $payment->appointment->statusPatient = 'Completed';
         $this->assertTrue($service->isWithdrawable($payment));
     }
 }

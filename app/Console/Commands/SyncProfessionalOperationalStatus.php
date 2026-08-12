@@ -20,7 +20,7 @@ class SyncProfessionalOperationalStatus extends Command
 
         User::query()->with('subscription')->orderBy('id')->chunkById(200, function ($users) use (&$changed, &$activated, &$deactivated, &$phonesCopied) {
             foreach ($users as $user) {
-                if ($user->syncPhoneFromWhatsapp(! $this->option('dry-run'))) {
+                if ($user->syncPhoneFromPreferredContact(! $this->option('dry-run'))) {
                     $phonesCopied++;
                 }
 
@@ -40,7 +40,7 @@ class SyncProfessionalOperationalStatus extends Command
         });
 
         $mode = $this->option('dry-run') ? 'simulados' : 'aplicados';
-        $this->info("Cambios {$mode}: {$changed}; telefonos copiados desde WhatsApp: {$phonesCopied}; activados: {$activated}; desactivados: {$deactivated}.");
+        $this->info("Cambios {$mode}: {$changed}; telefonos recuperados desde WhatsApp o movil: {$phonesCopied}; activados: {$activated}; desactivados: {$deactivated}.");
 
         return self::SUCCESS;
     }

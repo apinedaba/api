@@ -319,7 +319,7 @@ class UserController extends Controller
             ]);
         }
 
-        $user->syncPhoneFromWhatsapp();
+        $user->syncPhoneFromPreferredContact();
 
         if (! $user->hasOperationalSetup()) {
             throw ValidationException::withMessages([

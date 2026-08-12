@@ -361,19 +361,25 @@ class User extends Authenticatable implements MustVerifyEmail
         return preg_match('/^\d{10}$/', self::normalizePhone(data_get($this->contacto, 'telefono'))) === 1;
     }
 
-    public function syncPhoneFromWhatsapp(bool $persist = true): bool
+    public function syncPhoneFromPreferredContact(bool $persist = true): bool
     {
         if ($this->hasValidPhone()) {
             return false;
         }
 
-        $whatsapp = self::normalizePhone(data_get($this->contacto, 'whatsapp'));
-        if (preg_match('/^\d{10}$/', $whatsapp) !== 1) {
+        $phone = collect([
+            data_get($this->contacto, 'whatsapp'),
+            data_get($this->contacto, 'movil'),
+            data_get($this->contacto, 'mobile'),
+        ])->map(fn ($value) => self::normalizePhone($value))
+            ->first(fn ($value) => preg_match('/^\d{10}$/', $value) === 1);
+
+        if (! $phone) {
             return false;
         }
 
         $contact = is_array($this->contacto) ? $this->contacto : [];
-        $contact['telefono'] = $whatsapp;
+        $contact['telefono'] = $phone;
         $this->contacto = $contact;
 
         if ($persist && $this->exists) {
@@ -381,6 +387,11 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return true;
+    }
+
+    public function syncPhoneFromWhatsapp(bool $persist = true): bool
+    {
+        return $this->syncPhoneFromPreferredContact($persist);
     }
 
     public static function normalizePhone(mixed $value): string
@@ -396,7 +407,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function syncOperationalStatus(): bool
     {
-        $this->syncPhoneFromWhatsapp();
+        $this->syncPhoneFromPreferredContact();
         $shouldBeActive = $this->canBeActive();
 
         if ((bool) $this->activo !== $shouldBeActive) {

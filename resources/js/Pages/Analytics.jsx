@@ -120,6 +120,24 @@ export default function Analytics({ auth, analytics, filters }) {
             cell: row => number(row.totals.leads),
         },
         {
+            name: 'Citas',
+            selector: row => row.totals.appointments,
+            sortable: true,
+            cell: row => number(row.totals.appointments),
+        },
+        {
+            name: 'Pagadas',
+            selector: row => row.totals.paid_appointments,
+            sortable: true,
+            cell: row => number(row.totals.paid_appointments),
+        },
+        {
+            name: 'Completadas',
+            selector: row => row.totals.sessions_completed,
+            sortable: true,
+            cell: row => number(row.totals.sessions_completed),
+        },
+        {
             name: 'Conversion',
             selector: row => row.rates.lead_conversion,
             sortable: true,
@@ -209,11 +227,14 @@ export default function Analytics({ auth, analytics, filters }) {
                             </button>
                         </form>
 
-                        <div className="grid gap-4 p-5 md:grid-cols-5">
+                        <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
                             <Kpi title="Psicologos con actividad" value={analytics?.summary?.professionals_with_activity} />
                             <Kpi title="Vistas unicas" value={analytics?.summary?.profile_views} />
                             <Kpi title="Clicks de contacto" value={analytics?.summary?.contact_clicks} />
                             <Kpi title="Leads capturados" value={analytics?.summary?.leads} />
+                            <Kpi title="Citas agendadas" value={analytics?.summary?.appointments} />
+                            <Kpi title="Citas pagadas" value={analytics?.summary?.paid_appointments} />
+                            <Kpi title="Sesiones completadas" value={analytics?.summary?.sessions_completed} />
                             <Kpi title="Conversion global" value={percent(analytics?.summary?.lead_conversion)} />
                         </div>
                         {form.lead_status === 'active' && (

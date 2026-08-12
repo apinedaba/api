@@ -16,9 +16,14 @@ class SyncProfessionalOperationalStatus extends Command
         $changed = 0;
         $activated = 0;
         $deactivated = 0;
+        $phonesCopied = 0;
 
-        User::query()->orderBy('id')->chunkById(200, function ($users) use (&$changed, &$activated, &$deactivated) {
+        User::query()->orderBy('id')->chunkById(200, function ($users) use (&$changed, &$activated, &$deactivated, &$phonesCopied) {
             foreach ($users as $user) {
+                if ($user->syncPhoneFromWhatsapp(! $this->option('dry-run'))) {
+                    $phonesCopied++;
+                }
+
                 $expected = $user->hasOperationalSetup();
 
                 if ((bool) $user->activo === $expected) {
@@ -35,7 +40,7 @@ class SyncProfessionalOperationalStatus extends Command
         });
 
         $mode = $this->option('dry-run') ? 'simulados' : 'aplicados';
-        $this->info("Cambios {$mode}: {$changed}; activados: {$activated}; desactivados: {$deactivated}.");
+        $this->info("Cambios {$mode}: {$changed}; telefonos copiados desde WhatsApp: {$phonesCopied}; activados: {$activated}; desactivados: {$deactivated}.");
 
         return self::SUCCESS;
     }

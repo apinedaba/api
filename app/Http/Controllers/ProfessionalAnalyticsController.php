@@ -37,6 +37,11 @@ class ProfessionalAnalyticsController extends Controller
         'website_click' => 'Clicks sitio web',
         'lead_started' => 'Leads iniciados',
         'lead_submitted' => 'Leads enviados',
+        'appointment_booked' => 'Primeras citas agendadas',
+        'repeat_appointment_booked' => 'Citas recurrentes agendadas',
+        'appointment_paid' => 'Citas pagadas',
+        'payment_completed' => 'Pagos confirmados',
+        'session_completed' => 'Sesiones completadas',
     ];
 
     public function adminIndex(Request $request): Response
@@ -125,6 +130,10 @@ class ProfessionalAnalyticsController extends Controller
                 + ($eventTotals['linkedin_click'] ?? 0)
                 + ($eventTotals['website_click'] ?? 0)
             );
+            $appointments = (int) ($eventTotals['appointment_booked'] ?? 0)
+                + (int) ($eventTotals['repeat_appointment_booked'] ?? 0);
+            $paidAppointments = (int) ($eventTotals['appointment_paid'] ?? 0);
+            $completedSessions = (int) ($eventTotals['session_completed'] ?? 0);
 
             return [
                 'id' => $user->id,
@@ -149,12 +158,21 @@ class ProfessionalAnalyticsController extends Controller
                     'lead_submitted' => $leadSubmits,
                     'leads' => $leads,
                     'contact_clicks' => $contactClicks,
+                    'appointments' => $appointments,
+                    'first_appointments' => (int) ($eventTotals['appointment_booked'] ?? 0),
+                    'repeat_appointments' => (int) ($eventTotals['repeat_appointment_booked'] ?? 0),
+                    'paid_appointments' => $paidAppointments,
+                    'payments_completed' => (int) ($eventTotals['payment_completed'] ?? 0),
+                    'sessions_completed' => $completedSessions,
                     'raw_profile_views' => (int) ($rawTotals['profile_view'] ?? 0),
                 ],
                 'rates' => [
                     'lead_conversion' => $profileViews > 0 ? round(($leads / $profileViews) * 100, 2) : 0,
                     'form_conversion' => $profileViews > 0 ? round(($leadSubmits / $profileViews) * 100, 2) : 0,
                     'contact_ctr' => $profileViews > 0 ? round(($contactClicks / $profileViews) * 100, 2) : 0,
+                    'lead_to_appointment' => $leads > 0 ? round(($appointments / $leads) * 100, 2) : 0,
+                    'appointment_to_paid' => $appointments > 0 ? round(($paidAppointments / $appointments) * 100, 2) : 0,
+                    'appointment_to_completed' => $appointments > 0 ? round(($completedSessions / $appointments) * 100, 2) : 0,
                 ],
                 'sources' => $sources->get($user->id, collect())
                     ->take(5)
@@ -171,6 +189,9 @@ class ProfessionalAnalyticsController extends Controller
             'profile_views' => $professionals->sum(fn ($row) => $row['totals']['profile_views']),
             'contact_clicks' => $professionals->sum(fn ($row) => $row['totals']['contact_clicks']),
             'leads' => $professionals->sum(fn ($row) => $row['totals']['leads']),
+            'appointments' => $professionals->sum(fn ($row) => $row['totals']['appointments']),
+            'paid_appointments' => $professionals->sum(fn ($row) => $row['totals']['paid_appointments']),
+            'sessions_completed' => $professionals->sum(fn ($row) => $row['totals']['sessions_completed']),
             'lead_conversion' => $professionals->sum(fn ($row) => $row['totals']['profile_views']) > 0
                 ? round(($professionals->sum(fn ($row) => $row['totals']['leads']) / $professionals->sum(fn ($row) => $row['totals']['profile_views'])) * 100, 2)
                 : 0,
@@ -456,6 +477,12 @@ class ProfessionalAnalyticsController extends Controller
                     'lead_started' => (int) ($eventCounts['lead_started'] ?? 0),
                     'lead_submitted' => (int) ($eventCounts['lead_submitted'] ?? 0),
                     'leads' => (clone $leadsQuery)->count(),
+                    'appointments' => (int) ($eventCounts['appointment_booked'] ?? 0) + (int) ($eventCounts['repeat_appointment_booked'] ?? 0),
+                    'first_appointments' => (int) ($eventCounts['appointment_booked'] ?? 0),
+                    'repeat_appointments' => (int) ($eventCounts['repeat_appointment_booked'] ?? 0),
+                    'paid_appointments' => (int) ($eventCounts['appointment_paid'] ?? 0),
+                    'payments_completed' => (int) ($eventCounts['payment_completed'] ?? 0),
+                    'sessions_completed' => (int) ($eventCounts['session_completed'] ?? 0),
                 ],
                 'raw_totals' => [
                     'profile_views' => (int) ($rawEventCounts['profile_view'] ?? 0),

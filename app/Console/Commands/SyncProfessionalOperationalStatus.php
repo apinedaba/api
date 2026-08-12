@@ -9,7 +9,7 @@ class SyncProfessionalOperationalStatus extends Command
 {
     protected $signature = 'professionals:sync-operational-status {--dry-run}';
 
-    protected $description = 'Recalcula el estado activo usando telefono, perfil, especialidades, horarios y servicios';
+    protected $description = 'Recalcula el estado activo usando configuracion, identidad, correo y membresia';
 
     public function handle(): int
     {
@@ -18,13 +18,13 @@ class SyncProfessionalOperationalStatus extends Command
         $deactivated = 0;
         $phonesCopied = 0;
 
-        User::query()->orderBy('id')->chunkById(200, function ($users) use (&$changed, &$activated, &$deactivated, &$phonesCopied) {
+        User::query()->with('subscription')->orderBy('id')->chunkById(200, function ($users) use (&$changed, &$activated, &$deactivated, &$phonesCopied) {
             foreach ($users as $user) {
                 if ($user->syncPhoneFromWhatsapp(! $this->option('dry-run'))) {
                     $phonesCopied++;
                 }
 
-                $expected = $user->hasOperationalSetup();
+                $expected = $user->canBeActive();
 
                 if ((bool) $user->activo === $expected) {
                     continue;

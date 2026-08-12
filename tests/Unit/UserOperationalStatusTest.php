@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\User;
+use App\Models\Subscription;
 use PHPUnit\Framework\TestCase;
 
 class UserOperationalStatusTest extends TestCase
@@ -96,5 +97,31 @@ class UserOperationalStatusTest extends TestCase
 
         $this->assertFalse($user->syncPhoneFromWhatsapp(false));
         $this->assertNull(data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_active_status_requires_approved_identity_verified_email_and_membership(): void
+    {
+        $user = new User([
+            'isProfileComplete' => true,
+            'contacto' => ['telefono' => '5512345678'],
+            'educacion' => ['especialidades' => ['ansiedad']],
+            'horarios' => ['lunes' => [['start' => '09:00', 'end' => '10:00']]],
+            'configurations' => ['sesiones' => [['tipoSesion' => 'Individual']]],
+            'identity_verification_status' => 'pending',
+            'email_verified_at' => now(),
+            'has_lifetime_access' => false,
+        ]);
+        $user->setRelation('subscription', new Subscription([
+            'stripe_status' => 'pending',
+        ]));
+
+        $this->assertTrue($user->hasOperationalSetup());
+        $this->assertFalse($user->canBeActive());
+
+        $user->identity_verification_status = 'approved';
+        $this->assertFalse($user->canBeActive());
+
+        $user->has_lifetime_access = true;
+        $this->assertTrue($user->canBeActive());
     }
 }

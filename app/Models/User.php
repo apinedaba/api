@@ -397,13 +397,35 @@ class User extends Authenticatable implements MustVerifyEmail
     public function syncOperationalStatus(): bool
     {
         $this->syncPhoneFromWhatsapp();
-        $shouldBeActive = $this->hasOperationalSetup();
+        $shouldBeActive = $this->canBeActive();
 
         if ((bool) $this->activo !== $shouldBeActive) {
             $this->forceFill(['activo' => $shouldBeActive])->saveQuietly();
         }
 
         return $shouldBeActive;
+    }
+
+    public function hasBillableAccess(): bool
+    {
+        if ((bool) $this->has_lifetime_access) {
+            return true;
+        }
+
+        $subscription = $this->relationLoaded('subscription')
+            ? $this->getRelation('subscription')
+            : $this->subscription()->first();
+
+        return $subscription?->stripe_status === 'active'
+            || ($subscription?->stripe_status === 'trialing' && filled($subscription?->stripe_id));
+    }
+
+    public function canBeActive(): bool
+    {
+        return $this->hasOperationalSetup()
+            && $this->identity_verification_status === 'approved'
+            && filled($this->email_verified_at)
+            && $this->hasBillableAccess();
     }
 
     public function scopePubliclyVisible(Builder $query): Builder

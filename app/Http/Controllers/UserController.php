@@ -299,14 +299,23 @@ class UserController extends Controller
     public function ensurePublicVisibility(Request $request, string $id)
     {
         $user = User::with('subscription')->findOrFail($id);
-        $subscription = $user->subscription;
-        $hasBillableAccess = $user->has_lifetime_access
-            || optional($subscription)->stripe_status === 'active'
-            || (optional($subscription)->stripe_status === 'trialing' && filled(optional($subscription)->stripe_id));
+        $hasBillableAccess = $user->hasBillableAccess();
 
         if (!$hasBillableAccess) {
             throw ValidationException::withMessages([
                 'membership_type' => 'Este psicologo no tiene una membresia activa. Asigna una membresia antes de habilitar su visibilidad.',
+            ]);
+        }
+
+        if ($user->identity_verification_status !== 'approved') {
+            throw ValidationException::withMessages([
+                'identity_verification_status' => 'La identidad debe estar aprobada antes de habilitar la visibilidad.',
+            ]);
+        }
+
+        if (! $user->email_verified_at) {
+            throw ValidationException::withMessages([
+                'email_verified_at' => 'El correo debe estar verificado antes de habilitar la visibilidad.',
             ]);
         }
 
@@ -320,8 +329,6 @@ class UserController extends Controller
 
         $user->forceFill([
             'activo' => true,
-            'identity_verification_status' => 'approved',
-            'email_verified_at' => $user->email_verified_at ?: now(),
         ])->save();
 
         return redirect()

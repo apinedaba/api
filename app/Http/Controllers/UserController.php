@@ -310,6 +310,8 @@ class UserController extends Controller
             ]);
         }
 
+        $user->syncPhoneFromWhatsapp();
+
         if (! $user->hasOperationalSetup()) {
             throw ValidationException::withMessages([
                 'activo' => 'Completa el telefono, perfil, especialidades, horarios y al menos un servicio antes de habilitar la visibilidad.',

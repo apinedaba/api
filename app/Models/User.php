@@ -361,6 +361,28 @@ class User extends Authenticatable implements MustVerifyEmail
         return preg_match('/^\d{10}$/', self::normalizePhone(data_get($this->contacto, 'telefono'))) === 1;
     }
 
+    public function syncPhoneFromWhatsapp(bool $persist = true): bool
+    {
+        if ($this->hasValidPhone()) {
+            return false;
+        }
+
+        $whatsapp = self::normalizePhone(data_get($this->contacto, 'whatsapp'));
+        if (preg_match('/^\d{10}$/', $whatsapp) !== 1) {
+            return false;
+        }
+
+        $contact = is_array($this->contacto) ? $this->contacto : [];
+        $contact['telefono'] = $whatsapp;
+        $this->contacto = $contact;
+
+        if ($persist && $this->exists) {
+            $this->saveQuietly();
+        }
+
+        return true;
+    }
+
     public static function normalizePhone(mixed $value): string
     {
         $phone = preg_replace('/\D+/', '', (string) $value);
@@ -374,6 +396,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function syncOperationalStatus(): bool
     {
+        $this->syncPhoneFromWhatsapp();
         $shouldBeActive = $this->hasOperationalSetup();
 
         if ((bool) $this->activo !== $shouldBeActive) {

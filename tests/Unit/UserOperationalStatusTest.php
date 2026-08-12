@@ -57,4 +57,44 @@ class UserOperationalStatusTest extends TestCase
         $this->assertTrue($user->hasValidPhone());
         $this->assertTrue($user->hasOperationalSetup());
     }
+
+    public function test_valid_whatsapp_can_be_copied_when_phone_is_missing(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'telefono' => null,
+                'whatsapp' => '+52 55 9876 5432',
+            ],
+        ]);
+
+        $this->assertTrue($user->syncPhoneFromWhatsapp(false));
+        $this->assertSame('5598765432', data_get($user->contacto, 'telefono'));
+        $this->assertTrue($user->hasValidPhone());
+    }
+
+    public function test_whatsapp_does_not_replace_an_existing_valid_phone(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'telefono' => '5512345678',
+                'whatsapp' => '5598765432',
+            ],
+        ]);
+
+        $this->assertFalse($user->syncPhoneFromWhatsapp(false));
+        $this->assertSame('5512345678', data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_invalid_whatsapp_is_not_copied_to_phone(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'telefono' => null,
+                'whatsapp' => '12345',
+            ],
+        ]);
+
+        $this->assertFalse($user->syncPhoneFromWhatsapp(false));
+        $this->assertNull(data_get($user->contacto, 'telefono'));
+    }
 }

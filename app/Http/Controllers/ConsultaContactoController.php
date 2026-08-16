@@ -22,6 +22,12 @@ class ConsultaContactoController extends Controller
 {
     public function store(Request $request)
     {
+        if ($request->exists('categoria')) {
+            $request->merge([
+                'categoria' => $this->normalizeCategory($request->input('categoria')),
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255',
@@ -40,7 +46,7 @@ class ConsultaContactoController extends Controller
             'package_session_count' => 'nullable|integer|min:1',
             'precio' => 'nullable|numeric|min:0',
             'formato' => 'nullable|string',
-            'categoria' => 'nullable',
+            'categoria' => 'nullable|string|max:255',
             'discount' => 'nullable',
             'discount_type' => 'nullable',
             'codigo_descuento' => 'nullable|string',
@@ -260,6 +266,20 @@ class ConsultaContactoController extends Controller
 
         return $missing;
     }
+    protected function normalizeCategory(mixed $category): ?string
+    {
+        $categories = is_array($category) ? $category : [$category];
+        $normalized = collect($categories)
+            ->flatten()
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        return $normalized === '' ? null : mb_substr($normalized, 0, 255);
+    }
+
     public function getData(Request $request)
     {
         $userId = auth()->id();

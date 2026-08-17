@@ -57,12 +57,23 @@ class StripeController extends Controller
 
     public function createPaymentIntent(Request $request)
     {
+        if (! filled($this->stripe_secretkey) || ! str_starts_with((string) $this->stripe_secretkey, 'sk_')) {
+            Log::error('Stripe session checkout is not configured.');
+
+            return response()->json([
+                'message' => 'Los pagos no estan disponibles temporalmente.',
+                'code' => 'stripe_not_configured',
+            ], 503);
+        }
+
         Stripe::setApiKey($this->stripe_secretkey);
 
         $patient = $request->user();
 
         $cart = AppointmentCart::where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
+            ->latest('updated_at')
+            ->latest('id')
             ->first();
 
         if (!$cart) {
@@ -73,9 +84,19 @@ class StripeController extends Controller
         $cart->forceFill($pricing)->save();
         $amount = (int) round($pricing['total_charge_amount'] * 100);
 
+        if ($amount <= 0) {
+            return response()->json([
+                'message' => 'El importe de la sesion no es valido.',
+                'code' => 'invalid_payment_amount',
+            ], 422);
+        }
+
         $intentPayload = [
             'amount' => $amount,
             'currency' => 'mxn',
+            'automatic_payment_methods' => [
+                'enabled' => true,
+            ],
             'metadata' => [
                 'appointment_cart_id' => $cart->id,
                 'patient_id' => $patient->id,
@@ -91,16 +112,42 @@ class StripeController extends Controller
         ];
 
         $intent = null;
-        if (filled($cart->payment_intent_id)) {
+        $previousIntentId = filled($cart->payment_intent_id)
+            ? (string) $cart->payment_intent_id
+            : null;
+
+        if ($previousIntentId) {
             try {
-                $existingIntent = PaymentIntent::retrieve($cart->payment_intent_id);
-                $existingType = (string) data_get($existingIntent, 'metadata.type');
-                $canReuse = $existingType === 'session_pago_card'
-                    && in_array($existingIntent->status, [
-                        'requires_payment_method',
-                        'requires_confirmation',
-                        'requires_action',
-                    ], true);
+                $existingIntent = PaymentIntent::retrieve($previousIntentId);
+                $existingStatus = (string) $existingIntent->status;
+
+                if ($existingStatus === 'succeeded') {
+                    $cart->forceFill(['stripe_payment_status' => 'succeeded'])->save();
+
+                    return response()->json([
+                        'message' => 'Este pago ya fue procesado.',
+                        'code' => 'payment_already_succeeded',
+                        'paymentIntentId' => $existingIntent->id,
+                        'cartId' => $cart->id,
+                    ], 409);
+                }
+
+                if (in_array($existingStatus, ['processing', 'requires_capture'], true)) {
+                    $cart->forceFill(['stripe_payment_status' => $existingStatus])->save();
+
+                    return response()->json([
+                        'message' => 'El pago ya se esta procesando.',
+                        'code' => 'payment_already_processing',
+                        'paymentIntentId' => $existingIntent->id,
+                        'cartId' => $cart->id,
+                    ], 409);
+                }
+
+                $canReuse = in_array($existingStatus, [
+                    'requires_payment_method',
+                    'requires_confirmation',
+                    'requires_action',
+                ], true);
 
                 if ($canReuse) {
                     $updatePayload = $intentPayload;
@@ -108,18 +155,52 @@ class StripeController extends Controller
                     $intent = PaymentIntent::update($existingIntent->id, $updatePayload);
                 }
             } catch (\Throwable $exception) {
+                $stripeCode = method_exists($exception, 'getStripeCode')
+                    ? $exception->getStripeCode()
+                    : null;
                 Log::warning('Existing session PaymentIntent could not be reused', [
                     'cart_id' => $cart->id,
-                    'payment_intent_id' => $cart->payment_intent_id,
+                    'payment_intent_id' => $previousIntentId,
+                    'stripe_code' => $stripeCode,
                     'message' => $exception->getMessage(),
                 ]);
+
+                if ($stripeCode !== 'resource_missing') {
+                    return response()->json([
+                        'message' => 'No pudimos verificar el estado del pago. Intenta nuevamente.',
+                        'code' => 'payment_intent_lookup_failed',
+                    ], 502);
+                }
             }
         }
 
-        $intent ??= PaymentIntent::create(
-            $intentPayload,
-            ['idempotency_key' => "session_card_cart_{$cart->id}_{$pricing['charge_mode']}_{$amount}"]
-        );
+        try {
+            $intent ??= PaymentIntent::create(
+                $intentPayload,
+                ['idempotency_key' => $this->paymentIntentIdempotencyKey(
+                    $cart,
+                    $pricing['charge_mode'],
+                    $amount,
+                    $previousIntentId
+                )]
+            );
+        } catch (\Throwable $exception) {
+            Log::error('Session PaymentIntent could not be created', [
+                'cart_id' => $cart->id,
+                'patient_id' => $patient->id,
+                'amount' => $amount,
+                'charge_mode' => $pricing['charge_mode'],
+                'stripe_code' => method_exists($exception, 'getStripeCode')
+                    ? $exception->getStripeCode()
+                    : null,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'No pudimos iniciar el pago. Intenta nuevamente.',
+                'code' => 'payment_intent_creation_failed',
+            ], 502);
+        }
 
         $cart->update([
             'payment_intent_id' => $intent->id,
@@ -127,8 +208,27 @@ class StripeController extends Controller
         ]);
 
         return response()->json([
-            'clientSecret' => $intent->client_secret
+            'clientSecret' => $intent->client_secret,
+            'paymentIntentId' => $intent->id,
+            'status' => $intent->status,
         ]);
+    }
+
+    protected function paymentIntentIdempotencyKey(
+        AppointmentCart $cart,
+        string $chargeMode,
+        int $amount,
+        ?string $previousIntentId = null
+    ): string {
+        $generation = $previousIntentId
+            ?: 'initial';
+
+        return 'session_card_'.hash('sha256', implode('|', [
+            $cart->id,
+            $chargeMode,
+            $amount,
+            $generation,
+        ]));
     }
 
     public function confirmarPago(Request $request)
@@ -518,7 +618,7 @@ class StripeController extends Controller
      */
     public function webhook(Request $request)
     {
-        $endpointSecret = config('services.stripe.webhook'); // STRIPE_WEBHOOK_SECRET en .env
+        $endpointSecret = config('services.stripe.webhook_secret');
         $payload = $request->getContent();
         $sigHeader = $request->header('Stripe-Signature');
 

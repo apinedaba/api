@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminMindmeetBenefitController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
+use App\Http\Controllers\Admin\AdminSessionOperationsController;
 use App\Http\Controllers\AdminWhatsAppAutomationController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
@@ -216,6 +217,8 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/operacion-sesiones', [AdminSessionOperationsController::class, 'index'])->name('session-operations.index');
+    Route::post('/admin/api/citas/{appointment}/pagos', [AdminSessionOperationsController::class, 'storePayment'])->name('session-operations.payments.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit.su');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update.su');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy.su');

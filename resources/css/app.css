@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+    .admin-control {
+        @apply block w-full min-w-0 max-w-full rounded-xl border-slate-300 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:ring-slate-500;
+    }
+}

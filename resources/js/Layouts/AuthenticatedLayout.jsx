@@ -18,6 +18,7 @@ const navigationGroups = [
     {
         title: 'Operacion',
         items: [
+            { label: 'Sesiones y pagos', href: 'session-operations.index', match: ['session-operations.*'] },
             { label: 'Psicologos', href: 'psicologos', match: ['psicologos', 'psicologoShow', 'psicologo.*', 'psicologos.*'] },
             { label: 'Registros web', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
             { label: 'Carritos', href: 'carts', match: ['carts', 'cartByPatient'] },

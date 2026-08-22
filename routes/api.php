@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
+use App\Http\Controllers\ProfessionalReferralController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
 use App\Http\Controllers\ClinicalRecordPdfController;
@@ -195,6 +196,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
 
     // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
     Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
+    Route::get('user/professional-referrals', [ProfessionalReferralController::class, 'summary']);
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
     Route::post('user/subscription/change-plan', [StripeController::class, 'changeSubscriptionPlan']);
     Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);

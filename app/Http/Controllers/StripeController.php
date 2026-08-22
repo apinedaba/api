@@ -780,7 +780,8 @@ class StripeController extends Controller
             && $subscription->stripe_status !== 'pending';
 
         Log::info('Has had any subscription before: ' . ($hasHadAnySubscription ? 'true' : 'false'));
-        if (!$hasHadAnySubscription) {
+        $isColleagueReferral = \App\Models\ProfessionalReferral::where('invited_user_id', $user->id)->exists();
+        if (!$hasHadAnySubscription && !$isColleagueReferral) {
             $sessionData['subscription_data'] = [
                 'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
             ];

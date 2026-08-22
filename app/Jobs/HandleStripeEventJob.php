@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use App\Services\ProfessionalReferralService;
 
 class HandleStripeEventJob implements ShouldQueue
 {
@@ -46,6 +47,10 @@ class HandleStripeEventJob implements ShouldQueue
 
             case 'invoice.payment_failed':
                 $this->handleFailedPayment($this->event->data->object);
+                break;
+            case 'invoice.paid':
+            case 'invoice.payment_succeeded':
+                $this->handlePaidInvoice($this->event->data->object);
                 break;
         }
     }
@@ -135,6 +140,13 @@ class HandleStripeEventJob implements ShouldQueue
         }
 
         app(SubscriptionBillingNotificationService::class)->notifyFailedCharge($user, $invoice);
+    }
+
+    protected function handlePaidInvoice($invoice): void
+    {
+        if (empty($invoice->subscription) || empty($invoice->customer) || empty($invoice->id)) return;
+        $user = User::where('stripe_id', $invoice->customer)->first();
+        if ($user) app(ProfessionalReferralService::class)->creditFirstPaidSubscription($user, $invoice->id);
     }
 
     protected function resolveSubscriptionEndsAt($stripeSubscription): ?Carbon

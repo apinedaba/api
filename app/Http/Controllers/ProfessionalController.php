@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Support\MexicoGeography;
 
 class ProfessionalController extends Controller
 {
@@ -412,7 +413,7 @@ class ProfessionalController extends Controller
         $values = $this->queryValues($value);
         $ignoredStatusTerms = ['activo', 'active', 'publico', 'published', 'visible'];
 
-        return collect($values)
+        return collect(MexicoGeography::expandStateFilters($values))
             ->reject(fn($estado) => in_array(Str::lower($estado), $ignoredStatusTerms, true))
             ->values()
             ->all();

@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
 use App\Services\OrganizationService;
+use App\Services\ProfessionalReferralService;
 
 class RegisterController extends Controller
 {
@@ -40,7 +41,8 @@ class RegisterController extends Controller
     public function registerUser(
         Request $request,
         SellerCommissionService $sellerCommissionService,
-        OrganizationService $organizationService
+        OrganizationService $organizationService,
+        ProfessionalReferralService $professionalReferralService
     )
     {
         $normalizedEmail = mb_strtolower(trim((string) $request->input('email')));
@@ -85,8 +87,15 @@ class RegisterController extends Controller
             ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
             : null;
 
+        $colleagueCode = trim((string) $request->input('colleague_referral_code'));
+        if ($colleagueCode !== '' && !$professionalReferralService->isValidCode($colleagueCode)) {
+            return response()->json([
+                'message' => 'El enlace de invitación ya no es válido.',
+                'errors' => ['colleague_referral_code' => ['Solicita un enlace nuevo al colega que te invitó.']],
+            ], 422);
+        }
         $accountType = $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
-        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode) {
+        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode, $colleagueCode, $professionalReferralService) {
             $user = User::create([
                 'name' => trim((string) $request->name),
                 'email' => mb_strtolower(trim((string) $request->email)),
@@ -117,6 +126,13 @@ class RegisterController extends Controller
                 );
 
                 $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
+            }
+
+            if ($colleagueCode !== '') {
+                $referral = $professionalReferralService->attachInvitedUser($colleagueCode, $user);
+                if ($referral) {
+                    Subscription::firstOrCreate(['user_id' => $user->id], ['stripe_id' => null, 'stripe_plan' => null, 'stripe_status' => 'init', 'trial_ends_at' => null, 'ends_at' => null]);
+                }
             }
 
             return $user->fresh();

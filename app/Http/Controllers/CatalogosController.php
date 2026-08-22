@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
+use App\Support\MexicoGeography;
 
 class CatalogosController extends Controller
 {
@@ -20,6 +21,8 @@ class CatalogosController extends Controller
             ->where('activo', 1)
             ->pluck('personales')
             ->map(fn($p) => $p['genero'] ?? null)
+            ->filter()
+            ->map(fn($state) => MexicoGeography::canonicalState($state))
             ->filter()
             ->unique()
             ->values();

@@ -25,6 +25,12 @@ class ProfessionalAnalyticsController extends Controller
         'website_click',
         'lead_started',
         'lead_submitted',
+        'checkout_started',
+        'appointment_booked',
+        'repeat_appointment_booked',
+        'appointment_paid',
+        'payment_completed',
+        'session_completed',
     ];
 
     private const EVENT_LABELS = [
@@ -37,6 +43,7 @@ class ProfessionalAnalyticsController extends Controller
         'website_click' => 'Clicks sitio web',
         'lead_started' => 'Leads iniciados',
         'lead_submitted' => 'Leads enviados',
+        'checkout_started' => 'Checkouts iniciados',
         'appointment_booked' => 'Primeras citas agendadas',
         'repeat_appointment_booked' => 'Citas recurrentes agendadas',
         'appointment_paid' => 'Citas pagadas',

@@ -29,6 +29,8 @@ return [
         'secret_key' => env('STRIPE_SECRET_KEY'),
         'public_key' => env('STRIPE_PUBLIC_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'connect_timeout' => (int) env('STRIPE_CONNECT_TIMEOUT', 5),
+        'request_timeout' => (int) env('STRIPE_REQUEST_TIMEOUT', 20),
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),

@@ -31,6 +31,9 @@ use App\Notifications\SessionPaymentRegisteredNotification;
 use App\Services\WhatsApp\WhatsAppService;
 use Carbon\Carbon;
 use App\Services\PaymentSettlementService;
+use Stripe\ApiRequestor;
+use Stripe\HttpClient\CurlClient;
+use Illuminate\Support\Str;
 
 class StripeController extends Controller
 {
@@ -57,6 +60,7 @@ class StripeController extends Controller
 
     public function createPaymentIntent(Request $request)
     {
+        $requestId = (string) Str::uuid();
         if (! filled($this->stripe_secretkey) || ! str_starts_with((string) $this->stripe_secretkey, 'sk_')) {
             Log::error('Stripe session checkout is not configured.');
 
@@ -67,6 +71,11 @@ class StripeController extends Controller
         }
 
         Stripe::setApiKey($this->stripe_secretkey);
+        Stripe::setMaxNetworkRetries(1);
+        $stripeHttpClient = new CurlClient();
+        $stripeHttpClient->setConnectTimeout((int) config('services.stripe.connect_timeout', 5));
+        $stripeHttpClient->setTimeout((int) config('services.stripe.request_timeout', 20));
+        ApiRequestor::setHttpClient($stripeHttpClient);
 
         $patient = $request->user();
 
@@ -186,6 +195,7 @@ class StripeController extends Controller
             );
         } catch (\Throwable $exception) {
             Log::error('Session PaymentIntent could not be created', [
+                'request_id' => $requestId,
                 'cart_id' => $cart->id,
                 'patient_id' => $patient->id,
                 'amount' => $amount,
@@ -199,7 +209,8 @@ class StripeController extends Controller
             return response()->json([
                 'message' => 'No pudimos iniciar el pago. Intenta nuevamente.',
                 'code' => 'payment_intent_creation_failed',
-            ], 502);
+                'request_id' => $requestId,
+            ], 502)->header('Retry-After', '5');
         }
 
         $cart->update([
@@ -211,6 +222,7 @@ class StripeController extends Controller
             'clientSecret' => $intent->client_secret,
             'paymentIntentId' => $intent->id,
             'status' => $intent->status,
+            'requestId' => $requestId,
         ]);
     }
 

@@ -61,6 +61,10 @@ class StripeController extends Controller
     public function createPaymentIntent(Request $request)
     {
         $requestId = (string) Str::uuid();
+        $validated = $request->validate([
+            'cart_id' => ['required', 'integer'],
+            'cuando' => ['required', 'string', 'in:avg,deposit,partial,now'],
+        ]);
         if (! filled($this->stripe_secretkey) || ! str_starts_with((string) $this->stripe_secretkey, 'sk_')) {
             Log::error('Stripe session checkout is not configured.');
 
@@ -79,17 +83,20 @@ class StripeController extends Controller
 
         $patient = $request->user();
 
-        $cart = AppointmentCart::where('patient_id', $patient->id)
+        $cart = AppointmentCart::whereKey($validated['cart_id'])
+            ->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
-            ->latest('updated_at')
-            ->latest('id')
             ->first();
 
         if (!$cart) {
-            return response()->json(['message' => 'No hay una cita pendiente para pagar.'], 404);
+            return response()->json([
+                'message' => 'La cita pendiente no existe o no pertenece a tu cuenta.',
+                'code' => 'pending_cart_not_found',
+                'request_id' => $requestId,
+            ], 404);
         }
 
-        $pricing = $this->pricingService->buildFromCart($cart, $request->input('cuando'));
+        $pricing = $this->pricingService->buildFromCart($cart, $validated['cuando']);
         $cart->forceFill($pricing)->save();
         $amount = (int) round($pricing['total_charge_amount'] * 100);
 

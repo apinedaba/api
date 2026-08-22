@@ -167,7 +167,12 @@ class StripeController extends Controller
 
                 if ($canReuse) {
                     $updatePayload = $intentPayload;
-                    unset($updatePayload['currency']);
+                    // Stripe allows automatic_payment_methods when creating an
+                    // intent, but not when updating an existing one.
+                    unset(
+                        $updatePayload['currency'],
+                        $updatePayload['automatic_payment_methods']
+                    );
                     $intent = PaymentIntent::update($existingIntent->id, $updatePayload);
                 }
             } catch (\Throwable $exception) {

@@ -159,11 +159,22 @@ class StripeController extends Controller
                     ], 409);
                 }
 
+                // An intent in requires_action may already have an asynchronous
+                // payment instruction attached (for example, an OXXO voucher).
+                // Stripe does not allow that intent to be updated and its client
+                // secret cannot initialize a fresh Payment Element. Leave it
+                // untouched and create a new intent for the current selection.
                 $canReuse = in_array($existingStatus, [
                     'requires_payment_method',
                     'requires_confirmation',
-                    'requires_action',
                 ], true);
+
+                if ($existingStatus === 'requires_action') {
+                    Log::info('Replacing asynchronous session PaymentIntent', [
+                        'cart_id' => $cart->id,
+                        'payment_intent_id' => $previousIntentId,
+                    ]);
+                }
 
                 if ($canReuse) {
                     $updatePayload = $intentPayload;

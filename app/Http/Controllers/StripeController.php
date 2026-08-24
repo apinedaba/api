@@ -320,6 +320,62 @@ class StripeController extends Controller
         return response()->json($appointment);
     }
 
+    /**
+     * Stores an OXXO voucher generated through Stripe Elements.
+     *
+     * Generating a voucher is not a completed payment: Stripe will send the
+     * payment_intent.succeeded webhook only after the customer pays in-store.
+     */
+    public function confirmOxxoVoucher(Request $request)
+    {
+        $validated = $request->validate([
+            'intentId' => ['required', 'string'],
+            'cartId' => ['required', 'integer'],
+        ]);
+
+        Stripe::setApiKey($this->stripe_secretkey);
+
+        $cart = AppointmentCart::whereKey($validated['cartId'])
+            ->where('patient_id', $request->user()->id)
+            ->first();
+
+        if (! $cart || $cart->payment_intent_id !== $validated['intentId']) {
+            return response()->json([
+                'message' => 'No encontramos la reserva asociada a este pago OXXO.',
+            ], 404);
+        }
+
+        $intent = PaymentIntent::retrieve($validated['intentId']);
+        $paymentMethods = (array) ($intent->payment_method_types ?? []);
+        $isOxxoVoucher = (
+            in_array('oxxo', $paymentMethods, true)
+            || data_get($intent, 'next_action.type') === 'oxxo_display_details'
+        ) && in_array((string) $intent->status, ['requires_action', 'processing'], true);
+
+        if (! $isOxxoVoucher) {
+            return response()->json([
+                'message' => 'El cupón OXXO no está disponible para esta reserva.',
+            ], 422);
+        }
+
+        // The generic PaymentIntent starts with card metadata. Tag it as OXXO
+        // once its voucher exists so the webhook finalizes it correctly.
+        PaymentIntent::update($intent->id, [
+            'metadata' => ['type' => 'session_pago_oxxo'],
+        ]);
+
+        $cart->update([
+            'estado' => 'voucher_generado',
+            'stripe_payment_status' => 'voucher_generated',
+        ]);
+
+        return response()->json([
+            'cartId' => $cart->id,
+            'status' => 'voucher_generated',
+            'expiresAt' => data_get($intent, 'next_action.oxxo_display_details.expires_after'),
+        ]);
+    }
+
     public function finalizeSuccessfulSessionPayment(
         int $cartId,
         PaymentIntent $intent,

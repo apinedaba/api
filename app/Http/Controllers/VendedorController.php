@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Vendedor;
 use App\Http\Controllers\Controller;
 use App\Services\SellerCommissionService;
+use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -88,7 +91,13 @@ class VendedorController extends Controller
         $validated['status'] = $validated['status'] ?? 'active';
 
         if ($request->hasFile('imagen')) {
-            $validated['imagen'] = $request->file('imagen')->store('vendedores', 'public');
+            try {
+                $validated['imagen'] = $this->uploadSellerImage($request->file('imagen'));
+            } catch (\Throwable $exception) {
+                return back()
+                    ->withErrors(['imagen' => 'No se pudo subir la imagen a Cloudinary. Intenta nuevamente.'])
+                    ->withInput();
+            }
         }
 
         $validated['password'] = bcrypt($validated['password']);
@@ -148,7 +157,13 @@ class VendedorController extends Controller
         $validated['status'] = $validated['status'] ?? $vendedor->status ?? 'active';
 
         if ($request->hasFile('imagen')) {
-            $validated['imagen'] = $request->file('imagen')->store('vendedores', 'public');
+            try {
+                $validated['imagen'] = $this->uploadSellerImage($request->file('imagen'));
+            } catch (\Throwable $exception) {
+                return back()
+                    ->withErrors(['imagen' => 'No se pudo subir la imagen a Cloudinary. Intenta nuevamente.'])
+                    ->withInput();
+            }
         }
 
         if (!empty($validated['password'])) {
@@ -291,6 +306,35 @@ class VendedorController extends Controller
         }
 
         $validated['pais'] = ($validated['pais'] ?? '') ?: 'Mexico';
+    }
+
+    /**
+     * Upload seller photos to Cloudinary and persist their secure URL.
+     *
+     * Local `/storage` paths remain supported by the frontend for sellers
+     * created before this change, but no new seller image is stored locally.
+     */
+    private function uploadSellerImage(UploadedFile $image): string
+    {
+        try {
+            $result = (new UploadApi())->upload($image->getRealPath(), [
+                'folder' => 'mindmeet/vendedores',
+                'resource_type' => 'image',
+            ]);
+
+            if (empty($result['secure_url'])) {
+                throw new \RuntimeException('Cloudinary did not return a secure URL.');
+            }
+
+            return $result['secure_url'];
+        } catch (\Throwable $exception) {
+            Log::error('Error al subir imagen de vendedor a Cloudinary.', [
+                'message' => $exception->getMessage(),
+                'filename' => $image->getClientOriginalName(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     private function transformVendedor(Vendedor $vendedor): array

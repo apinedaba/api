@@ -91,7 +91,7 @@ function QrCard({ vendedor }) {
                         onClick={copyLink}
                         className={`shrink-0 text-xs px-3 py-2 rounded-md border transition-colors duration-150 font-medium ${copied
                                 ? 'bg-green-50 border-green-300 text-green-700'
-                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                                : 'bg-white border-sky-200 text-sky-700 hover:bg-sky-50'
                             }`}
                     >
                         {copied ? '¡Copiado!' : 'Copiar'}
@@ -102,7 +102,7 @@ function QrCard({ vendedor }) {
             <a
                 href={vendedor.qr_download_url}
                 download
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors duration-150"
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-sky-700 hover:from-teal-600 hover:to-sky-800 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors duration-150"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
@@ -118,7 +118,22 @@ export default function VendedorDashboard({ vendedor, metrics, referrals, commis
         <VendedorLayout vendedor={vendedor}>
             <Head title="Mi Dashboard" />
 
-            {/* QR + métricas */}
+            <section className="mb-8 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-teal-50 p-6 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.3em] text-sky-700">Vendedores MindMeet</p>
+                <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-950">Hola, {vendedor.nombre}</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                            Comparte tu QR o enlace de registro. Cada psicologo que active su membresia suma a tus comisiones.
+                        </p>
+                    </div>
+                    <div className="rounded-full bg-white px-4 py-2 text-sm font-bold text-sky-800 ring-1 ring-sky-100">
+                        {metrics.active_count} referidos activos
+                    </div>
+                </div>
+            </section>
+
+            {/* QR + metricas */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
                 <div className="lg:col-span-1">
                     <QrCard vendedor={vendedor} />
@@ -130,7 +145,7 @@ export default function VendedorDashboard({ vendedor, metrics, referrals, commis
                             title="Saldo pendiente"
                             value={formatMoney(metrics.pending_balance)}
                             subtitle="Por cobrar"
-                            accent="border-l-4 border-l-indigo-500"
+                            accent="border-l-4 border-l-sky-600"
                         />
                         <MetricCard
                             title="Total cobrado"

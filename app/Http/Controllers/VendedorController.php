@@ -65,6 +65,7 @@ class VendedorController extends Controller
             'pais' => ['nullable', 'string', 'max:100'],
 
             'rol' => ['required', 'in:vendedor,supervisor'],
+            'status' => ['nullable', 'in:active,inactive'],
             'imagen' => ['nullable', 'image', 'max:2048'],
         ], [
             'nombre.required' => 'El nombre es obligatorio.',
@@ -78,9 +79,13 @@ class VendedorController extends Controller
             'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'rol.required' => 'El rol es obligatorio.',
             'rol.in' => 'El rol seleccionado no es válido.',
+            'status.in' => 'El estatus seleccionado no es válido.',
             'imagen.image' => 'El archivo debe ser una imagen.',
             'imagen.max' => 'La imagen no debe pesar más de 2MB.',
         ]);
+
+        $this->normalizeOptionalAddressFields($validated);
+        $validated['status'] = $validated['status'] ?? 'active';
 
         if ($request->hasFile('imagen')) {
             $validated['imagen'] = $request->file('imagen')->store('vendedores', 'public');
@@ -134,9 +139,13 @@ class VendedorController extends Controller
             'codigo_postal' => ['nullable', 'string', 'max:10'],
             'pais' => ['nullable', 'string', 'max:100'],
             'rol' => ['required', 'in:vendedor,supervisor'],
+            'status' => ['nullable', 'in:active,inactive'],
 
             'imagen' => ['nullable', 'image', 'max:2048'],
         ]);
+
+        $this->normalizeOptionalAddressFields($validated);
+        $validated['status'] = $validated['status'] ?? $vendedor->status ?? 'active';
 
         if ($request->hasFile('imagen')) {
             $validated['imagen'] = $request->file('imagen')->store('vendedores', 'public');
@@ -273,6 +282,15 @@ class VendedorController extends Controller
         $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
 
         return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
+    }
+
+    private function normalizeOptionalAddressFields(array &$validated): void
+    {
+        foreach (['direccion', 'ciudad', 'estado', 'codigo_postal'] as $field) {
+            $validated[$field] = $validated[$field] ?? '';
+        }
+
+        $validated['pais'] = ($validated['pais'] ?? '') ?: 'Mexico';
     }
 
     private function transformVendedor(Vendedor $vendedor): array

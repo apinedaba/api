@@ -37,7 +37,10 @@ class GoogleCalendarService
         $this->client->setClientId(config('services.google.client_id'));
         $this->client->setClientSecret(config('services.google.client_secret'));
         $this->client->setRedirectUri(config('services.google.calendar_redirect_uri'));
-        $this->client->setScopes([GoogleCalendar::CALENDAR_EVENTS]);
+        $this->client->setScopes([
+            GoogleCalendar::CALENDAR_EVENTS,
+            'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+        ]);
 
         // 'offline' nos permite obtener un refresh_token para usar la API sin que el usuario esté conectado.
         $this->client->setAccessType('offline');
@@ -122,6 +125,69 @@ class GoogleCalendarService
         return $this->client;
     }
 
+    public function listCalendars(User $user): array
+    {
+        $service = new GoogleCalendar($this->getAuthenticatedClient($user));
+        $calendars = [];
+        $pageToken = null;
+
+        do {
+            $response = $service->calendarList->listCalendarList(['pageToken' => $pageToken]);
+            foreach ($response->getItems() as $calendar) {
+                if (! in_array($calendar->getAccessRole(), ['owner', 'writer'], true)) {
+                    continue;
+                }
+                $calendars[] = [
+                    'id' => $calendar->getId(),
+                    'name' => $calendar->getSummary(),
+                    'primary' => (bool) $calendar->getPrimary(),
+                    'timezone' => $calendar->getTimeZone(),
+                    'color' => $calendar->getBackgroundColor(),
+                ];
+            }
+            $pageToken = $response->getNextPageToken();
+        } while ($pageToken);
+
+        return $calendars;
+    }
+
+    public function professionalTimezone(User $user): string
+    {
+        $timezone = $user->timezone ?: config('app.timezone');
+        return in_array($timezone, timezone_identifiers_list(), true) ? $timezone : config('app.timezone');
+    }
+
+    public function resolveCalendarId(Appointment $appointment, User $user): string
+    {
+        $account = $user->googleAccount;
+        $minutes = (int) Carbon::parse($appointment->start)
+            ->timezone($this->professionalTimezone($user))
+            ->format('H') * 60
+            + (int) Carbon::parse($appointment->start)->timezone($this->professionalTimezone($user))->format('i');
+
+        foreach ($account?->calendar_sync_rules ?? [] as $rule) {
+            if (($rule['enabled'] ?? true) === false || empty($rule['calendar_id'])) {
+                continue;
+            }
+            $start = $this->timeToMinutes($rule['start_time'] ?? '00:00');
+            $end = $this->timeToMinutes($rule['end_time'] ?? '00:00');
+            $matches = $start < $end
+                ? $minutes >= $start && $minutes < $end
+                : $minutes >= $start || $minutes < $end;
+            if ($matches) {
+                return $rule['calendar_id'];
+            }
+        }
+
+        return $account?->default_calendar_id ?: 'primary';
+    }
+
+    private function timeToMinutes(string $time): int
+    {
+        [$hours, $minutes] = array_map('intval', explode(':', $time));
+        return $hours * 60 + $minutes;
+    }
+
     /**
      * Crea un nuevo evento en el calendario principal del usuario.
      *
@@ -136,11 +202,13 @@ class GoogleCalendarService
         $client = $this->getAuthenticatedClient($user);
         $calendarService = new GoogleCalendar($client);
 
+        $timezone = $this->professionalTimezone($user);
+        $calendarId = $this->resolveCalendarId($appointment, $user);
         $eventPayload = [
             'summary' => $appointment->title,
             'description' => 'Cita agendada a través de tu plataforma.',
-            'start' => ['dateTime' => (new \DateTime($appointment->start))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
-            'end' => ['dateTime' => (new \DateTime($appointment->end))->format(\DateTime::RFC3339), 'timeZone' => config('app.timezone')],
+            'start' => ['dateTime' => Carbon::parse($appointment->start)->timezone($timezone)->toRfc3339String(), 'timeZone' => $timezone],
+            'end' => ['dateTime' => Carbon::parse($appointment->end)->timezone($timezone)->toRfc3339String(), 'timeZone' => $timezone],
         ];
 
         if (! $isInPerson) {
@@ -154,9 +222,10 @@ class GoogleCalendarService
 
         $event = new GoogleCalendarEvent($eventPayload);
         $options = $isInPerson ? [] : ['conferenceDataVersion' => 1];
-        $createdEvent = $calendarService->events->insert('primary', $event, $options);
+        $createdEvent = $calendarService->events->insert($calendarId, $event, $options);
 
         $appointment->google_event_id = $createdEvent->getId();
+        $appointment->google_calendar_id = $calendarId;
         $appointment->link = $isInPerson ? null : $createdEvent->getHangoutLink();
         $appointment->save();
         logger($appointment->user);
@@ -217,21 +286,23 @@ class GoogleCalendarService
             $appointment->loadMissing('cart');
             $isInPerson = $appointment->isInPerson();
             // Obtenemos el evento existente de Google.
-            $event = $calendarService->events->get('primary', $appointment->google_event_id);
+            $calendarId = $appointment->google_calendar_id ?: $this->resolveCalendarId($appointment, $user);
+            $timezone = $this->professionalTimezone($user);
+            $event = $calendarService->events->get($calendarId, $appointment->google_event_id);
 
             // 1. Actualizamos el título (resumen)
             $event->setSummary($appointment->title);
 
             // 2. Creamos y configuramos el objeto para la fecha de inicio
             $start = new \Google_Service_Calendar_EventDateTime();
-            $start->setDateTime((new \DateTime($appointment->start))->format(\DateTime::RFC3339));
-            $start->setTimeZone(config('app.timezone'));
+            $start->setDateTime(Carbon::parse($appointment->start)->timezone($timezone)->toRfc3339String());
+            $start->setTimeZone($timezone);
             $event->setStart($start);
 
             // 3. Creamos y configuramos el objeto para la fecha de fin
             $end = new \Google_Service_Calendar_EventDateTime();
-            $end->setDateTime((new \DateTime($appointment->end))->format(\DateTime::RFC3339));
-            $end->setTimeZone(config('app.timezone'));
+            $end->setDateTime(Carbon::parse($appointment->end)->timezone($timezone)->toRfc3339String());
+            $end->setTimeZone($timezone);
             $event->setEnd($end);
 
             if ($isInPerson) {
@@ -241,7 +312,7 @@ class GoogleCalendarService
             // FIN DE LA CORRECCIÓN
 
             $updatedEvent = $calendarService->events->update(
-                'primary',
+                $calendarId,
                 $event->getId(),
                 $event,
                 ['conferenceDataVersion' => 1]
@@ -302,7 +373,7 @@ class GoogleCalendarService
      * @param string|null $googleEventId El ID del evento a eliminar.
      * @param User $user
      */
-    public function deleteEvent(?string $googleEventId, User $user)
+    public function deleteEvent(?string $googleEventId, User $user, ?string $calendarId = null)
     {
         // Si no hay ID, no hay nada que borrar.
         if (!$googleEventId) {
@@ -313,7 +384,7 @@ class GoogleCalendarService
         $calendarService = new GoogleCalendar($client);
 
         try {
-            $calendarService->events->delete('primary', $googleEventId);
+            $calendarService->events->delete($calendarId ?: 'primary', $googleEventId);
         } catch (\Google\Service\Exception $e) {
             // Si el evento ya no existe (404), nuestro objetivo está cumplido. Ignoramos el error.
             if ($e->getCode() != 404) {

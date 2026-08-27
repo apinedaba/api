@@ -14,6 +14,7 @@ class AppointmentCart extends Model
         'user_id',
         'fecha',
         'hora',
+        'patient_timezone',
         'tipoSesion',
         'duracion',
         'precio',

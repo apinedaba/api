@@ -22,6 +22,7 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
     public $user;
     public $action; // 'create', 'update', o 'delete'
     public $googleEventIdToDelete; // Para guardar el ID si la cita se borra
+    public $googleCalendarIdToDelete;
     public bool $notifyProfessional;
 
     /**
@@ -40,6 +41,7 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
         // Si la acción es 'delete', guardamos el ID de Google antes de que la cita se elimine.
         if ($this->action === 'delete') {
             $this->googleEventIdToDelete = $appointment->google_event_id;
+            $this->googleCalendarIdToDelete = $appointment->google_calendar_id;
             $this->appointment = null;
             return;
         }
@@ -66,7 +68,7 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
             match ($this->action) {
                 'create' => $googleCalendarService->createEvent($this->appointment, $this->user, $this->notifyProfessional),
                 'update' => $googleCalendarService->updateEvent($this->appointment, $this->user),
-                'delete' => $googleCalendarService->deleteEvent($this->googleEventIdToDelete, $this->user),
+                'delete' => $googleCalendarService->deleteEvent($this->googleEventIdToDelete, $this->user, $this->googleCalendarIdToDelete),
             };
         } catch (InvalidGoogleTokenException $e) {
             // Si el token fue revocado, lo borramos y registramos el error.

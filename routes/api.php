@@ -269,6 +269,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
+    Route::get('user/google/calendar-settings', [GoogleCalendarController::class, 'settings']);
+    Route::put('user/google/calendar-settings', [GoogleCalendarController::class, 'updateSettings']);
+    Route::get('user/google/auth-url', [GoogleCalendarController::class, 'authUrl']);
 
     Route::apiResource('user/expedientes', ExpedienteController::class);
     Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);

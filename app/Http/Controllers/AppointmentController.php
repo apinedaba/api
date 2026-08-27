@@ -101,9 +101,6 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request, $id = null)
     {
-        $now = Carbon::now();
-        $start = Carbon::parse($request->start)->startOfDay();
-        $end = Carbon::parse($request->end)->endOfDay();
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $authUser = $request->user();
 
@@ -125,6 +122,15 @@ class AppointmentController extends Controller
         }
 
         $user = User::findOrFail($id);
+        $professionalTimezone = in_array($user->timezone, timezone_identifiers_list(), true)
+            ? $user->timezone
+            : config('app.timezone');
+        $patientTimezone = in_array($request->input('timezone'), timezone_identifiers_list(), true)
+            ? $request->input('timezone')
+            : $professionalTimezone;
+        $now = Carbon::now($professionalTimezone);
+        $start = Carbon::parse($request->start, $professionalTimezone)->startOfDay();
+        $end = Carbon::parse($request->end, $professionalTimezone)->endOfDay();
         $workingHours = $user->horarios ?? [];
 
         $appointments = Appointment::where('user', $id)
@@ -155,8 +161,8 @@ class AppointmentController extends Controller
             $slotsFoundToday = false;
 
             foreach ($workingHours[$weekday] as $block) {
-                $blockStart = Carbon::parse("$fecha {$block['start']}");
-                $blockEnd = Carbon::parse("$fecha {$block['end']}");
+                $blockStart = Carbon::parse("$fecha {$block['start']}", $professionalTimezone);
+                $blockEnd = Carbon::parse("$fecha {$block['end']}", $professionalTimezone);
                 $slotStart = $blockStart->copy();
 
                 while ($slotStart->lte($now)) {
@@ -180,9 +186,12 @@ class AppointmentController extends Controller
                     });
 
                     if (! $empalme && ! $requestTaken) {
+                        $patientSlot = $slotStart->copy()->timezone($patientTimezone);
                         $slots[] = [
-                            'date' => $fecha,
-                            'hour' => $slotStart->format('H:i'),
+                            'date' => $patientSlot->format('Y-m-d'),
+                            'hour' => $patientSlot->format('H:i'),
+                            'starts_at' => $slotStart->copy()->utc()->toIso8601String(),
+                            'timezone' => $patientTimezone,
                         ];
                         $slotsFoundToday = true;
                     }

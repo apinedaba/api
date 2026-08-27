@@ -51,6 +51,7 @@ class Appointment extends Model
         'cart_id',
         'link',
         'google_event_id',
+        'google_calendar_id',
         'recurrence_id',
         'recurrence_frequency',
         'recurrence_interval',

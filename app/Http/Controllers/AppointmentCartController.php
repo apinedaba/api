@@ -190,6 +190,7 @@ class AppointmentCartController extends Controller
             'tipoSesion' => 'required|string',
             'duracion' => 'required|string',
             'precio' => 'required|numeric|min:0',
+            'patient_timezone' => ['nullable', 'timezone:all'],
         ]);
         // return response()->json($request->except(['categoria', 'user']) + [
         //         'estado' => 'pendiente',
@@ -200,6 +201,7 @@ class AppointmentCartController extends Controller
             'user_id' => $request->input('user_id'),
             'fecha' => $request->input('fecha'),
             'hora' => $request->input('hora'),
+            'patient_timezone' => $request->input('patient_timezone'),
             'tipoSesion' => $request->input('tipoSesion'),
             'duracion' => (string) $request->input('duracion'),
             'precio' => $request->input('precio'),

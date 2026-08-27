@@ -36,6 +36,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'educacion',
         'configurations',
         'horarios',
+        'timezone',
         'plan',
         'image',
         'stripe_id',

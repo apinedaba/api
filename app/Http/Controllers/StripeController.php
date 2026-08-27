@@ -355,7 +355,11 @@ class StripeController extends Controller
     {
         $cart->loadMissing(['user', 'patient']);
 
-        $start = Carbon::parse("{$cart->fecha} {$cart->hora}");
+        $patientTimezone = in_array($cart->patient_timezone, timezone_identifiers_list(), true)
+            ? $cart->patient_timezone
+            : ($cart->user?->timezone ?: config('app.timezone'));
+        $start = Carbon::parse("{$cart->fecha} {$cart->hora}", $patientTimezone)
+            ->timezone(config('app.timezone'));
         $duration = is_numeric($cart->duracion) ? (float) $cart->duracion : 1.0;
         $minutes = $duration <= 8 ? (int) round($duration * 60) : (int) round($duration);
         $end = $start->copy()->addMinutes(max($minutes, 1));

@@ -350,6 +350,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('cart/reserva/{id}', [AppointmentCartController::class, 'cartById']);
     Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
     Route::post('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
+    Route::post('stripe/oxxo-voucher', [StripeController::class, 'confirmOxxoVoucher']);
     // OXXO con Elements (nuevo / ajustado)
     Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
     // (opcional) Checkout OXXO por si lo usas en otro lado

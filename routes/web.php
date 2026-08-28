@@ -276,6 +276,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
     Route::patch('/psicologo/{id}/ensure-public-visibility', [UserController::class, 'ensurePublicVisibility'])->name('psicologo.ensure-public-visibility');
     Route::patch('/psicologo/{id}/membership', [UserController::class, 'updateMembership'])->name('psicologo.membership.update');
+    Route::post('/psicologo/{id}/membership/end', [UserController::class, 'endMembership'])->name('psicologo.membership.end');
     Route::post('user/psicologo/{id}/solicitud', [UserController::class, 'solicitudDeVerificacion'])->name('user.psicologo.solicitud');
     Route::patch('/psicologo/{id}/validate-identity', [UserController::class, 'validateIdentity'])->name('psicologos.validate');
 

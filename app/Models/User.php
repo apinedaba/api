@@ -104,6 +104,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(Subscription::class);
     }
 
+    public function membershipAdministrativeActions(): HasMany
+    {
+        return $this->hasMany(MembershipAdministrativeAction::class)->latest();
+    }
+
     public function ownedClinics(): HasMany
     {
         return $this->hasMany(Clinic::class, 'owner_user_id');

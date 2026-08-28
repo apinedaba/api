@@ -7,6 +7,7 @@ use App\Models\Subscription;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Services\EmailService;
+use Illuminate\Support\Facades\Cache;
 
 class ExpireTrialSubscriptions extends Command
 {
@@ -40,37 +41,36 @@ class ExpireTrialSubscriptions extends Command
 
         $query->chunkById(50, function ($subscriptions) {
             foreach ($subscriptions as $subscription) {
-                $user = $subscription->user;
+                Cache::lock("expire-trial:{$subscription->id}", 300)->get(function () use ($subscription) {
+                    $current = $subscription->fresh(['user']);
+                    $user = $current?->user;
+                    if (! $current || ! $user || $current->stripe_status !== 'trial') return;
 
-                if (!$user) {
-                    continue;
-                }
+                    try {
+                        // Reclamar primero evita que dos workers envíen el mismo aviso.
+                        $claimed = Subscription::query()
+                            ->whereKey($current->id)
+                            ->where('stripe_status', 'trial')
+                            ->update(['stripe_status' => 'trial_expired']);
 
-                try {
-                    // 📧 Enviar correo
-                    EmailService::send(
-                        $user->email,
-                        'Tu periodo de prueba ha terminado – MindMeet',
-                        'emails.trial-ended',
-                        [
-                            'name' => $user->name,
-                            'url' => config('app.frontend_url') . '/planes'
-                        ]
-                    );
+                        if ($claimed !== 1) return;
 
-                    // 🔒 Marcar como expirado (evita reenvíos)
-                    $subscription->update([
-                        'stripe_status' => 'trial_expired',
-                        'updated_at' => now(),
-                    ]);
+                        EmailService::send(
+                            $user->email,
+                            'Tu periodo de prueba ha terminado – MindMeet',
+                            'emails.trial-ended',
+                            [
+                                'name' => $user->name,
+                                'url' => config('app.frontend_url') . '/planes'
+                            ]
+                        );
 
-                    Log::info("Trial expirado y notificado: Subscription ID {$subscription->id}");
+                        Log::info("Trial expirado y notificado: Subscription ID {$current->id}");
 
-                } catch (\Throwable $e) {
-                    Log::error(
-                        "Error procesando subscription {$subscription->id}: " . $e->getMessage()
-                    );
-                }
+                    } catch (\Throwable $e) {
+                        Log::error("Error procesando subscription {$current->id}: " . $e->getMessage());
+                    }
+                });
             }
         });
 

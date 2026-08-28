@@ -3,15 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\MembershipAdministrativeAction;
 use App\Models\User;
 use App\Services\EmailService;
+use App\Support\ProfessionalContact;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Stripe\StripeClient;
 use Symfony\Component\Mailer\Messenger\SendEmailMessage;
 
 class UserController extends Controller
@@ -229,6 +233,7 @@ class UserController extends Controller
                 'sessionPackages',
                 'discountCoupons',
                 'googleAccount',
+                'membershipAdministrativeActions',
             ]);
             if ($user) {
                 return Inertia::render('Psicologos/Edit', [
@@ -347,6 +352,12 @@ class UserController extends Controller
             ? null
             : $validated['membership_type'];
 
+        if ($user->has_lifetime_access && $membershipType === null) {
+            throw ValidationException::withMessages([
+                'membership_type' => 'Usa la acción "Retirar membresía" para registrar la baja y enviar la notificación correspondiente.',
+            ]);
+        }
+
         $user->forceFill([
             'membership_type' => $membershipType,
             'has_lifetime_access' => $membershipType !== null,
@@ -361,6 +372,112 @@ class UserController extends Controller
         return redirect()
             ->route('psicologoShow', $user->id)
             ->with('status', "Membresia actualizada: {$label}.");
+    }
+
+    public function endMembership(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'action' => ['required', 'in:revoke_lifetime,cancel_subscription'],
+            'refund' => ['nullable', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'confirmation' => ['required', 'in:CANCELAR'],
+        ]);
+
+        return Cache::lock("admin-membership-action:{$id}", 30)->block(5, function () use ($request, $validated, $id) {
+            $user = User::with('subscription')->findOrFail($id);
+            $subscription = $user->subscription;
+            $action = $validated['action'];
+            $refund = null;
+            $previousStatus = $action === 'revoke_lifetime'
+                ? ($user->membership_type ?: ($user->has_lifetime_access ? 'lifetime' : 'none'))
+                : $subscription?->stripe_status;
+
+            if ($action === 'revoke_lifetime') {
+                if (! $user->has_lifetime_access) {
+                    throw ValidationException::withMessages(['action' => 'El usuario ya no tiene una membresía permanente.']);
+                }
+
+                $user->forceFill([
+                    'has_lifetime_access' => false,
+                    'membership_type' => null,
+                ])->save();
+            } else {
+                if (! $subscription || ! filled($subscription->stripe_id) || in_array($subscription->stripe_status, ['canceled', 'cancelled'], true)) {
+                    throw ValidationException::withMessages(['action' => 'No existe una suscripción de Stripe vigente para cancelar.']);
+                }
+
+                $stripe = new StripeClient(config('services.stripe.secret_key'));
+                $remoteSubscription = $stripe->subscriptions->retrieve($subscription->stripe_id, [
+                    'expand' => ['latest_invoice.payment_intent'],
+                ]);
+
+                if (($validated['refund'] ?? false) === true) {
+                    $paymentIntent = data_get($remoteSubscription, 'latest_invoice.payment_intent');
+                    $paymentIntentId = is_string($paymentIntent) ? $paymentIntent : data_get($paymentIntent, 'id');
+                    if (! filled($paymentIntentId)) {
+                        throw ValidationException::withMessages(['refund' => 'La suscripción no tiene un último pago elegible para reembolso.']);
+                    }
+                    $refund = $stripe->refunds->create([
+                        'payment_intent' => $paymentIntentId,
+                        'reason' => 'requested_by_customer',
+                        'metadata' => [
+                            'mindmeet_user_id' => (string) $user->id,
+                            'administrator_id' => (string) optional($request->user())->id,
+                            'source' => 'mindmeet_superadmin',
+                        ],
+                    ]);
+                }
+
+                $stripe->subscriptions->cancel($subscription->stripe_id, []);
+                $subscription->forceFill([
+                    'stripe_status' => 'canceled',
+                    'ends_at' => now(),
+                ])->save();
+            }
+
+            $user->refresh()->syncOperationalStatus();
+
+            $administrativeAction = MembershipAdministrativeAction::create([
+                'user_id' => $user->id,
+                'administrator_id' => optional($request->user())->id,
+                'action' => $action,
+                'previous_status' => $previousStatus,
+                'stripe_subscription_id' => $subscription?->stripe_id,
+                'stripe_refund_id' => $refund?->id,
+                'refund_amount' => $refund?->amount,
+                'refund_currency' => $refund?->currency,
+                'reason' => $validated['reason'] ?? null,
+                'metadata' => ['refund_requested' => (bool) ($validated['refund'] ?? false)],
+            ]);
+
+            try {
+                EmailService::send(
+                    $user->email,
+                    'Actualización de tu membresía MindMeet',
+                    'email.membership-access-ended',
+                    [
+                        'name' => ProfessionalContact::publicName($user),
+                        'action' => $action,
+                        'refunded' => (bool) $refund,
+                        'plansUrl' => rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url'), '/').'/perfil/suscripcion',
+                    ]
+                );
+                $administrativeAction->update(['notification_sent_at' => now()]);
+            } catch (\Throwable $exception) {
+                $administrativeAction->update(['notification_error' => $exception->getMessage()]);
+                Log::error('La membresía se modificó, pero falló el correo administrativo.', [
+                    'user_id' => $user->id,
+                    'action_id' => $administrativeAction->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            return redirect()
+                ->route('psicologoShow', $user->id)
+                ->with('status', $refund
+                    ? 'Suscripción cancelada y último pago reembolsado.'
+                    : ($action === 'revoke_lifetime' ? 'Membresía permanente retirada.' : 'Suscripción cancelada.'));
+        });
     }
 
     private function publicVisibilitySummary(User $user): array

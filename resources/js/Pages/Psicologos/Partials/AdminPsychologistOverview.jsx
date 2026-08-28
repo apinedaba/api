@@ -30,6 +30,11 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
     );
     const [processing, setProcessing] = useState(false);
     const [membershipProcessing, setMembershipProcessing] = useState(false);
+    const [endingAction, setEndingAction] = useState(null);
+    const [endProcessing, setEndProcessing] = useState(false);
+    const [refund, setRefund] = useState(false);
+    const [reason, setReason] = useState('');
+    const [confirmation, setConfirmation] = useState('');
 
     const sessions = psicologo?.configurations?.sesiones || [];
     const packages = psicologo?.session_packages || [];
@@ -69,6 +74,31 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
             }
         );
     };
+
+    const closeEndMembership = () => {
+        setEndingAction(null);
+        setRefund(false);
+        setReason('');
+        setConfirmation('');
+    };
+
+    const submitEndMembership = () => {
+        if (confirmation !== 'CANCELAR') return;
+        setEndProcessing(true);
+        router.post(
+            route('psicologo.membership.end', psicologo.id),
+            { action: endingAction, refund, reason, confirmation },
+            {
+                preserveScroll: true,
+                onSuccess: closeEndMembership,
+                onFinish: () => setEndProcessing(false),
+            }
+        );
+    };
+
+    const hasCancelableSubscription = Boolean(
+        subscription?.stripe_id && !['canceled', 'cancelled'].includes(subscription?.stripe_status)
+    );
 
     return (
         <section className="space-y-6">
@@ -155,6 +185,67 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                 </div>
             </div>
 
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold text-red-950">Finalizar membresía</h3>
+                        <p className="mt-1 max-w-3xl text-sm text-red-800">
+                            Estas acciones son manuales, retiran el acceso, dejan registro administrativo y envían un solo correo al psicólogo.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {psicologo?.has_lifetime_access && (
+                            <button type="button" onClick={() => setEndingAction('revoke_lifetime')} className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100">
+                                Retirar membresía permanente
+                            </button>
+                        )}
+                        {hasCancelableSubscription && (
+                            <button type="button" onClick={() => setEndingAction('cancel_subscription')} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800">
+                                Cancelar suscripción
+                            </button>
+                        )}
+                        {!psicologo?.has_lifetime_access && !hasCancelableSubscription && <span className="text-sm font-semibold text-red-700">No hay una membresía vigente para finalizar.</span>}
+                    </div>
+                </div>
+            </div>
+
+            {endingAction && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={(event) => event.target === event.currentTarget && closeEndMembership()}>
+                    <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                        <h3 className="text-xl font-black text-slate-950">
+                            {endingAction === 'revoke_lifetime' ? 'Retirar membresía permanente' : 'Cancelar suscripción de Stripe'}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                            Se retirará el acceso de {psicologo?.contacto?.publicName || psicologo?.name} y se enviará el correo de notificación. Esta operación quedará registrada.
+                        </p>
+
+                        {endingAction === 'cancel_subscription' && (
+                            <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                                <input type="checkbox" checked={refund} onChange={(event) => setRefund(event.target.checked)} className="mt-0.5 rounded border-amber-400" />
+                                <span><strong>Reembolsar el último pago elegible.</strong><br />Stripe procesará una devolución completa al método de pago original.</span>
+                            </label>
+                        )}
+
+                        <label className="mt-5 block text-sm font-semibold text-slate-700">
+                            Motivo interno (opcional)
+                            <textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} className="mt-1 min-h-24 w-full rounded-lg border-slate-300 text-sm" placeholder="Ej. Cuenta inactiva durante más de 12 meses" />
+                        </label>
+
+                        <label className="mt-4 block text-sm font-semibold text-slate-700">
+                            Escribe CANCELAR para confirmar
+                            <input value={confirmation} onChange={(event) => setConfirmation(event.target.value.toUpperCase())} className="mt-1 w-full rounded-lg border-slate-300 text-sm" />
+                        </label>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button type="button" onClick={closeEndMembership} disabled={endProcessing} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Volver</button>
+                            <button type="button" onClick={submitEndMembership} disabled={endProcessing || confirmation !== 'CANCELAR'} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                                {endProcessing ? 'Procesando...' : endingAction === 'revoke_lifetime' ? 'Retirar acceso' : refund ? 'Cancelar y reembolsar' : 'Cancelar suscripción'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-4">
                 <InfoCard title="Suscripcion">
                     <p><strong>Estado:</strong> {subscription?.stripe_status || 'Sin suscripcion'}</p>
@@ -184,6 +275,20 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                     <p><strong>Disponibles hoy:</strong> {coupons.filter((item) => item.is_currently_available).length}</p>
                 </InfoCard>
             </div>
+
+            {(psicologo?.membership_administrative_actions || []).length > 0 && (
+                <ReadOnlyTable title="Historial administrativo de membresías">
+                    {psicologo.membership_administrative_actions.slice(0, 10).map((action) => (
+                        <div key={action.id} className="grid gap-2 border-b border-gray-100 py-3 text-sm md:grid-cols-5">
+                            <p><strong>Fecha:</strong> {new Date(action.created_at).toLocaleString('es-MX')}</p>
+                            <p><strong>Acción:</strong> {action.action === 'revoke_lifetime' ? 'Retiro permanente' : 'Cancelación Stripe'}</p>
+                            <p><strong>Estado anterior:</strong> {action.previous_status || 'N/A'}</p>
+                            <p><strong>Reembolso:</strong> {action.stripe_refund_id ? `${money(Number(action.refund_amount || 0) / 100)} · ${action.stripe_refund_id}` : 'No'}</p>
+                            <p><strong>Correo:</strong> {action.notification_sent_at ? 'Enviado' : action.notification_error ? 'Falló' : 'Pendiente'}</p>
+                        </div>
+                    ))}
+                </ReadOnlyTable>
+            )}
 
             <ReadOnlyTable title="Horarios">
                 {Object.entries(dayLabels).map(([key, label]) => {

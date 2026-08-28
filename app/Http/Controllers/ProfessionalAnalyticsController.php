@@ -451,21 +451,6 @@ class ProfessionalAnalyticsController extends Controller
             ->groupBy('event_type')
             ->pluck('total', 'event_type');
 
-        $sourceCounts = (clone $eventsQuery)
-            ->selectRaw("COALESCE(source, 'sin_fuente') as source, COUNT(DISTINCT {$uniqueVisitorExpression}) as total")
-            ->groupBy('source')
-            ->pluck('total', 'source');
-
-        $dailyEvents = (clone $eventsQuery)
-            ->selectRaw("DATE(created_at) as date, event_type, COUNT(DISTINCT {$uniqueVisitorExpression}) as total")
-            ->groupBy('date', 'event_type')
-            ->orderBy('date')
-            ->get();
-
-        $leadsQuery = ConsultaContacto::query()
-            ->where('user_id', $user->id)
-            ->whereBetween('created_at', [$from, $to]);
-
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -476,40 +461,14 @@ class ProfessionalAnalyticsController extends Controller
                 'totals' => [
                     'profile_views' => (int) ($eventCounts['profile_view'] ?? 0),
                     'whatsapp_clicks' => (int) ($eventCounts['whatsapp_click'] ?? 0),
-                    'phone_clicks' => (int) ($eventCounts['phone_click'] ?? 0),
-                    'facebook_clicks' => (int) ($eventCounts['facebook_click'] ?? 0),
-                    'instagram_clicks' => (int) ($eventCounts['instagram_click'] ?? 0),
-                    'linkedin_clicks' => (int) ($eventCounts['linkedin_click'] ?? 0),
-                    'website_clicks' => (int) ($eventCounts['website_click'] ?? 0),
-                    'lead_started' => (int) ($eventCounts['lead_started'] ?? 0),
-                    'lead_submitted' => (int) ($eventCounts['lead_submitted'] ?? 0),
-                    'leads' => (clone $leadsQuery)->count(),
-                    'appointments' => (int) ($eventCounts['appointment_booked'] ?? 0) + (int) ($eventCounts['repeat_appointment_booked'] ?? 0),
-                    'first_appointments' => (int) ($eventCounts['appointment_booked'] ?? 0),
-                    'repeat_appointments' => (int) ($eventCounts['repeat_appointment_booked'] ?? 0),
-                    'paid_appointments' => (int) ($eventCounts['appointment_paid'] ?? 0),
-                    'payments_completed' => (int) ($eventCounts['payment_completed'] ?? 0),
-                    'sessions_completed' => (int) ($eventCounts['session_completed'] ?? 0),
+                    'schedule_clicks' => (int) ($eventCounts['lead_started'] ?? 0),
                 ],
                 'raw_totals' => [
                     'profile_views' => (int) ($rawEventCounts['profile_view'] ?? 0),
                     'whatsapp_clicks' => (int) ($rawEventCounts['whatsapp_click'] ?? 0),
-                    'phone_clicks' => (int) ($rawEventCounts['phone_click'] ?? 0),
-                    'facebook_clicks' => (int) ($rawEventCounts['facebook_click'] ?? 0),
-                    'instagram_clicks' => (int) ($rawEventCounts['instagram_click'] ?? 0),
-                    'linkedin_clicks' => (int) ($rawEventCounts['linkedin_click'] ?? 0),
-                    'website_clicks' => (int) ($rawEventCounts['website_click'] ?? 0),
-                    'lead_started' => (int) ($rawEventCounts['lead_started'] ?? 0),
-                    'lead_submitted' => (int) ($rawEventCounts['lead_submitted'] ?? 0),
+                    'schedule_clicks' => (int) ($rawEventCounts['lead_started'] ?? 0),
                 ],
                 'counting_method' => 'unique_by_session_or_ip',
-                'events_by_type' => $eventCounts,
-                'events_by_source' => $sourceCounts,
-                'leads_by_source' => (clone $leadsQuery)
-                    ->selectRaw("COALESCE(lead_source, 'sin_fuente') as source, COUNT(*) as total")
-                    ->groupBy('source')
-                    ->pluck('total', 'source'),
-                'daily_events' => $dailyEvents,
             ],
         ]);
     }

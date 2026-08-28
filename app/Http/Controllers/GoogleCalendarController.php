@@ -60,6 +60,22 @@ class GoogleCalendarController extends Controller
                     'expires_in' => $tokens['expires_in'],
                 ]
             );
+            $user->unsetRelation('googleAccount')->load('googleAccount');
+            try {
+                $calendars = $googleCalendarService->listCalendars($user);
+                $defaultCalendarId = $user->googleAccount?->default_calendar_id;
+                $defaultCalendar = collect($calendars)->firstWhere('id', $defaultCalendarId)
+                    ?: collect($calendars)->firstWhere('primary', true);
+                $googleTimezone = data_get($defaultCalendar, 'timezone');
+                if (is_string($googleTimezone) && in_array($googleTimezone, timezone_identifiers_list(), true)) {
+                    $user->update(['timezone' => $googleTimezone]);
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Google se conectó, pero no fue posible adoptar la zona del calendario.', [
+                    'user_id' => $user->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             if ($mode === 'settings') {
                 return redirect(config('app.front_url_psicologo') . '/configuracion?section=calendario&google=connected');
@@ -131,11 +147,11 @@ class GoogleCalendarController extends Controller
         ]);
     }
 
-    public function updateSettings(Request $request)
+    public function updateSettings(Request $request, GoogleCalendarService $service)
     {
         $timezoneList = timezone_identifiers_list();
         $data = $request->validate([
-            'timezone' => ['required', 'string', Rule::in($timezoneList)],
+            'timezone' => ['nullable', 'string', Rule::in($timezoneList)],
             'default_calendar_id' => ['nullable', 'string', 'max:255'],
             'rules' => ['array', 'max:20'],
             'rules.*.id' => ['nullable', 'string', 'max:64'],
@@ -146,10 +162,23 @@ class GoogleCalendarController extends Controller
             'rules.*.enabled' => ['nullable', 'boolean'],
         ]);
 
-        $user = $request->user();
-        $user->update(['timezone' => $data['timezone']]);
+        $user = $request->user()->load('googleAccount');
 
         if ($user->googleAccount) {
+            $calendars = collect($service->listCalendars($user));
+            $defaultCalendar = filled($data['default_calendar_id'] ?? null)
+                ? $calendars->firstWhere('id', $data['default_calendar_id'])
+                : $calendars->firstWhere('primary', true);
+
+            if (! $defaultCalendar) {
+                return response()->json(['message' => 'El calendario predeterminado ya no está disponible en Google.'], 422);
+            }
+
+            $googleTimezone = data_get($defaultCalendar, 'timezone');
+            if (is_string($googleTimezone) && in_array($googleTimezone, $timezoneList, true)) {
+                $user->update(['timezone' => $googleTimezone]);
+            }
+
             $rules = collect($data['rules'] ?? [])->map(fn (array $rule) => [
                 'id' => $rule['id'] ?? (string) Str::uuid(),
                 'start_time' => $rule['start_time'],
@@ -165,6 +194,9 @@ class GoogleCalendarController extends Controller
             ]);
         }
 
-        return response()->json(['message' => 'Configuración de calendario guardada.']);
+        return response()->json([
+            'message' => 'Configuración de calendario guardada.',
+            'timezone' => $user->fresh()->timezone,
+        ]);
     }
 }

@@ -159,6 +159,11 @@ class GoogleCalendarService
 
     public function resolveCalendarId(Appointment $appointment, User $user): string
     {
+        // Una selección manual en el creador tiene prioridad sobre las reglas generales.
+        if (filled($appointment->google_calendar_id)) {
+            return $appointment->google_calendar_id;
+        }
+
         $account = $user->googleAccount;
         $minutes = (int) Carbon::parse($appointment->start)
             ->timezone($this->professionalTimezone($user))

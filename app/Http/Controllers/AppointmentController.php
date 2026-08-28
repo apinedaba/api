@@ -249,6 +249,7 @@ class AppointmentController extends Controller
             'until' => 'nullable|date|after_or_equal:start',
             'interval' => 'nullable|integer|min:1',
             'syncWithGoogle' => 'nullable|boolean',
+            'google_calendar_id' => 'nullable|string|max:255',
             'clinic_id' => 'nullable|exists:clinics,id',
             'organization_id' => 'nullable|exists:organizations,id',
         ]);
@@ -379,6 +380,7 @@ class AppointmentController extends Controller
                 'recurrence_until' => $isRecurrent ? Carbon::parse($until)->toDateString() : null,
                 'recurrence_position' => $occurrence['position'],
                 'synced_with_google' => $syncWithGoogle,
+                'google_calendar_id' => $syncWithGoogle ? $request->input('google_calendar_id') : null,
                 'extendedProps' => [
                     'tipoSesion' => $request->input('tipoSesion'),
                     'formato' => $request->input('formato'),

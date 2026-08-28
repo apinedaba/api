@@ -57,10 +57,18 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $appointments = Appointment::with(['payments', 'cart'])
+        $appointments = Appointment::with(['payments', 'cart', 'user.googleAccount'])
             ->where('user', $user->id)
             ->orderBy('start')
             ->get();
+
+        $appointments->each(function (Appointment $appointment): void {
+            $account = $appointment->getRelation('user')?->googleAccount;
+            $rule = collect($account?->calendar_sync_rules ?? [])
+                ->firstWhere('calendar_id', $appointment->google_calendar_id);
+            $appointment->setAttribute('google_calendar_name', $rule['calendar_name'] ?? null);
+            $appointment->unsetRelation('user');
+        });
 
         return response()->json($appointments, 200);
     }
@@ -302,8 +310,10 @@ class AppointmentController extends Controller
             ], 423);
         }
 
-        $start = Carbon::parse($request->input('start'));
-        $end = Carbon::parse($request->input('end'));
+        $professional = User::findOrFail((int) $request->input('user'));
+        $professionalTimezone = $this->resolveProfessionalTimezone($professional);
+        $start = $this->parseAppointmentDate($request->input('start'), $professionalTimezone);
+        $end = $this->parseAppointmentDate($request->input('end'), $professionalTimezone);
         $isRecurrent = $request->boolean('is_recurrent');
         $frequency = strtoupper((string) $request->input('frequency', data_get($request->input('recurrence', []), 'frequency', '')));
         $until = $request->input('until', data_get($request->input('recurrence', []), 'until'));
@@ -826,7 +836,7 @@ class AppointmentController extends Controller
             'action_plan' => ['nullable', 'string'],
             'observations' => ['nullable', 'string'],
             'psychometric_scales' => ['nullable', 'array'],
-            'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string'],
+            'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string', 'distinct'],
             'psychometric_scales.*.label' => ['nullable', 'string'],
             'psychometric_scales.*.name' => ['nullable', 'string'],
             'psychometric_scales.*.items' => ['required_with:psychometric_scales', 'array'],
@@ -925,8 +935,19 @@ class AppointmentController extends Controller
 
         try {
             if ($request->hasAny(['start', 'end'])) {
-                $nextStart = Carbon::parse($fieldsToUpdate['start'] ?? $originalData->start);
-                $nextEnd = Carbon::parse($fieldsToUpdate['end'] ?? $originalData->end);
+                $professionalTimezone = $this->resolveProfessionalTimezone($originalData->user()->first());
+                $nextStart = array_key_exists('start', $fieldsToUpdate)
+                    ? $this->parseAppointmentDate($fieldsToUpdate['start'], $professionalTimezone)
+                    : Carbon::parse($originalData->start);
+                $nextEnd = array_key_exists('end', $fieldsToUpdate)
+                    ? $this->parseAppointmentDate($fieldsToUpdate['end'], $professionalTimezone)
+                    : Carbon::parse($originalData->end);
+                if (array_key_exists('start', $fieldsToUpdate)) {
+                    $fieldsToUpdate['start'] = $nextStart;
+                }
+                if (array_key_exists('end', $fieldsToUpdate)) {
+                    $fieldsToUpdate['end'] = $nextEnd;
+                }
                 $conflict = $this->findOverlappingAppointment(
                     (int) $originalData->user,
                     $nextStart,
@@ -1095,6 +1116,21 @@ class AppointmentController extends Controller
         }
 
         return $occurrences;
+    }
+
+    private function resolveProfessionalTimezone(?User $professional): string
+    {
+        $timezone = $professional?->timezone;
+
+        return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true)
+            ? $timezone
+            : config('app.timezone');
+    }
+
+    private function parseAppointmentDate(mixed $value, string $professionalTimezone): Carbon
+    {
+        return Carbon::parse($value, $professionalTimezone)
+            ->timezone(config('app.timezone'));
     }
 
     private function handleGoogleSyncRequest(array $appointments): ?JsonResponse

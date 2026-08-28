@@ -728,6 +728,11 @@ class StripeController extends Controller
             // Checkout completado (solo significa voucher generado en OXXO)
             case 'checkout.session.completed': {
                     $session = $event->data->object;
+                    if (($session->mode ?? null) === 'subscription') {
+                        app(\App\Services\StripeSubscriptionService::class)
+                            ->handleNewSubscription($session);
+                        break;
+                    }
                     Log::info('Checkout session completed (voucher generado): ' . $session->id);
                     // Puedes actualizar estado del cart a "voucher_generado" si gustas:
                     if (!empty($session->metadata->appointment_cart_id)) {
@@ -738,6 +743,21 @@ class StripeController extends Controller
                                 'stripe_payment_status' => 'voucher_generated',
                             ]);
                     }
+                    break;
+                }
+            case 'customer.subscription.updated': {
+                    app(\App\Services\StripeSubscriptionService::class)
+                        ->updateSubscription($event->data->object);
+                    break;
+                }
+            case 'customer.subscription.deleted': {
+                    app(\App\Services\StripeSubscriptionService::class)
+                        ->cancelSubscription($event->data->object);
+                    break;
+                }
+            case 'invoice.payment_failed': {
+                    app(\App\Services\StripeSubscriptionService::class)
+                        ->paymentFailed($event->data->object);
                     break;
                 }
 

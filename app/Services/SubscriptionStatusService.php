@@ -142,12 +142,6 @@ class SubscriptionStatusService
                 'customer' => $customerId,
                 'status' => 'all',
                 'limit' => 20,
-                'expand' => [
-                    'data.items.data.price.product',
-                    'data.default_payment_method',
-                    'data.latest_invoice.payment_intent.payment_method',
-                    'data.customer',
-                ],
             ])->data;
         } catch (ApiErrorException $exception) {
             Log::warning('No se pudieron consultar suscripciones de Stripe por customer', [
@@ -163,6 +157,15 @@ class SubscriptionStatusService
                 if (in_array($subscription->status, $statusGroup, true)) {
                     return $subscription;
                 }
+            }
+        }
+
+        // También reconciliamos un estado terminal. De otro modo, un registro local
+        // provisional en `pending` queda bloqueando la interfaz para siempre cuando
+        // Stripe canceló o expiró la suscripción antes de que llegara el webhook.
+        foreach ($subscriptions as $subscription) {
+            if (in_array($subscription->status, ['canceled', 'incomplete_expired'], true)) {
+                return $subscription;
             }
         }
 

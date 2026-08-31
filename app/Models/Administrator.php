@@ -18,7 +18,9 @@ class Administrator extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'image',
         'password',
+        'credential_public_id',
     ];
     protected $table = 'administrators';
     

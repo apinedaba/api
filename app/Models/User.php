@@ -51,7 +51,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'activo',
         'cedula_selfie_url',
         'ine_selfie_url',
-        'identity_verification_status'
+        'identity_verification_status',
+        'credential_public_id',
     ];
 
     /**

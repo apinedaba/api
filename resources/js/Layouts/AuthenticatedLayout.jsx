@@ -13,6 +13,7 @@ const navigationGroups = [
             { label: 'Beneficios MindMeet', href: 'mindmeet-benefits.index', match: ['mindmeet-benefits.*'] },
             { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
+            { label: 'Mi credencial', href: 'admin.credential.page', match: ['admin.credential.*'] },
         ],
     },
     {

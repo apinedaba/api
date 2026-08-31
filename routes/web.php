@@ -16,6 +16,7 @@ use App\Http\Controllers\AdminWhatsAppAutomationController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
+use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\FacebookCatalogController;
 use App\Http\Controllers\HelpCenterAdminController;
@@ -217,6 +218,14 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/mi-credencial', fn () => Inertia::render('MiCredencial'))->name('admin.credential.page');
+
+    Route::prefix('admin/api')->group(function () {
+        Route::get('/credential', [CredentialController::class, 'administrator'])->name('admin.credential.show');
+        Route::get('/credential/pdf', [CredentialController::class, 'administratorPdf'])->name('admin.credential.pdf');
+        Route::post('/credential/photo', [CredentialController::class, 'administratorPhoto'])->name('admin.credential.photo');
+    });
+
     Route::get('/operacion-sesiones', [AdminSessionOperationsController::class, 'index'])->name('session-operations.index');
     Route::post('/admin/api/citas/{appointment}/pagos', [AdminSessionOperationsController::class, 'storePayment'])->name('session-operations.payments.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit.su');

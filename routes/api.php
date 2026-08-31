@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
+use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\ProfessionalReferralController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
@@ -120,6 +121,8 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 })->middleware(['signed'])->name('verification.verify');
 
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('user')->group(function () {
+    Route::get('credential', [CredentialController::class, 'psychologist']);
+    Route::get('credential/pdf', [CredentialController::class, 'psychologistPdf']);
     Route::get('organizations', [OrganizationController::class, 'index']);
     Route::post('organizations', [OrganizationController::class, 'store']);
     Route::post('organizations/{organization}/switch', [OrganizationController::class, 'switch']);
@@ -311,6 +314,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token'])->prefix('patient/gua
 });
 
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
+    Route::get('credential', [CredentialController::class, 'patient']);
+    Route::get('credential/pdf', [CredentialController::class, 'patientPdf']);
     Route::get('info', function (Request $request) {
         $guardian = $request->attributes->get('guardian_account');
         if ($guardian) return array_merge($request->user()->toArray(), [
@@ -376,11 +381,11 @@ Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 
-require __DIR__.'/api/catalogos.php';
-require __DIR__.'/api/contratos.php';
-require __DIR__.'/api/professional.php';
-require __DIR__.'/api/deviceToken.php';
-require __DIR__.'/api/timeline.php';
-require __DIR__.'/api/attachments.php';
-require __DIR__.'/api/minder.php';
-require __DIR__.'/api/red.php';
+require __DIR__ . '/api/catalogos.php';
+require __DIR__ . '/api/contratos.php';
+require __DIR__ . '/api/professional.php';
+require __DIR__ . '/api/deviceToken.php';
+require __DIR__ . '/api/timeline.php';
+require __DIR__ . '/api/attachments.php';
+require __DIR__ . '/api/minder.php';
+require __DIR__ . '/api/red.php';

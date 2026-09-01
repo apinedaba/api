@@ -132,8 +132,8 @@ class ConsultaContactoController extends Controller
             try {
                 $tokens = DeviceToken::where('user_id', $psicologo->id)->pluck('token')->all();
                 foreach ($tokens as $token) {
-                    Fcm::send($token, "Nuevo contacto recibido", "Un visitante de mindmeet esta interesado en ti, su info esta disponible en leads", [
-                        'link' => 'https://minder.mindmeet.com.mx/leads',
+                    Fcm::send($token, "Nueva solicitud recibida", "Un visitante de MindMeet mostró interés en tus servicios.", [
+                        'link' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/').'/dashboard',
                         'icon' => 'https://res.cloudinary.com/dabwvv94x/image/upload/v1764639595/android-chrome-192x192_aogrgh.png'
                     ]);
                 }
@@ -154,7 +154,7 @@ class ConsultaContactoController extends Controller
                             : ($consulta->tipo_sesion ?: 'Sesión'),
                         'lead_date' => trim(($consulta->fecha ?: '').' '.($consulta->hora ?: '')),
                         'lead_phone' => $consulta->telefono,
-                        'leads_url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/').'/leads',
+                        'leads_url' => rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/').'/dashboard',
                     ],
                     ['lead_id' => $consulta->id, 'user_id' => $psicologo->id]
                 );
@@ -178,13 +178,13 @@ class ConsultaContactoController extends Controller
             ? 'paquete ' . ($consulta->package_name ?: 'de sesiones')
             : ($consulta->tipo_sesion ?: 'sesion');
 
-        $leadsUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads';
+        $dashboardUrl = rtrim(config('app.front_url_psicologo') ?: config('app.front_url_user') ?: config('app.front_url'), '/') . '/dashboard';
 
-        return "MindMeet: tienes un nuevo lead para {$leadLabel}.\n"
+        return "MindMeet: tienes una nueva solicitud para {$leadLabel}.\n"
             . "Paciente: {$consulta->nombre}\n"
             . "Fecha: {$consulta->fecha} {$consulta->hora}\n"
             . "Contacto: {$consulta->telefono}\n"
-            . "Revisalo aqui: {$leadsUrl}";
+            . "Revisa tu actividad aquí: {$dashboardUrl}";
     }
 
     protected function applyCouponContext(array $payload, string $couponCode): array

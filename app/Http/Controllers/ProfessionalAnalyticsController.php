@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ConsultaContacto;
+use App\Models\Appointment;
 use App\Models\Patient;
+use App\Models\Payment;
 use App\Models\ProfessionalAnalyticsEvent;
 use App\Models\User;
 use Carbon\Carbon;
@@ -41,8 +42,6 @@ class ProfessionalAnalyticsController extends Controller
         'instagram_click' => 'Clicks Instagram',
         'linkedin_click' => 'Clicks LinkedIn',
         'website_click' => 'Clicks sitio web',
-        'lead_started' => 'Leads iniciados',
-        'lead_submitted' => 'Leads enviados',
         'checkout_started' => 'Checkouts iniciados',
         'appointment_booked' => 'Primeras citas agendadas',
         'repeat_appointment_booked' => 'Citas recurrentes agendadas',
@@ -56,8 +55,6 @@ class ProfessionalAnalyticsController extends Controller
         [$from, $to] = $this->resolveRange($request);
         $granularity = $this->resolveGranularity($request, $from, $to);
         $uniqueVisitorExpression = "COALESCE(session_id, ip_hash, CONCAT('event-', id))";
-        $leadStatus = $request->query('lead_status');
-        $activeLeadStatuses = ['new', 'viewed', 'contacted', 'created'];
 
         $events = ProfessionalAnalyticsEvent::query()
             ->whereBetween('created_at', [$from, $to])
@@ -90,26 +87,31 @@ class ProfessionalAnalyticsController extends Controller
             ->limit(10)
             ->get();
 
-        $leadCounts = ConsultaContacto::query()
+        $appointmentCounts = Appointment::query()
+            ->whereBetween('start', [$from, $to])
+            ->selectRaw('user, COUNT(*) as total')
+            ->groupBy('user')
+            ->pluck('total', 'user');
+        $completedAppointmentCounts = Appointment::query()
+            ->whereBetween('start', [$from, $to])
+            ->where(function ($query) {
+                $query->whereNotNull('completed_at')
+                    ->orWhereIn('lifecycle_status', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada'])
+                    ->orWhereIn('statusUser', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada']);
+            })
+            ->selectRaw('user, COUNT(*) as total')
+            ->groupBy('user')
+            ->pluck('total', 'user');
+        $paidAppointmentCounts = Payment::query()
             ->whereBetween('created_at', [$from, $to])
-            ->whereNotNull('user_id')
-            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses))
-            ->selectRaw('user_id, COUNT(*) as total')
+            ->whereIn('status', ['paid', 'succeeded', 'completed', 'approved'])
+            ->whereNotNull('appointment_id')
+            ->selectRaw('user_id, COUNT(DISTINCT appointment_id) as total')
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
 
-        $leadSources = ConsultaContacto::query()
-            ->whereBetween('created_at', [$from, $to])
-            ->whereNotNull('user_id')
-            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses))
-            ->selectRaw("COALESCE(lead_source, 'sin_fuente') as source, COUNT(*) as total")
-            ->groupBy('source')
-            ->orderByDesc('total')
-            ->limit(10)
-            ->get();
-
         $activeUserIds = collect($events->keys())
-            ->merge($leadCounts->keys())
+            ->merge($appointmentCounts->keys())
             ->filter()
             ->unique()
             ->values();
@@ -122,13 +124,11 @@ class ProfessionalAnalyticsController extends Controller
             ->orderBy('name')
             ->get();
 
-        $professionals = $users->map(function (User $user) use ($events, $sources, $leadCounts) {
+        $professionals = $users->map(function (User $user) use ($events, $sources, $appointmentCounts, $paidAppointmentCounts, $completedAppointmentCounts) {
             $eventRows = $events->get($user->id, collect());
             $eventTotals = $eventRows->mapWithKeys(fn ($row) => [$row->event_type => (int) $row->unique_total]);
             $rawTotals = $eventRows->mapWithKeys(fn ($row) => [$row->event_type => (int) $row->raw_total]);
-            $leads = (int) ($leadCounts[$user->id] ?? 0);
             $profileViews = (int) ($eventTotals['profile_view'] ?? 0);
-            $leadSubmits = (int) ($eventTotals['lead_submitted'] ?? 0);
             $contactClicks = (int) (
                 ($eventTotals['phone_click'] ?? 0)
                 + ($eventTotals['whatsapp_click'] ?? 0)
@@ -137,10 +137,9 @@ class ProfessionalAnalyticsController extends Controller
                 + ($eventTotals['linkedin_click'] ?? 0)
                 + ($eventTotals['website_click'] ?? 0)
             );
-            $appointments = (int) ($eventTotals['appointment_booked'] ?? 0)
-                + (int) ($eventTotals['repeat_appointment_booked'] ?? 0);
-            $paidAppointments = (int) ($eventTotals['appointment_paid'] ?? 0);
-            $completedSessions = (int) ($eventTotals['session_completed'] ?? 0);
+            $appointments = (int) ($appointmentCounts[$user->id] ?? 0);
+            $paidAppointments = (int) ($paidAppointmentCounts[$user->id] ?? 0);
+            $completedSessions = (int) ($completedAppointmentCounts[$user->id] ?? 0);
 
             return [
                 'id' => $user->id,
@@ -161,9 +160,6 @@ class ProfessionalAnalyticsController extends Controller
                     'instagram_clicks' => (int) ($eventTotals['instagram_click'] ?? 0),
                     'linkedin_clicks' => (int) ($eventTotals['linkedin_click'] ?? 0),
                     'website_clicks' => (int) ($eventTotals['website_click'] ?? 0),
-                    'lead_started' => (int) ($eventTotals['lead_started'] ?? 0),
-                    'lead_submitted' => $leadSubmits,
-                    'leads' => $leads,
                     'contact_clicks' => $contactClicks,
                     'appointments' => $appointments,
                     'first_appointments' => (int) ($eventTotals['appointment_booked'] ?? 0),
@@ -174,10 +170,8 @@ class ProfessionalAnalyticsController extends Controller
                     'raw_profile_views' => (int) ($rawTotals['profile_view'] ?? 0),
                 ],
                 'rates' => [
-                    'lead_conversion' => $profileViews > 0 ? round(($leads / $profileViews) * 100, 2) : 0,
-                    'form_conversion' => $profileViews > 0 ? round(($leadSubmits / $profileViews) * 100, 2) : 0,
                     'contact_ctr' => $profileViews > 0 ? round(($contactClicks / $profileViews) * 100, 2) : 0,
-                    'lead_to_appointment' => $leads > 0 ? round(($appointments / $leads) * 100, 2) : 0,
+                    'view_to_appointment' => $profileViews > 0 ? round(($appointments / $profileViews) * 100, 2) : 0,
                     'appointment_to_paid' => $appointments > 0 ? round(($paidAppointments / $appointments) * 100, 2) : 0,
                     'appointment_to_completed' => $appointments > 0 ? round(($completedSessions / $appointments) * 100, 2) : 0,
                 ],
@@ -195,16 +189,15 @@ class ProfessionalAnalyticsController extends Controller
             'professionals_with_activity' => $professionals->count(),
             'profile_views' => $professionals->sum(fn ($row) => $row['totals']['profile_views']),
             'contact_clicks' => $professionals->sum(fn ($row) => $row['totals']['contact_clicks']),
-            'leads' => $professionals->sum(fn ($row) => $row['totals']['leads']),
             'appointments' => $professionals->sum(fn ($row) => $row['totals']['appointments']),
             'paid_appointments' => $professionals->sum(fn ($row) => $row['totals']['paid_appointments']),
             'sessions_completed' => $professionals->sum(fn ($row) => $row['totals']['sessions_completed']),
-            'lead_conversion' => $professionals->sum(fn ($row) => $row['totals']['profile_views']) > 0
-                ? round(($professionals->sum(fn ($row) => $row['totals']['leads']) / $professionals->sum(fn ($row) => $row['totals']['profile_views'])) * 100, 2)
+            'appointment_conversion' => $professionals->sum(fn ($row) => $row['totals']['profile_views']) > 0
+                ? round(($professionals->sum(fn ($row) => $row['totals']['appointments']) / $professionals->sum(fn ($row) => $row['totals']['profile_views'])) * 100, 2)
                 : 0,
         ];
 
-        $growth = $this->buildGrowthAnalytics($from, $to, $granularity, $leadStatus, $activeLeadStatuses);
+        $growth = $this->buildGrowthAnalytics($from, $to, $granularity);
 
         return Inertia::render('Analytics', [
             'analytics' => [
@@ -215,7 +208,6 @@ class ProfessionalAnalyticsController extends Controller
                 'summary' => $summary,
                 'professionals' => $professionals,
                 'eventLabels' => self::EVENT_LABELS,
-                'topSources' => $leadSources,
                 'topInteractionSources' => $interactionSources,
                 'topCampaigns' => $campaigns,
                 'countingMethod' => 'unique_by_session_or_ip',
@@ -225,7 +217,6 @@ class ProfessionalAnalyticsController extends Controller
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
                 'only_activity' => $request->boolean('only_activity', true),
-                'lead_status' => $leadStatus,
                 'granularity' => $granularity,
             ],
         ]);
@@ -234,20 +225,15 @@ class ProfessionalAnalyticsController extends Controller
     private function buildGrowthAnalytics(
         Carbon $from,
         Carbon $to,
-        string $granularity,
-        ?string $leadStatus,
-        array $activeLeadStatuses
+        string $granularity
     ): array {
         $days = $from->diffInDays($to) + 1;
         $previousTo = $from->copy()->subSecond();
         $previousFrom = $previousTo->copy()->subDays($days)->addSecond()->startOfDay();
 
-        $leadQuery = fn (Carbon $start, Carbon $end) => ConsultaContacto::query()
-            ->whereBetween('created_at', [$start, $end])
-            ->when($leadStatus === 'active', fn ($query) => $query->whereIn('status', $activeLeadStatuses));
-
-        $currentLeads = $leadQuery($from, $to)->count();
-        $previousLeads = $leadQuery($previousFrom, $previousTo)->count();
+        $appointmentQuery = fn (Carbon $start, Carbon $end) => Appointment::query()->whereBetween('start', [$start, $end]);
+        $currentAppointments = $appointmentQuery($from, $to)->count();
+        $previousAppointments = $appointmentQuery($previousFrom, $previousTo)->count();
         $currentRegistrations = User::query()->whereBetween('created_at', [$from, $to])->count();
         $previousRegistrations = User::query()->whereBetween('created_at', [$previousFrom, $previousTo])->count();
         $currentActiveRegistrations = User::query()->where('activo', true)->whereBetween('created_at', [$from, $to])->count();
@@ -255,7 +241,7 @@ class ProfessionalAnalyticsController extends Controller
         $currentPatientRegistrations = Patient::query()->whereBetween('created_at', [$from, $to])->count();
         $previousPatientRegistrations = Patient::query()->whereBetween('created_at', [$previousFrom, $previousTo])->count();
 
-        $leadDates = $leadQuery($from, $to)->pluck('created_at');
+        $appointmentDates = $appointmentQuery($from, $to)->pluck('start');
         $registrationRows = User::query()
             ->whereBetween('created_at', [$from, $to])
             ->get(['created_at', 'activo']);
@@ -268,7 +254,7 @@ class ProfessionalAnalyticsController extends Controller
             ->get(['created_at', 'event_type']);
 
         $buckets = $this->growthBuckets($from, $to, $granularity);
-        $leadCounts = $leadDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
+        $appointmentCounts = $appointmentDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
         $registrationCounts = $registrationRows->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
         $activeRegistrationCounts = $registrationRows->where('activo', true)->countBy(fn ($row) => $this->bucketKey($row->created_at, $granularity));
         $patientRegistrationCounts = $patientRegistrationDates->countBy(fn ($date) => $this->bucketKey(Carbon::parse($date), $granularity));
@@ -278,7 +264,7 @@ class ProfessionalAnalyticsController extends Controller
         $registeredRunning = User::query()->where('created_at', '<', $from)->count();
         $activeRunning = User::query()->where('activo', true)->where('created_at', '<', $from)->count();
         $patientRunning = Patient::query()->where('created_at', '<', $from)->count();
-        $series = $buckets->map(function (Carbon $bucket) use ($granularity, $leadCounts, $registrationCounts, $activeRegistrationCounts, $patientRegistrationCounts, $viewCounts, $contactCounts, &$registeredRunning, &$activeRunning, &$patientRunning) {
+        $series = $buckets->map(function (Carbon $bucket) use ($granularity, $appointmentCounts, $registrationCounts, $activeRegistrationCounts, $patientRegistrationCounts, $viewCounts, $contactCounts, &$registeredRunning, &$activeRunning, &$patientRunning) {
             $key = $this->bucketKey($bucket, $granularity);
             $registrations = (int) ($registrationCounts[$key] ?? 0);
             $activeRegistrations = (int) ($activeRegistrationCounts[$key] ?? 0);
@@ -290,7 +276,7 @@ class ProfessionalAnalyticsController extends Controller
             return [
                 'date' => $key,
                 'label' => $this->bucketLabel($bucket, $granularity),
-                'leads' => (int) ($leadCounts[$key] ?? 0),
+                'appointments' => (int) ($appointmentCounts[$key] ?? 0),
                 'psychologists_registered' => $registrations,
                 'psychologists_active' => $activeRegistrations,
                 'patients_registered' => $patientRegistrations,
@@ -306,14 +292,6 @@ class ProfessionalAnalyticsController extends Controller
         $totalActive = User::query()->where('activo', true)->count();
         $totalVisible = User::query()->publiclyVisible()->count();
         $totalPatients = Patient::query()->count();
-        $leadStatuses = $leadQuery($from, $to)
-            ->selectRaw("COALESCE(status, 'sin_estado') as status, COUNT(*) as total")
-            ->groupBy('status')
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($row) => ['status' => $row->status, 'total' => (int) $row->total])
-            ->values();
-
         return [
             'granularity' => $granularity,
             'series' => $series,
@@ -326,18 +304,17 @@ class ProfessionalAnalyticsController extends Controller
                 'visibility_rate' => $totalRegistered > 0 ? round(($totalVisible / $totalRegistered) * 100, 1) : 0,
             ],
             'changes' => [
-                'leads' => $this->percentageChange($currentLeads, $previousLeads),
+                'appointments' => $this->percentageChange($currentAppointments, $previousAppointments),
                 'psychologists_registered' => $this->percentageChange($currentRegistrations, $previousRegistrations),
                 'psychologists_active' => $this->percentageChange($currentActiveRegistrations, $previousActiveRegistrations),
                 'patients_registered' => $this->percentageChange($currentPatientRegistrations, $previousPatientRegistrations),
             ],
             'period' => [
-                'leads' => $currentLeads,
+                'appointments' => $currentAppointments,
                 'psychologists_registered' => $currentRegistrations,
                 'psychologists_active' => $currentActiveRegistrations,
                 'patients_registered' => $currentPatientRegistrations,
             ],
-            'lead_statuses' => $leadStatuses,
         ];
     }
 
@@ -461,12 +438,12 @@ class ProfessionalAnalyticsController extends Controller
                 'totals' => [
                     'profile_views' => (int) ($eventCounts['profile_view'] ?? 0),
                     'whatsapp_clicks' => (int) ($eventCounts['whatsapp_click'] ?? 0),
-                    'schedule_clicks' => (int) ($eventCounts['lead_started'] ?? 0),
+                    'schedule_clicks' => (int) ($eventCounts['checkout_started'] ?? 0),
                 ],
                 'raw_totals' => [
                     'profile_views' => (int) ($rawEventCounts['profile_view'] ?? 0),
                     'whatsapp_clicks' => (int) ($rawEventCounts['whatsapp_click'] ?? 0),
-                    'schedule_clicks' => (int) ($rawEventCounts['lead_started'] ?? 0),
+                    'schedule_clicks' => (int) ($rawEventCounts['checkout_started'] ?? 0),
                 ],
                 'counting_method' => 'unique_by_session_or_ip',
             ],

@@ -36,7 +36,6 @@ use App\Jobs\TestNotificacionJob;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
 use App\Models\Clinic;
-use App\Models\ConsultaContacto;
 use App\Models\MinderReport;
 use App\Models\MinderSupportAppointment;
 use App\Models\MinderSupportThread;
@@ -84,7 +83,6 @@ Route::get('/dashboard', function () {
     $incompleteProfiles = User::query()
         ->where(fn ($query) => $query->where('isProfileComplete', false)->orWhereNull('isProfileComplete'))
         ->count();
-    $activeLeads = ConsultaContacto::whereIn('status', ['new', 'viewed', 'contacted', 'created'])->count();
     $pendingCarts = AppointmentCart::whereIn('estado', ['pendiente', 'pendientePago', 'voucher_generado'])->count();
     $openSupportThreads = MinderSupportThread::where('status', 'open')->count();
     $pendingSupportAppointments = MinderSupportAppointment::where('status', 'pending')->count();
@@ -111,13 +109,6 @@ Route::get('/dashboard', function () {
         'hint' => 'Profesionales que aún no terminan su información pública.',
         'href' => route('psicologos', ['filter' => 'incomplete_profiles']),
         'tone' => $incompleteProfiles > 0 ? 'amber' : 'green',
-    ];
-    $attentionItems[] = [
-        'label' => 'Leads activos',
-        'value' => $activeLeads,
-        'hint' => 'Solicitudes aún no convertidas o descartadas.',
-        'href' => route('analytics', ['lead_status' => 'active']),
-        'tone' => $activeLeads > 0 ? 'blue' : 'green',
     ];
     $attentionItems[] = [
         'label' => 'Pagos/carritos pendientes',
@@ -158,14 +149,6 @@ Route::get('/dashboard', function () {
             'sort_date' => optional($patient->created_at)->timestamp,
             'href' => route('paciente', $patient->id),
         ]))
-        ->merge(ConsultaContacto::with('user:id,name')->latest()->limit(4)->get()->map(fn ($lead) => [
-            'type' => 'Lead recibido',
-            'title' => $lead->nombre ?: $lead->email,
-            'subtitle' => optional($lead->user)->name ?: 'Sin psicólogo asignado',
-            'date' => optional($lead->created_at)->diffForHumans(),
-            'sort_date' => optional($lead->created_at)->timestamp,
-            'href' => route('analytics'),
-        ]))
         ->sortByDesc(fn ($item) => $item['sort_date'])
         ->take(8)
         ->values();
@@ -180,9 +163,12 @@ Route::get('/dashboard', function () {
             'payments_month' => (float) Payment::where('created_at', '>=', $monthStart)
                 ->whereIn('status', ['paid', 'succeeded', 'completed', 'approved'])
                 ->sum('amount'),
-            'leads_month' => ConsultaContacto::where('created_at', '>=', $monthStart)->count(),
-            'converted_leads_month' => ConsultaContacto::where('status', ConsultaContacto::STATUS_CONVERTED)
-                ->where(fn ($query) => $query->where('converted_at', '>=', $monthStart)->orWhere('updated_at', '>=', $monthStart))
+            'completed_appointments_month' => Appointment::where('start', '>=', $monthStart)
+                ->where(function ($query) {
+                    $query->whereNotNull('completed_at')
+                        ->orWhereIn('lifecycle_status', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada'])
+                        ->orWhereIn('statusUser', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada']);
+                })
                 ->count(),
             'clinics_active' => Clinic::where('status', 'active')->count(),
             'active_subscriptions' => Subscription::whereIn('stripe_status', ['active', 'trialing'])->count(),

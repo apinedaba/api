@@ -139,7 +139,7 @@ class AppointmentController extends Controller
         $now = Carbon::now($professionalTimezone);
         $start = Carbon::parse($request->start, $professionalTimezone)->startOfDay();
         $end = Carbon::parse($request->end, $professionalTimezone)->endOfDay();
-        $workingHours = $user->horarios ?? [];
+        $workingHours = $this->normalizeWorkingHours($user->horarios ?? []);
 
         $appointments = Appointment::where('user', $id)
             ->whereBetween('start', [$start, $end])
@@ -1127,6 +1127,56 @@ class AppointmentController extends Controller
         return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true)
             ? $timezone
             : config('app.timezone');
+    }
+
+    private function normalizeWorkingHours(mixed $workingHours): array
+    {
+        if (! is_array($workingHours)) {
+            return [];
+        }
+
+        $dayAliases = [
+            'monday' => ['monday', 'lunes'],
+            'tuesday' => ['tuesday', 'martes'],
+            'wednesday' => ['wednesday', 'miercoles', 'miércoles'],
+            'thursday' => ['thursday', 'jueves'],
+            'friday' => ['friday', 'viernes'],
+            'saturday' => ['saturday', 'sabado', 'sábado'],
+            'sunday' => ['sunday', 'domingo'],
+        ];
+
+        $normalized = [];
+        foreach ($dayAliases as $day => $aliases) {
+            $blocks = collect($aliases)
+                ->flatMap(fn (string $alias) => is_array($workingHours[$alias] ?? null) ? $workingHours[$alias] : [])
+                ->map(function ($block) {
+                    if (! is_array($block)) {
+                        return null;
+                    }
+
+                    $start = $block['start'] ?? $block['start_time'] ?? null;
+                    $end = $block['end'] ?? $block['end_time'] ?? null;
+
+                    if (! is_string($start) || ! is_string($end)
+                        || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $start)
+                        || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $end)
+                        || $start >= $end) {
+                        return null;
+                    }
+
+                    return ['start' => $start, 'end' => $end];
+                })
+                ->filter()
+                ->unique(fn (array $block) => $block['start'].'-'.$block['end'])
+                ->values()
+                ->all();
+
+            if ($blocks !== []) {
+                $normalized[$day] = $blocks;
+            }
+        }
+
+        return $normalized;
     }
 
     private function parseAppointmentDate(mixed $value, string $professionalTimezone): Carbon

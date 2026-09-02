@@ -140,6 +140,11 @@ class Appointment extends Model
         return $this->hasOne(Patient::class, 'id', 'patient');
     }
 
+    public function participants()
+    {
+        return $this->hasMany(AppointmentParticipant::class)->with('patient');
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user', 'id');

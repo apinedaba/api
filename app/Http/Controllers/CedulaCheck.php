@@ -94,18 +94,48 @@ class CedulaCheck extends Controller
             ], 503);
         }
 
+        if (! $response->successful()) {
+            Log::warning('SEP respondió con error en consulta de cédula', [
+                'status' => $response->status(),
+                'content_type' => $response->header('Content-Type'),
+            ]);
+
+            return response()->json([
+                'valid' => false,
+                'code' => 'sep_automatic_validation_unavailable',
+                'requires_manual_validation' => true,
+                'message' => 'SEP no permitió completar la consulta automática. Usa la validación manual mientras restablecemos la integración.',
+                'sep_url' => 'https://cedulaprofesional.sep.gob.mx/cedula-profesional',
+            ], 503);
+        }
+
         $data = $response->json();
+        if (! is_array($data)) {
+            Log::warning('SEP devolvió una respuesta JSON inválida', [
+                'content_type' => $response->header('Content-Type'),
+            ]);
 
-        Log::info('Respuesta SEP: ' . count($data));
+            return response()->json([
+                'valid' => false,
+                'message' => 'SEP devolvió una respuesta que no se pudo interpretar. Usa la validación manual.',
+            ], 503);
+        }
 
-        if (count($data) == 0) {
+        $professionals = $this->extractSepProfessionals($data);
+
+        Log::info('Respuesta SEP normalizada', [
+            'top_level_keys' => array_keys($data),
+            'professionals_found' => count($professionals),
+        ]);
+
+        if ($professionals === []) {
             return response()->json([
                 "valid" => false,
                 "message" => "No se encontró la cédula en SEP"
             ]);
         }
 
-        $profesionista = $data[0];
+        $profesionista = $professionals[0];
 
         $profesion = strtoupper($profesionista['profesion'] ?? '');
 
@@ -163,6 +193,65 @@ class CedulaCheck extends Controller
             "institucion" => $profesionista['institucion'] ?? null,
             "grado" => $grado
         ]);
+    }
+
+    private function extractSepProfessionals(array $payload): array
+    {
+        $professionals = [];
+        $visit = function ($value) use (&$visit, &$professionals): void {
+            if (! is_array($value)) {
+                return;
+            }
+
+            $normalizedKeys = collect(array_keys($value))
+                ->filter('is_string')
+                ->mapWithKeys(fn (string $key) => [strtolower($key) => $key]);
+
+            $professionKey = $normalizedKeys->get('profesion')
+                ?: $normalizedKeys->get('carrera')
+                ?: $normalizedKeys->get('titulo');
+            $cedulaKey = $normalizedKeys->get('numcedula')
+                ?: $normalizedKeys->get('numero_cedula')
+                ?: $normalizedKeys->get('cedula');
+
+            // SEP puede incluir metadatos llamados "titulo" en el contenedor.
+            // Solo tratamos el nodo como registro cuando tiene cédula, o cuando
+            // combina una profesión con algún dato identificable de la persona.
+            $personKey = $normalizedKeys->get('nombre')
+                ?: $normalizedKeys->get('nombres')
+                ?: $normalizedKeys->get('primerapellido')
+                ?: $normalizedKeys->get('apellidopaterno');
+
+            if ($cedulaKey || ($professionKey && $personKey)) {
+                $read = function (array $aliases) use ($value, $normalizedKeys) {
+                    foreach ($aliases as $alias) {
+                        if ($originalKey = $normalizedKeys->get(strtolower($alias))) {
+                            return $value[$originalKey] ?? null;
+                        }
+                    }
+                    return null;
+                };
+
+                $professionals[] = [
+                    'numCedula' => $read(['numCedula', 'numero_cedula', 'cedula']),
+                    'nombre' => $read(['nombre', 'nombres']),
+                    'primerApellido' => $read(['primerApellido', 'apellidoPaterno', 'primer_apellido']),
+                    'segundoApellido' => $read(['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
+                    'profesion' => $read(['profesion', 'carrera', 'titulo']),
+                    'fechaExpedicion' => $read(['fechaExpedicion', 'fecha_expedicion']),
+                    'institucion' => $read(['institucion', 'institucionEducativa']),
+                ];
+                return;
+            }
+
+            foreach ($value as $child) {
+                $visit($child);
+            }
+        };
+
+        $visit($payload);
+
+        return array_values($professionals);
     }
     /**
      * Método original deshabilitado - Ahora se usa validación manual

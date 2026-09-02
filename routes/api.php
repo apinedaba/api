@@ -56,6 +56,7 @@ use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\WhatsAppNotificationController;
 use App\Http\Controllers\WhatsAppTemplateController;
+use App\Http\Controllers\SessionCopilotController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
@@ -246,6 +247,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::resource('user/appointments', AppointmentController::class);
     Route::post('user/appointments/{appointment}/start', [AppointmentController::class, 'startSession'])
         ->middleware('throttle:6,1');
+    Route::get('user/appointments/{appointment}/copilot', [SessionCopilotController::class, 'show']);
+    Route::post('user/appointments/{appointment}/copilot/prepare', [SessionCopilotController::class, 'prepare'])->middleware('throttle:10,1');
+    Route::post('user/appointments/{appointment}/copilot/close', [SessionCopilotController::class, 'close'])->middleware('throttle:10,1');
+    Route::put('user/appointments/{appointment}/copilot/{draft}/apply', [SessionCopilotController::class, 'apply']);
     Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated']);
     Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder']);
     Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);

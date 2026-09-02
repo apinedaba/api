@@ -7,6 +7,7 @@ use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
+use App\Models\AppointmentParticipant;
 use App\Models\AppointmentRequest;
 use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
@@ -57,7 +58,7 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $appointments = Appointment::with(['payments', 'cart', 'user.googleAccount'])
+        $appointments = Appointment::with(['payments', 'cart', 'user.googleAccount', 'participants.patient'])
             ->where('user', $user->id)
             ->orderBy('start')
             ->get();
@@ -252,6 +253,8 @@ class AppointmentController extends Controller
             'google_calendar_id' => 'nullable|string|max:255',
             'clinic_id' => 'nullable|exists:clinics,id',
             'organization_id' => 'nullable|exists:organizations,id',
+            'participant_ids' => 'nullable|array|max:20',
+            'participant_ids.*' => 'integer|distinct|exists:patients,id',
         ]);
 
         if ($createdByProfessional) {
@@ -309,6 +312,76 @@ class AppointmentController extends Controller
                 'message' => 'Paciente archivado',
                 'type' => 'error',
             ], 423);
+        }
+
+        $participantIds = collect([$request->input('patient')])
+            ->merge($request->input('participant_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $sessionType = Str::lower((string) $request->input('tipoSesion'));
+        $participantCount = $participantIds->count();
+
+        if ($sessionType === 'individual_therapy' && $participantCount !== 1) {
+            return response()->json([
+                'message' => 'La terapia individual admite exactamente un paciente.',
+                'errors' => ['participant_ids' => ['Selecciona solamente al paciente principal.']],
+            ], 422);
+        }
+
+        if ($sessionType === 'couples_therapy' && $participantCount !== 2) {
+            return response()->json([
+                'message' => 'La terapia de pareja requiere exactamente dos participantes.',
+                'errors' => ['participant_ids' => ['Agrega a la segunda persona de la pareja.']],
+            ], 422);
+        }
+
+        if (in_array($sessionType, ['family_therapy', 'group_therapy'], true) && $participantCount < 2) {
+            return response()->json([
+                'message' => 'Este tipo de sesión requiere al menos dos participantes.',
+                'errors' => ['participant_ids' => ['Agrega por lo menos un participante adicional.']],
+            ], 422);
+        }
+
+        $relatedPatientIds = PatientUser::query()
+            ->where('user', (int) $request->input('user'))
+            ->whereIn('patient', $participantIds)
+            ->pluck('patient')
+            ->map(fn ($id) => (int) $id);
+
+        if ($participantIds->diff($relatedPatientIds)->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Uno o más participantes no pertenecen a tus pacientes.',
+                'errors' => ['participant_ids' => ['Revisa los participantes seleccionados.']],
+            ], 422);
+        }
+
+        if ($sessionType === 'couples_therapy') {
+            $hasChild = Patient::query()
+                ->whereIn('id', $participantIds)
+                ->get()
+                ->contains(function (Patient $patient): bool {
+                    $birthDate = data_get($patient->relevantes, 'fechaNac.date')
+                        ?: data_get($patient->relevantes, 'fechaNac');
+
+                    if (! is_string($birthDate) || trim($birthDate) === '') {
+                        return false;
+                    }
+
+                    try {
+                        return Carbon::parse($birthDate)->age < 13;
+                    } catch (\Throwable) {
+                        return false;
+                    }
+                });
+
+            if ($hasChild) {
+                return response()->json([
+                    'message' => 'La terapia de pareja no puede asignarse a menores de 13 años. Considera terapia familiar.',
+                    'errors' => ['tipoSesion' => ['El tipo de sesión no coincide con la edad de los participantes.']],
+                ], 422);
+            }
         }
 
         $professional = User::findOrFail((int) $request->input('user'));
@@ -391,7 +464,19 @@ class AppointmentController extends Controller
 
             $this->createAppointmentCart($appointment, $request);
 
-            $appointments[] = $appointment->fresh(['patient', 'user']);
+            $appointmentParticipants = $participantIds->map(fn (int $patientId) => [
+                'appointment_id' => $appointment->id,
+                'patient_id' => $patientId,
+                'role' => $patientId === (int) $request->input('patient') ? 'primary' : 'participant',
+                'attendance_status' => 'expected',
+                'consent_status' => 'pending',
+                'notifications_enabled' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+            AppointmentParticipant::insert($appointmentParticipants);
+
+            $appointments[] = $appointment->fresh(['patient', 'user', 'participants.patient']);
 
             if (! $isRecurrent) {
                 $this->sendNotificacionCreateAppoimentEmail($appointment);
@@ -547,7 +632,7 @@ class AppointmentController extends Controller
     public function show(Appointment $appointment): JsonResponse
     {
         $appointment = Appointment::where('id', $appointment->id)
-            ->with(['patient', 'payments', 'cart', 'user'])
+            ->with(['patient', 'payments', 'cart', 'user', 'participants.patient'])
             ->first();
         $appointment->requires_start_code = app(SessionStartCodeService::class)->appliesTo($appointment);
 
@@ -558,8 +643,11 @@ class AppointmentController extends Controller
     {
         $patient = request()->user();
         $appointment = Appointment::where('id', $id)
-            ->where('patient', $patient->id)
-            ->with(['cart', 'user', 'payments'])
+            ->where(function ($query) use ($patient): void {
+                $query->where('patient', $patient->id)
+                    ->orWhereHas('participants', fn ($participants) => $participants->where('patient_id', $patient->id));
+            })
+            ->with(['cart', 'user', 'payments', 'patient', 'participants.patient'])
             ->first();
 
         return response()->json($appointment, 200);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Models\Patient;
+use App\Models\GuardianAccount;
 use App\Models\Vendedor;
 use App\Models\Subscription;
 use App\Models\Clinic;
@@ -369,9 +370,15 @@ class RegisterController extends Controller
         $data = $request->all();
         $email = PatientIdentity::normalizeEmail($request->input('email'));
         $phone = PatientIdentity::normalizePhone($request->input('phone', data_get($data, 'contacto.telefono')));
+        $patientExists = PatientIdentity::findByEmailOrPhone($email, $phone) !== null;
+        $guardianExists = $email
+            ? GuardianAccount::whereRaw('LOWER(email) = ?', [$email])->exists()
+            : false;
 
         return response()->json([
-            'exists' => PatientIdentity::findByEmailOrPhone($email, $phone) !== null,
+            'exists' => $patientExists || $guardianExists,
+            'patient_exists' => $patientExists,
+            'guardian_exists' => $guardianExists,
         ]);
     }
 }

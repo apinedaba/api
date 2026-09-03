@@ -195,7 +195,10 @@ class AppointmentCartController extends Controller
         // return response()->json($request->except(['categoria', 'user']) + [
         //         'estado' => 'pendiente',
         //     ]);
-        $patient = auth()->user();  // auth:patient
+        // EnsurePatient resolves a guardian session to the represented patient.
+        // Using auth()->user() here bypasses that resolver and assigns the cart
+        // to the guardian instead of the person selected for the appointment.
+        $patient = $request->user();
         $estado = $request->estado === 'pendientePago' ? 'pendientePago' : 'pendiente';
         $cartPayload = [
             'user_id' => $request->input('user_id'),
@@ -260,7 +263,7 @@ class AppointmentCartController extends Controller
      */
     public function show(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
+        $patient = request()->user();
         $cart = AppointmentCart::with('user')
             ->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
@@ -276,7 +279,7 @@ class AppointmentCartController extends Controller
      */
     public function cartById(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
+        $patient = request()->user();
         $cart = AppointmentCart::with('user')
             ->where('patient_id', $patient->id)
             ->where('estado', 'pendientePago')

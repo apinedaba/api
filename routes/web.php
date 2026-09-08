@@ -207,6 +207,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/mi-credencial', fn () => Inertia::render('MiCredencial'))->name('admin.credential.page');
 
     Route::prefix('admin/api')->group(function () {
+        Route::get('/audience-routing/summary', [\App\Http\Controllers\PublicAudienceResponseController::class, 'summary'])
+            ->name('admin.audience-routing.summary');
         Route::get('/credential', [CredentialController::class, 'administrator'])->name('admin.credential.show');
         Route::get('/credential/pdf', [CredentialController::class, 'administratorPdf'])->name('admin.credential.pdf');
         Route::post('/credential/photo', [CredentialController::class, 'administratorPhoto'])->name('admin.credential.photo');

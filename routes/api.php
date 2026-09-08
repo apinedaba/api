@@ -44,6 +44,7 @@ use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
+use App\Http\Controllers\PublicAudienceResponseController;
 use App\Http\Controllers\ProfessionalPayoutController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
@@ -84,6 +85,8 @@ Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController:
     ->name('questionnaire.public.show.patient');
 // Endpoint público para confirmar citas desde links enviados por email
 Route::post('public/appointments/confirm', [AppointmentController::class, 'publicConfirm']);
+Route::post('public/audience-routing', [PublicAudienceResponseController::class, 'store'])
+    ->middleware('throttle:60,1');
 Route::post('public/appointments/{uuid}/reschedule', [AppointmentController::class, 'publicReschedule']);
 // Endpoint público para obtener datos legibles de la cita (no expone id)
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);

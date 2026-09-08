@@ -16,6 +16,8 @@ class NotificationController extends Controller
 
         $notifications = $notifiable
             ->notifications()
+            ->when($request->boolean('unread'), fn ($query) => $query->whereNull('read_at'))
+            ->when($request->filled('kind'), fn ($query) => $query->where('data', 'like', '%"kind":"'.$request->string('kind').'"%'))
             ->latest()
             ->paginate($perPage);
 
@@ -63,5 +65,11 @@ class NotificationController extends Controller
             'message' => 'Todas las notificaciones fueron marcadas como leidas.',
             'unread_count' => 0,
         ]);
+    }
+
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $request->user()->notifications()->whereKey($id)->firstOrFail()->delete();
+        return response()->json(['message' => 'Notificacion eliminada.']);
     }
 }

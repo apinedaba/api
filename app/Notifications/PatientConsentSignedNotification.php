@@ -5,8 +5,9 @@ namespace App\Notifications;
 use App\Models\Patient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class PatientConsentSignedNotification extends Notification
+class PatientConsentSignedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 

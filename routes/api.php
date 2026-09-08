@@ -34,6 +34,7 @@ use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
 use App\Http\Controllers\MindmeetBenefitController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\GuardianAccountController;
 use App\Http\Controllers\PatientDocumentRequestController;
@@ -190,6 +191,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('user/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::patch('user/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::delete('user/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::get('user/notification-preferences', [NotificationPreferenceController::class, 'index']);
+    Route::put('user/notification-preferences', [NotificationPreferenceController::class, 'update']);
     Route::get('user/professional-analytics/summary', [ProfessionalAnalyticsController::class, 'summary']);
     Route::get('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'show']);
     Route::post('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'store']);
@@ -349,6 +353,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::patch('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::delete('notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::get('notification-preferences', [NotificationPreferenceController::class, 'index']);
+    Route::put('notification-preferences', [NotificationPreferenceController::class, 'update']);
     Route::get('emotion-logs', [EmotionLogController::class, 'index']);
     Route::post('emotion-logs', [EmotionLogController::class, 'store']);
     Route::post('availability', [AvailabilitiController::class, 'store']);

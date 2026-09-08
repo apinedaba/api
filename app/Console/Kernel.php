@@ -45,6 +45,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('subscriptions:notify-upcoming-charges')
             ->dailyAt('10:00')
             ->timezone('America/Mexico_City');
+        $schedule->command('notifications:prune --days=180')
+            ->weeklyOn(1, '03:15')
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         $schedule->command('sellers:generate-commission-cut')
             ->monthlyOn(25, '02:30')
             ->timezone('America/Mexico_City');

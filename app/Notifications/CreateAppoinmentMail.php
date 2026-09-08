@@ -5,8 +5,9 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class CreateAppoinmentMail extends Notification
+class CreateAppoinmentMail extends Notification implements ShouldQueue
 {
     use Queueable;
 

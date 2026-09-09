@@ -281,7 +281,7 @@ class RedPreguntaController extends Controller
 
         return response()->json([
             'data' => [
-                ...$this->formatPregunta($pregunta, $user->id),
+                ...$this->formatPregunta($pregunta, $user->id, includeDescripcion: true),
                 'respuestas' => $respuestas,
             ],
         ]);

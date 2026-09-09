@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\RedCategory;
 use App\Models\RedPregunta;
 use App\Models\RedTag;
+use App\Models\MindmeetSetting;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class RedTaxonomyController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $categories = RedCategory::query()
             ->where('is_active', true)
@@ -37,6 +39,11 @@ class RedTaxonomyController extends Controller
             'data' => [
                 'categories' => $categories,
                 'tags' => $tags,
+                'can_announce' => (int) data_get(
+                    MindmeetSetting::valueFor('forum_announcement_publisher'),
+                    'user_id',
+                    0
+                ) === (int) $request->user()->id,
             ],
         ]);
     }

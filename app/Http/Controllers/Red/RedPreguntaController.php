@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Red;
 use App\Events\RedPreguntaActualizada;
 use App\Http\Controllers\Controller;
 use App\Models\RedPregunta;
+use App\Models\MindmeetSetting;
 use App\Models\RedRespuesta;
 use App\Models\User;
 use App\Notifications\NuevaPreguntaEnRed;
 use App\Rules\NoIdentifiableContact;
 use App\Services\RedReputationService;
+use App\Services\WhatsApp\WhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -128,6 +130,7 @@ class RedPreguntaController extends Controller
             'tags'        => 'nullable|array|max:5',
             'tags.*'      => ['string', 'max:40', Rule::exists('red_tags', 'name')->where('is_active', true)],
             'privacy_acknowledged' => 'accepted',
+            'notify_network' => ['nullable', 'boolean'],
         ]);
 
         $pregunta = RedPregunta::create([
@@ -149,6 +152,24 @@ class RedPreguntaController extends Controller
             ->get();
 
         Notification::send($psicologosVerificados, new NuevaPreguntaEnRed($pregunta));
+
+        $authorizedPublisherId = (int) data_get(MindmeetSetting::valueFor('forum_announcement_publisher'), 'user_id', 0);
+        if (($validated['notify_network'] ?? false) && $authorizedPublisherId === (int) $request->user()->id) {
+            User::query()
+                ->where('identity_verification_status', 'approved')
+                ->where('activo', true)
+                ->select(['id', 'name', 'contacto'])
+                ->chunkById(100, function ($professionals) use ($pregunta) {
+                    foreach ($professionals as $professional) {
+                        app(WhatsAppService::class)->queueConfiguredProfessionalTemplate(
+                            'new_forum_question',
+                            $professional,
+                            ['question_title' => $pregunta->titulo],
+                            ['question_id' => $pregunta->id, 'user_id' => $professional->id]
+                        );
+                    }
+                });
+        }
 
         broadcast(new RedPreguntaActualizada('nueva_pregunta', $pregunta->id));
 

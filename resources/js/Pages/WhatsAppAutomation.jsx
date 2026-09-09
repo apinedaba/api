@@ -23,9 +23,10 @@ const channelOptions = [
     { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
-export default function WhatsAppAutomation({ auth, templates, rules, metrics, fallbacks, eventCatalog, recipientOptions }) {
+export default function WhatsAppAutomation({ auth, templates, rules, metrics, fallbacks, eventCatalog, recipientOptions, forumAnnouncementPublisherId, activePsychologists }) {
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [editingRule, setEditingRule] = useState(null);
+    const forumPublisherForm = useForm({ user_id: forumAnnouncementPublisherId || '' });
 
     const templateColumns = [
         {
@@ -134,6 +135,40 @@ export default function WhatsAppAutomation({ auth, templates, rules, metrics, fa
                         <Metric label="Este mes" value={metrics.month} />
                         <Metric label="Exitosos" value={metrics.sent_total} />
                         <Metric label="Fallidos" value={metrics.failed_total} tone="danger" />
+                    </section>
+
+                    <section className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-950 to-slate-950 p-6 text-white shadow-sm">
+                        <div className="grid gap-6 lg:grid-cols-[1fr_420px] lg:items-end">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Mentes en Red</p>
+                                <h2 className="mt-2 text-xl font-black">Perfil autorizado para difusión general</h2>
+                                <p className="mt-2 max-w-2xl text-sm leading-6 text-cyan-50/80">
+                                    Sólo este perfil podrá activar el envío masivo con el template <span className="font-mono font-bold text-white">nuevo_foro</span> al publicar. Las preguntas normales no generan WhatsApp.
+                                </p>
+                            </div>
+                            <form
+                                onSubmit={(event) => {
+                                    event.preventDefault();
+                                    forumPublisherForm.put(route('whatsapp-automation.forum-publisher.update'), { preserveScroll: true });
+                                }}
+                                className="flex flex-col gap-3 sm:flex-row"
+                            >
+                                <select
+                                    value={forumPublisherForm.data.user_id}
+                                    onChange={(event) => forumPublisherForm.setData('user_id', event.target.value)}
+                                    className="min-h-11 min-w-0 flex-1 rounded-xl border-white/20 bg-white text-sm text-slate-900"
+                                >
+                                    <option value="">Ningún perfil autorizado</option>
+                                    {(activePsychologists || []).map((psychologist) => (
+                                        <option key={psychologist.id} value={psychologist.id}>{psychologist.name} — {psychologist.email}</option>
+                                    ))}
+                                </select>
+                                <PrimaryButton disabled={forumPublisherForm.processing} className="justify-center bg-cyan-500 hover:bg-cyan-400">
+                                    {forumPublisherForm.processing ? 'Guardando...' : 'Guardar perfil'}
+                                </PrimaryButton>
+                            </form>
+                        </div>
+                        {forumPublisherForm.errors.user_id ? <p className="mt-2 text-sm text-red-200">{forumPublisherForm.errors.user_id}</p> : null}
                     </section>
 
                     <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">

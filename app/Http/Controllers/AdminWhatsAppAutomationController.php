@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\WhatsAppMessage;
 use App\Models\WhatsAppNotificationRule;
 use App\Models\WhatsAppTemplate;
+use App\Models\MindmeetSetting;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +35,34 @@ class AdminWhatsAppAutomationController extends Controller
             'fallbacks' => config('services.whatsapp.templates', []),
             'eventCatalog' => config('whatsapp_notifications.events', []),
             'recipientOptions' => config('whatsapp_notifications.recipients', []),
+            'forumAnnouncementPublisherId' => data_get(
+                MindmeetSetting::valueFor('forum_announcement_publisher'),
+                'user_id'
+            ),
+            'activePsychologists' => User::query()
+                ->where('identity_verification_status', 'approved')
+                ->where('activo', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
         ]);
+    }
+
+    public function updateForumPublisher(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_id' => [
+                'nullable',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->where('identity_verification_status', 'approved')
+                    ->where('activo', true)),
+            ],
+        ]);
+
+        MindmeetSetting::put('forum_announcement_publisher', [
+            'user_id' => isset($data['user_id']) ? (int) $data['user_id'] : null,
+        ]);
+
+        return back()->with('success', 'Perfil autorizado para anuncios del foro actualizado.');
     }
 
     public function storeTemplate(Request $request): RedirectResponse

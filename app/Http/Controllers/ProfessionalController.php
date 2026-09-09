@@ -30,6 +30,7 @@ class ProfessionalController extends Controller
         $page = (int) ($params['page'] ?? 1);
         $perPage = (int) ($params['perPage'] ?? 10);
         $search = trim($params['search'] ?? '');
+        $couponCode = strtoupper(trim($params['coupon_code'] ?? ''));
         $precioMax = $params['precioMax'] ?? null;
         $pais = $this->firstQueryValue($params['pais'] ?? null);
         $idioma = $this->firstQueryValue($params['idioma'] ?? null);
@@ -89,6 +90,12 @@ class ProfessionalController extends Controller
          */
         if ($search !== '') {
             $q->where('name', 'like', "%{$search}%");
+        }
+
+        if ($couponCode !== '') {
+            $q->whereHas('activeDiscountCoupons', function ($couponQuery) use ($couponCode) {
+                $couponQuery->where('discount_coupons.code', $couponCode);
+            });
         }
 
         if ($pais) {

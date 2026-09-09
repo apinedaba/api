@@ -231,6 +231,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/whatsapp-automation', [AdminWhatsAppAutomationController::class, 'index'])->name('whatsapp-automation.index');
     Route::post('/whatsapp-automation/templates', [AdminWhatsAppAutomationController::class, 'storeTemplate'])->name('whatsapp-automation.templates.store');
+    Route::put('/whatsapp-automation/forum-publisher', [AdminWhatsAppAutomationController::class, 'updateForumPublisher'])->name('whatsapp-automation.forum-publisher.update');
     Route::put('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'updateTemplate'])->name('whatsapp-automation.templates.update');
     Route::delete('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'destroyTemplate'])->name('whatsapp-automation.templates.destroy');
     Route::put('/whatsapp-automation/rules/{rule}', [AdminWhatsAppAutomationController::class, 'updateRule'])->name('whatsapp-automation.rules.update');

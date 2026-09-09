@@ -320,9 +320,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(DiscountCoupon::class);
     }
 
-    public function activeDiscountCoupons(): HasMany
+    public function activeDiscountCoupons()
     {
-        return $this->discountCoupons()->currentlyAvailable();
+        return $this->belongsToMany(DiscountCoupon::class)
+            ->currentlyAvailable()
+            ->withTimestamps();
     }
 
     public function sellerReferral(): HasOne

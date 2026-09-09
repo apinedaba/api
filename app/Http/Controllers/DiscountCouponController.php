@@ -29,6 +29,7 @@ class DiscountCouponController extends Controller
         $coupon = $request->user()
             ->discountCoupons()
             ->create($this->validatePayload($request, $request->user()->id));
+        $coupon->psychologists()->syncWithoutDetaching([$request->user()->id]);
 
         return response()->json([
             'message' => 'Cupon creado correctamente.',
@@ -41,6 +42,7 @@ class DiscountCouponController extends Controller
         abort_unless((int) $coupon->user_id === (int) $request->user()->id, 403);
 
         $coupon->update($this->validatePayload($request, $request->user()->id, $coupon));
+        $coupon->psychologists()->syncWithoutDetaching([$request->user()->id]);
 
         return response()->json([
             'message' => 'Cupon actualizado correctamente.',
@@ -59,7 +61,7 @@ class DiscountCouponController extends Controller
 
     public function adminIndex(): Response
     {
-        $coupons = DiscountCoupon::with('user:id,name,email,image')
+        $coupons = DiscountCoupon::with(['user:id,name,email,image', 'psychologists:id,name,email,image'])
             ->latest()
             ->get()
             ->map(fn (DiscountCoupon $coupon) => $this->transformCoupon($coupon, true));
@@ -78,11 +80,15 @@ class DiscountCouponController extends Controller
     public function adminStore(Request $request)
     {
         $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'psychologist_ids' => ['required', 'array', 'min:1'],
+            'psychologist_ids.*' => ['integer', 'distinct', 'exists:users,id'],
         ]);
 
-        $validated = $this->validatePayload($request, (int) $request->input('user_id'));
-        DiscountCoupon::create($validated);
+        $psychologistIds = array_map('intval', $request->input('psychologist_ids'));
+        $validated = $this->validatePayload($request, $psychologistIds[0]);
+        $this->ensureCodeIsAvailableForPsychologists($validated['code'], $psychologistIds);
+        $coupon = DiscountCoupon::create($validated);
+        $coupon->psychologists()->sync($psychologistIds);
 
         return redirect()->route('coupons')->with('status', 'Cupon creado correctamente.');
     }
@@ -90,11 +96,15 @@ class DiscountCouponController extends Controller
     public function adminUpdate(Request $request, DiscountCoupon $coupon)
     {
         $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'psychologist_ids' => ['required', 'array', 'min:1'],
+            'psychologist_ids.*' => ['integer', 'distinct', 'exists:users,id'],
         ]);
 
-        $validated = $this->validatePayload($request, (int) $request->input('user_id'), $coupon);
+        $psychologistIds = array_map('intval', $request->input('psychologist_ids'));
+        $validated = $this->validatePayload($request, $psychologistIds[0], $coupon);
+        $this->ensureCodeIsAvailableForPsychologists($validated['code'], $psychologistIds, $coupon);
         $coupon->update($validated);
+        $coupon->psychologists()->sync($psychologistIds);
 
         return redirect()->route('coupons')->with('status', 'Cupon actualizado correctamente.');
     }
@@ -144,11 +154,37 @@ class DiscountCouponController extends Controller
         return $validated;
     }
 
+    protected function ensureCodeIsAvailableForPsychologists(
+        string $code,
+        array $psychologistIds,
+        ?DiscountCoupon $coupon = null
+    ): void {
+        $exists = DiscountCoupon::query()
+            ->where('code', $code)
+            ->when($coupon, fn ($query) => $query->whereKeyNot($coupon->id))
+            ->where(function ($query) use ($psychologistIds) {
+                $query->whereIn('user_id', $psychologistIds)
+                    ->orWhereHas('psychologists', fn ($psychologists) =>
+                        $psychologists->whereIn('users.id', $psychologistIds)
+                    );
+            })
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'code' => ['Este codigo ya existe para al menos uno de los psicologos seleccionados.'],
+            ]);
+        }
+    }
+
     protected function transformCoupon(DiscountCoupon $coupon, bool $includeUser = false): array
     {
         $data = [
             'id' => $coupon->id,
             'user_id' => $coupon->user_id,
+            'psychologist_ids' => $coupon->relationLoaded('psychologists')
+                ? $coupon->psychologists->pluck('id')->values()->all()
+                : [$coupon->user_id],
             'code' => $coupon->code,
             'name' => $coupon->name,
             'description' => $coupon->description,
@@ -166,6 +202,7 @@ class DiscountCouponController extends Controller
 
         if ($includeUser) {
             $data['user'] = $coupon->user;
+            $data['psychologists'] = $coupon->psychologists;
         }
 
         return $data;

@@ -27,6 +27,7 @@ use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\BillingPortal\Session as BillingPortalSession;
 use App\Models\Payment;
+use App\Models\DiscountCoupon;
 use App\Notifications\SessionPaymentRegisteredNotification;
 use App\Services\WhatsApp\WhatsAppService;
 use Carbon\Carbon;
@@ -486,6 +487,10 @@ class StripeController extends Controller
         $this->settlements->synchronizeSettlementFields($payment);
 
         if ($payment->wasRecentlyCreated) {
+            if ($cart->discount_coupon_id) {
+                DiscountCoupon::whereKey($cart->discount_coupon_id)->increment('redeemed_count');
+            }
+
             try {
                 $cart->user?->notify(new SessionPaymentRegisteredNotification($appointment, $payment));
             } catch (\Throwable $th) {

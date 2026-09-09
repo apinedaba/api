@@ -199,7 +199,7 @@ class ConsultaContactoController extends Controller
         }
 
         $coupon = DiscountCoupon::query()
-            ->where('user_id', $payload['user_id'])
+            ->forPsychologist((int) $payload['user_id'])
             ->where('code', $couponCode)
             ->first();
 

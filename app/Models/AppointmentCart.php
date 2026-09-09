@@ -12,6 +12,11 @@ class AppointmentCart extends Model
     protected $fillable = [
         'patient_id',
         'user_id',
+        'discount_coupon_id',
+        'coupon_code',
+        'coupon_discount_type',
+        'coupon_discount_value',
+        'coupon_discount_amount',
         'fecha',
         'hora',
         'patient_timezone',
@@ -64,5 +69,7 @@ class AppointmentCart extends Model
         'total_charge_amount' => 'float',
         'psychologist_amount' => 'float',
         'remaining_balance_amount' => 'float',
+        'coupon_discount_value' => 'float',
+        'coupon_discount_amount' => 'float',
     ];
 }

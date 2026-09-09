@@ -6,7 +6,7 @@ import { useState } from 'react';
 import DataTable from 'react-data-table-component';
 
 const emptyCoupon = {
-    user_id: '',
+    psychologist_ids: [],
     code: '',
     name: '',
     description: '',
@@ -65,14 +65,18 @@ export default function Coupons({ auth, coupons, psychologists }) {
             ),
         },
         {
-            name: 'Psicologo',
-            selector: row => row.user?.name,
+            name: 'Psicologos',
+            selector: row => row.psychologists?.[0]?.name || '',
             sortable: true,
-            cell: row => (
-                <a href={`/psicologo/${row.user_id}`} className="text-blue-700 hover:underline">
-                    {row.user?.name || row.user_id}
-                </a>
-            ),
+            cell: row => {
+                const assigned = row.psychologists?.length ? row.psychologists : (row.user ? [row.user] : []);
+                return (
+                    <div className="py-2 text-sm text-slate-700">
+                        <span className="block font-semibold">{assigned[0]?.name || 'Sin asignar'}</span>
+                        {assigned.length > 1 && <span className="text-xs text-slate-500">+ {assigned.length - 1} profesionales</span>}
+                    </div>
+                );
+            },
         },
         {
             name: 'Descuento',
@@ -126,9 +130,9 @@ export default function Coupons({ auth, coupons, psychologists }) {
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700">Revenue ops</p>
-                                <h1 className="text-2xl font-black text-slate-950">Cupones por psicologo</h1>
+                                <h1 className="text-2xl font-black text-slate-950">Cupones por profesionales</h1>
                                 <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                                    Crea descuentos con vigencia para sesiones, paquetes o ambos. Cada codigo es unico por psicologo.
+                                    Crea un mismo descuento para uno o varios profesionales. Cada codigo es unico dentro de cada lista de profesionales.
                                 </p>
                             </div>
                             <PrimaryButton onClick={openCreate}>Nuevo cupon</PrimaryButton>
@@ -163,7 +167,7 @@ function CouponForm({ coupon, psychologists, onClose }) {
     const { data, setData, post, put, processing, errors } = useForm({
         ...emptyCoupon,
         ...coupon,
-        user_id: coupon?.user_id || '',
+        psychologist_ids: coupon?.psychologist_ids || (coupon?.user_id ? [coupon.user_id] : []),
         discount_value: coupon?.discount_value || '',
         max_redemptions: coupon?.max_redemptions || '',
     });
@@ -192,13 +196,27 @@ function CouponForm({ coupon, psychologists, onClose }) {
                 <h2 className="text-xl font-bold text-slate-950">Configuracion del descuento</h2>
             </div>
 
-            <Field label="Psicologo" error={errors.user_id}>
-                <select value={data.user_id} onChange={(event) => setData('user_id', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm">
-                    <option value="">Selecciona psicologo</option>
-                    {psychologists?.map((psychologist) => (
-                        <option key={psychologist.id} value={psychologist.id}>{psychologist.name} - {psychologist.email}</option>
-                    ))}
-                </select>
+            <Field label="Profesionales a los que aplica" error={errors.psychologist_ids || errors['psychologist_ids.0']}>
+                <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    {psychologists?.map((psychologist) => {
+                        const checked = data.psychologist_ids.map(Number).includes(Number(psychologist.id));
+                        return (
+                            <label key={psychologist.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 font-normal hover:bg-slate-50">
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => setData('psychologist_ids', checked
+                                        ? data.psychologist_ids.filter((id) => Number(id) !== Number(psychologist.id))
+                                        : [...data.psychologist_ids, psychologist.id]
+                                    )}
+                                    className="rounded border-slate-300"
+                                />
+                                <span><strong>{psychologist.name}</strong> <span className="text-slate-500">— {psychologist.email}</span></span>
+                            </label>
+                        );
+                    })}
+                </div>
+                <span className="mt-1 block text-xs font-normal text-slate-500">Seleccionados: {data.psychologist_ids.length}</span>
             </Field>
 
             <div className="grid gap-4 md:grid-cols-2">

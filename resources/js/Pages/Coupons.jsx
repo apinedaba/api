@@ -164,6 +164,7 @@ export default function Coupons({ auth, coupons, psychologists }) {
 }
 
 function CouponForm({ coupon, psychologists, onClose }) {
+    const [psychologistSearch, setPsychologistSearch] = useState('');
     const { data, setData, post, put, processing, errors } = useForm({
         ...emptyCoupon,
         ...coupon,
@@ -171,6 +172,12 @@ function CouponForm({ coupon, psychologists, onClose }) {
         discount_value: coupon?.discount_value || '',
         max_redemptions: coupon?.max_redemptions || '',
     });
+    const normalizedSearch = psychologistSearch.trim().toLocaleLowerCase('es');
+    const filteredPsychologists = (psychologists || []).filter((psychologist) =>
+        !normalizedSearch || `${psychologist.name || ''} ${psychologist.email || ''}`
+            .toLocaleLowerCase('es')
+            .includes(normalizedSearch)
+    );
 
     const submit = (event) => {
         event.preventDefault();
@@ -197,8 +204,15 @@ function CouponForm({ coupon, psychologists, onClose }) {
             </div>
 
             <Field label="Profesionales a los que aplica" error={errors.psychologist_ids || errors['psychologist_ids.0']}>
+                <input
+                    type="search"
+                    value={psychologistSearch}
+                    onChange={(event) => setPsychologistSearch(event.target.value)}
+                    placeholder="Buscar por nombre o correo"
+                    className="mb-2 w-full rounded-lg border-slate-200 text-sm"
+                />
                 <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
-                    {psychologists?.map((psychologist) => {
+                    {filteredPsychologists.map((psychologist) => {
                         const checked = data.psychologist_ids.map(Number).includes(Number(psychologist.id));
                         return (
                             <label key={psychologist.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 font-normal hover:bg-slate-50">
@@ -215,6 +229,9 @@ function CouponForm({ coupon, psychologists, onClose }) {
                             </label>
                         );
                     })}
+                    {filteredPsychologists.length === 0 && (
+                        <p className="px-2 py-3 text-center text-sm font-normal text-slate-500">No encontramos profesionales.</p>
+                    )}
                 </div>
                 <span className="mt-1 block text-xs font-normal text-slate-500">Seleccionados: {data.psychologist_ids.length}</span>
             </Field>

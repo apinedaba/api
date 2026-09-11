@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Minder;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MinderSupportAppointmentMail;
 use App\Models\Administrator;
 use App\Models\MinderSupportAppointment;
 use App\Models\MinderSupportSetting;
@@ -13,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
 class MinderSupportAppointmentController extends Controller
@@ -73,8 +75,11 @@ class MinderSupportAppointmentController extends Controller
         Notification::send($administrators, new MinderSupportAppointmentNotification($appointment, $event));
 
         if (! $administrators->pluck('email')->map(fn ($email) => strtolower($email))->contains(strtolower($settings->support_email))) {
-            Notification::route('mail', $settings->support_email)
-                ->notify(new MinderSupportAppointmentNotification($appointment, $event));
+            try {
+                Mail::to($settings->support_email)->send(new MinderSupportAppointmentMail($appointment, $event));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return response()->json([
@@ -102,8 +107,11 @@ class MinderSupportAppointmentController extends Controller
         Notification::send($administrators, new MinderSupportAppointmentNotification($appointment, 'cancelled'));
 
         if (! $administrators->pluck('email')->map(fn ($email) => strtolower($email))->contains(strtolower($settings->support_email))) {
-            Notification::route('mail', $settings->support_email)
-                ->notify(new MinderSupportAppointmentNotification($appointment, 'cancelled'));
+            try {
+                Mail::to($settings->support_email)->send(new MinderSupportAppointmentMail($appointment, 'cancelled'));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return response()->json(['message' => 'Sesión cancelada.']);

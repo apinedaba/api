@@ -18,7 +18,7 @@ const inputDateTime = (value) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-export default function SupportAppointments({ auth, appointments, settings }) {
+export default function SupportAppointments({ auth, appointments, settings, googleCalendar = {} }) {
     const items = appointments?.data ?? [];
     const settingsForm = useForm({
         support_email: settings.support_email,
@@ -61,7 +61,7 @@ export default function SupportAppointments({ auth, appointments, settings }) {
                         <section className="rounded-lg border border-slate-200 bg-white">
                             <div className="border-b border-slate-100 p-5">
                                 <h3 className="font-bold text-slate-900">Sesiones solicitadas</h3>
-                                <p className="text-sm text-slate-500">Confirma el horario solicitado o propón una nueva fecha.</p>
+                                <p className="text-sm text-slate-500">{googleCalendar.connected ? 'Las sesiones se confirman y reciben Google Meet automáticamente.' : 'Confirma el horario solicitado o propón una nueva fecha.'}</p>
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {items.map((appointment) => (
@@ -109,6 +109,25 @@ export default function SupportAppointments({ auth, appointments, settings }) {
                             )}
 
                             <form onSubmit={(event) => { event.preventDefault(); settingsForm.put(route('minder.support-appointments.settings'), { preserveScroll: true }); }} className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+                                <div className={`rounded-lg border p-4 ${googleCalendar.connected ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                                    <p className="font-semibold text-slate-900">Google Calendar y Meet</p>
+                                    <p className="mt-1 text-sm text-slate-600">
+                                        {googleCalendar.connected
+                                            ? 'Conectado. Se validará la disponibilidad real del calendario y se generará un Google Meet al reservar.'
+                                            : 'Conecta el calendario de MindMeet para validar ocupados y confirmar automáticamente cada sesión.'}
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {!googleCalendar.connected ? (
+                                            <a href={route('minder.support-appointments.google.connect')} className="inline-flex rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Conectar mindmeetmx@gmail.com</a>
+                                        ) : (
+                                            <button type="button" onClick={() => {
+                                                if (window.confirm('¿Desconectar Google Calendar? Las nuevas solicitudes volverán a confirmarse manualmente.')) {
+                                                    settingsForm.delete(route('minder.support-appointments.google.disconnect'), { preserveScroll: true });
+                                                }
+                                            }} className="rounded-md border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Desconectar</button>
+                                        )}
+                                    </div>
+                                </div>
                                 <div><h3 className="font-bold text-slate-900">Disponibilidad</h3><p className="text-sm text-slate-500">Horarios en zona centro de México.</p></div>
                                 <input type="email" value={settingsForm.data.support_email} onChange={(event) => settingsForm.setData('support_email', event.target.value)} className="w-full rounded-lg border-slate-200 text-sm" />
                                 <div className="grid grid-cols-3 gap-2">

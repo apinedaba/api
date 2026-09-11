@@ -7,7 +7,9 @@ use App\Models\MinderSupportAppointment;
 use App\Models\MinderSupportSetting;
 use App\Notifications\MinderSupportAppointmentNotification;
 use App\Services\MinderSupportScheduleService;
+use App\Services\MinderSupportGoogleCalendarService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +19,7 @@ use Inertia\Response;
 
 class AdminMinderSupportAppointmentController extends Controller
 {
-    public function index(): Response
+    public function index(MinderSupportGoogleCalendarService $googleCalendar): Response
     {
         return Inertia::render('Minder/SupportAppointments', [
             'appointments' => MinderSupportAppointment::with('user:id,name,email,image')
@@ -25,7 +27,22 @@ class AdminMinderSupportAppointmentController extends Controller
                 ->latest('scheduled_at')
                 ->paginate(30),
             'settings' => MinderSupportSetting::current(),
+            'googleCalendar' => ['connected' => $googleCalendar->isConnected()],
         ]);
+    }
+
+    public function connectGoogleCalendar(MinderSupportGoogleCalendarService $googleCalendar): RedirectResponse
+    {
+        $state = Crypt::encrypt(json_encode(['mode' => 'minder_support']));
+
+        return redirect()->away($googleCalendar->authUrl($state));
+    }
+
+    public function disconnectGoogleCalendar(): RedirectResponse
+    {
+        \App\Models\MinderSupportGoogleAccount::query()->delete();
+
+        return back()->with('success', 'Google Calendar se desconectó. Las nuevas solicitudes volverán a requerir confirmación manual.');
     }
 
     public function updateSettings(Request $request): RedirectResponse

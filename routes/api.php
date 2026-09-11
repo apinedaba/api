@@ -309,8 +309,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/assistant/elena/message', [ElenaAssistantController::class, 'message']);
     Route::post('user/assistant/elena/confirm', [ElenaAssistantController::class, 'confirm']);
 });
-Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
-
 // Búsqueda pública de psicólogos por ubicación
 Route::get('psychologists/search', [\App\Http\Controllers\Api\OfficeController::class, 'search']);
 

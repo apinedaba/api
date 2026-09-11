@@ -8,6 +8,7 @@ use App\Models\Appointment;
 use App\Models\GoogleAccount;
 use App\Models\User;
 use App\Services\GoogleCalendarService;
+use App\Services\MinderSupportGoogleCalendarService;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -17,7 +18,7 @@ use Illuminate\Validation\Rule;
 
 class GoogleCalendarController extends Controller
 {
-    public function handleCallback(Request $request, GoogleCalendarService $googleCalendarService)
+    public function handleCallback(Request $request, GoogleCalendarService $googleCalendarService, MinderSupportGoogleCalendarService $minderSupportCalendar)
     {
         try {
             $encryptedState = $request->get('state');
@@ -27,6 +28,19 @@ class GoogleCalendarController extends Controller
             }
 
             $statePayload = json_decode(Crypt::decrypt($encryptedState), true);
+            if (($statePayload['mode'] ?? null) === 'minder_support') {
+                try {
+                    $minderSupportCalendar->connect($request->string('code')->toString());
+
+                    return redirect()->route('minder.support-appointments.index')
+                        ->with('success', 'Google Calendar conectado. Las sesiones de apoyo disponibles se agendarán automáticamente con Google Meet.');
+                } catch (\Throwable $exception) {
+                    Log::error('No fue posible conectar el Google Calendar de soporte.', ['exception' => $exception]);
+
+                    return redirect()->route('minder.support-appointments.index')
+                        ->with('error', 'No fue posible conectar Google Calendar. Intenta de nuevo con la cuenta de MindMeet.');
+                }
+            }
             $userId = $statePayload['user_id'];
             $appointmentIds = collect($statePayload['appointment_ids'] ?? [])
                 ->when(isset($statePayload['appointment_id']), fn ($collection) => $collection->push($statePayload['appointment_id']))

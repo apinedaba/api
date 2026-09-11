@@ -19,6 +19,7 @@ use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\FacebookCatalogController;
+use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\HomeContentController;
 use App\Http\Controllers\PatientController;
@@ -67,6 +68,11 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return redirect('https://mindmeet.com.mx');
 });
+
+// Google vuelve por navegación del navegador, no por XHR. Esta misma URL está
+// registrada en Google, pero se atiende con middleware web para conservar sesión.
+Route::get('/api/user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback'])
+    ->name('google.calendar.callback');
 
 Route::get('/dashboard', function () {
     $today = now()->startOfDay();
@@ -403,6 +409,8 @@ Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () 
     Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
     Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
     Route::get('/support-appointments', [AdminMinderSupportAppointmentController::class, 'index'])->name('support-appointments.index');
+    Route::get('/support-appointments/google/connect', [AdminMinderSupportAppointmentController::class, 'connectGoogleCalendar'])->name('support-appointments.google.connect');
+    Route::delete('/support-appointments/google', [AdminMinderSupportAppointmentController::class, 'disconnectGoogleCalendar'])->name('support-appointments.google.disconnect');
     Route::put('/support-appointments/settings', [AdminMinderSupportAppointmentController::class, 'updateSettings'])->name('support-appointments.settings');
     Route::patch('/support-appointments/{appointment}', [AdminMinderSupportAppointmentController::class, 'update'])->name('support-appointments.update');
 });

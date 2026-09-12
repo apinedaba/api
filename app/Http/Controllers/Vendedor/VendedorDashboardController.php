@@ -30,6 +30,13 @@ class VendedorDashboardController extends Controller
             ->sum('amount');
 
         $activeCount = $vendedor->referrals->where('status', 'active')->count();
+        $recoveryOpportunities = $vendedor->referrals
+            ->filter(fn ($referral) => $referral->isRecoveryOpportunity());
+        $recoveredThisMonth = $recoveryOpportunities
+            ->filter(fn ($referral) => $referral->first_activated_at?->isSameMonth(now()))
+            ->count();
+        $recoveryCommissionRate = app(SellerCommissionService::class)
+            ->recoveryCommissionAmount($recoveredThisMonth);
 
         // Proyección: referidos activos × $20 (milestone month_2 como proxy mensual)
         $nextProjection = $activeCount * SellerCommissionService::COMMISSIONS['month_2'];
@@ -46,10 +53,19 @@ class VendedorDashboardController extends Controller
                 'registered_at'       => optional($referral->registered_at)->toDateString(),
                 'trial_ends_at'       => optional($referral->trial_ends_at)->toDateString(),
                 'first_activated_at'  => optional($referral->first_activated_at)->toDateString(),
+                'source' => $referral->source,
+                'pipeline_status' => $referral->pipeline_status,
+                'claimed_until' => optional($referral->claimed_until)->toDateString(),
+                'last_contacted_at' => optional($referral->last_contacted_at)->toDateTimeString(),
+                'next_follow_up_at' => optional($referral->next_follow_up_at)->format('Y-m-d\\TH:i'),
+                'contact_attempts' => (int) $referral->contact_attempts,
+                'last_contact_channel' => $referral->last_contact_channel,
+                'contact_note' => $referral->contact_note,
                 'psychologist' => [
                     'id'                  => $referral->user?->id,
                     'name'                => $referral->user?->name,
                     'email'               => $referral->user?->email,
+                    'phone'               => $this->psychologistPhone($referral->user),
                     'activo'              => (bool) $referral->user?->activo,
                     'subscription_status' => optional($referral->user?->subscription)->stripe_status,
                     'trial_ends_at'       => optional($referral->user?->subscription?->trial_ends_at)->toDateString(),
@@ -80,6 +96,8 @@ class VendedorDashboardController extends Controller
                 'nombre'           => $vendedor->nombre,
                 'email'            => $vendedor->email,
                 'rol'              => $vendedor->rol,
+                'sales_mode'       => $vendedor->sales_mode,
+                'can_register_manual_sales' => (bool) $vendedor->can_register_manual_sales,
                 'imagen'           => $vendedor->imagen,
                 'registration_url' => $this->registrationUrl($vendedor),
                 'qr_preview_url'   => route('vendedor.qr.preview'),
@@ -91,7 +109,10 @@ class VendedorDashboardController extends Controller
                 'next_projection'  => (float) $nextProjection,
                 'referrals_count'  => $referralsCount,
                 'active_count'     => $activeCount,
-                'unpaid_count'     => $unpaidCount,
+            'unpaid_count'     => $unpaidCount,
+            'recovery_count' => $recoveryOpportunities->count(),
+            'recovered_this_month' => $recoveredThisMonth,
+            'recovery_commission_rate' => $recoveryCommissionRate,
             ],
             'referrals'        => $referrals,
             'commission_items' => $commissionItems,
@@ -119,5 +140,17 @@ class VendedorDashboardController extends Controller
         $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
 
         return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
+    }
+
+    private function psychologistPhone(?\App\Models\User $user): ?string
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return data_get($user->contacto, 'telefono')
+            ?: data_get($user->contacto, 'whatsapp')
+            ?: data_get($user->contacto, 'movil')
+            ?: data_get($user->contacto, 'mobile');
     }
 }

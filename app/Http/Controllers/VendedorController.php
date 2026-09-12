@@ -69,6 +69,8 @@ class VendedorController extends Controller
 
             'rol' => ['required', 'in:vendedor,supervisor'],
             'status' => ['nullable', 'in:active,inactive'],
+            'sales_mode' => ['required', 'in:acquisition,recovery,hybrid'],
+            'can_register_manual_sales' => ['boolean'],
             'imagen' => ['nullable', 'image', 'max:2048'],
         ], [
             'nombre.required' => 'El nombre es obligatorio.',
@@ -89,6 +91,8 @@ class VendedorController extends Controller
 
         $this->normalizeOptionalAddressFields($validated);
         $validated['status'] = $validated['status'] ?? 'active';
+        $validated['can_register_manual_sales'] = $validated['sales_mode'] !== 'acquisition'
+            && $request->boolean('can_register_manual_sales');
 
         if ($request->hasFile('imagen')) {
             try {
@@ -149,12 +153,16 @@ class VendedorController extends Controller
             'pais' => ['nullable', 'string', 'max:100'],
             'rol' => ['required', 'in:vendedor,supervisor'],
             'status' => ['nullable', 'in:active,inactive'],
+            'sales_mode' => ['required', 'in:acquisition,recovery,hybrid'],
+            'can_register_manual_sales' => ['boolean'],
 
             'imagen' => ['nullable', 'image', 'max:2048'],
         ]);
 
         $this->normalizeOptionalAddressFields($validated);
         $validated['status'] = $validated['status'] ?? $vendedor->status ?? 'active';
+        $validated['can_register_manual_sales'] = $validated['sales_mode'] !== 'acquisition'
+            && $request->boolean('can_register_manual_sales');
 
         if ($request->hasFile('imagen')) {
             try {
@@ -351,6 +359,8 @@ class VendedorController extends Controller
             'pais' => $vendedor->pais,
             'rol' => $vendedor->rol,
             'status' => $vendedor->status,
+            'sales_mode' => $vendedor->sales_mode,
+            'can_register_manual_sales' => (bool) $vendedor->can_register_manual_sales,
             'imagen' => $vendedor->imagen,
             'qr_token' => $vendedor->qr_token,
             'registration_url' => $this->registrationUrl($vendedor),

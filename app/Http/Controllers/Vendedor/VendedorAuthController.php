@@ -32,7 +32,10 @@ class VendedorAuthController extends Controller
         if (Auth::guard('vendedor_web')->attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            return redirect()->intended(route('vendedor.dashboard'));
+            // No usamos `intended` aquí: la sesión también se usa para el
+            // panel administrativo y podría conservar una URL protegida por
+            // el guard web. Un vendedor siempre debe entrar a su dashboard.
+            return redirect()->route('vendedor.dashboard');
         }
 
         return back()->withErrors([

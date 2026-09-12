@@ -43,6 +43,8 @@ class StripeSubscriptionService
                 'stripe_status' => 'canceled',
                 'ends_at' => now(),
             ]);
+
+        $this->syncSellerRecoveryCommissionWhenPaid($user, $subscription->status);
     }
 
     public function updateSubscription($subscription): void
@@ -56,6 +58,13 @@ class StripeSubscriptionService
                     : null,
                 'ends_at' => $this->resolveEndsAt($subscription),
             ]);
+
+        $localSubscription = Subscription::query()
+            ->with('user.sellerReferral')
+            ->where('stripe_id', $subscription->id)
+            ->first();
+
+        $this->syncSellerRecoveryCommissionWhenPaid($localSubscription?->user, $subscription->status);
     }
 
     public function cancelSubscription($subscription): void
@@ -96,5 +105,16 @@ class StripeSubscriptionService
         }
 
         return null;
+    }
+
+    private function syncSellerRecoveryCommissionWhenPaid(?User $user, ?string $status): void
+    {
+        $referral = $user?->sellerReferral;
+
+        if ($status !== 'active' || ! $referral?->isRecoveryOpportunity()) {
+            return;
+        }
+
+        app(SellerCommissionService::class)->generateCut(now());
     }
 }

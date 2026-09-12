@@ -29,11 +29,17 @@ class Vendedor extends Authenticatable
         'status',
         'imagen',
         'qr_token',
+        'sales_mode',
+        'can_register_manual_sales',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $casts = [
+        'can_register_manual_sales' => 'boolean',
     ];
 
     public function referrals(): HasMany
@@ -44,5 +50,10 @@ class Vendedor extends Authenticatable
     public function commissionItems(): HasMany
     {
         return $this->hasMany(SellerCommissionItem::class);
+    }
+
+    public function canRecoverPsychologists(): bool
+    {
+        return in_array($this->sales_mode, ['recovery', 'hybrid'], true);
     }
 }

@@ -25,9 +25,11 @@ const ROLE_LABELS = {
     supervisor: 'Supervisor',
 };
 
-function csrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-}
+const SALES_MODE_LABELS = {
+    acquisition: 'Captación',
+    recovery: 'Recuperación',
+    hybrid: 'Mixto',
+};
 
 function money(value) {
     return new Intl.NumberFormat('es-MX', {
@@ -203,6 +205,12 @@ export default function Vendedores({ auth, vendedores = [] }) {
                                 >
                                     Ver pagos
                                 </Link>
+                                <Link
+                                    href={route('seller-recovery.index')}
+                                    className="inline-flex items-center justify-center rounded-md border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-bold text-teal-800 transition hover:bg-teal-100"
+                                >
+                                    Cartera de recuperación
+                                </Link>
                                 <button
                                     type="button"
                                     onClick={openCreateModal}
@@ -279,6 +287,10 @@ export default function Vendedores({ auth, vendedores = [] }) {
                                                     <p className="mt-1 text-xs text-slate-400">
                                                         {ROLE_LABELS[vendedor.rol] || vendedor.rol} · {vendedor.ciudad || 'Sin ciudad'} {vendedor.estado ? `, ${vendedor.estado}` : ''}
                                                     </p>
+                                                    <span className="mt-2 inline-flex rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-700 ring-1 ring-teal-100">
+                                                        {SALES_MODE_LABELS[vendedor.sales_mode] || 'Captación'}
+                                                        {vendedor.can_register_manual_sales ? ' · Ventas manuales' : ''}
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -386,7 +398,6 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
     const [showPassword, setShowPassword] = useState(false);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        _token: csrfToken(),
         _method: isEdit ? 'put' : 'post',
         nombre: vendedor?.nombre || '',
         email: vendedor?.email || '',
@@ -400,12 +411,14 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
         pais: vendedor?.pais || 'Mexico',
         rol: vendedor?.rol || 'vendedor',
         status: vendedor?.status || 'active',
+        sales_mode: vendedor?.sales_mode || 'acquisition',
+        can_register_manual_sales: Boolean(vendedor?.can_register_manual_sales),
         imagen: null,
     });
 
     const handleChange = (event) => {
-        const { name, value, type, files } = event.target;
-        setData(name, type === 'file' ? files[0] : value);
+        const { name, value, type, files, checked } = event.target;
+        setData(name, type === 'file' ? files[0] : type === 'checkbox' ? checked : value);
     };
 
     const submit = (event) => {
@@ -467,6 +480,29 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
                         <option value="inactive">Inactivo</option>
                     </select>
                 </Field>
+
+                <Field label="Modalidad comercial" error={errors.sales_mode}>
+                    <select name="sales_mode" value={data.sales_mode} onChange={handleChange} className={inputClass}>
+                        <option value="acquisition">Captación por link / QR</option>
+                        <option value="recovery">Recuperación de psicólogos</option>
+                        <option value="hybrid">Mixto: captación y recuperación</option>
+                    </select>
+                </Field>
+
+                <label className="flex items-start gap-3 rounded-lg border border-teal-100 bg-teal-50/60 p-3 md:col-span-2">
+                    <input
+                        name="can_register_manual_sales"
+                        type="checkbox"
+                        checked={data.can_register_manual_sales}
+                        onChange={handleChange}
+                        disabled={data.sales_mode === 'acquisition'}
+                        className="mt-0.5 rounded border-teal-300 text-teal-700 focus:ring-teal-500 disabled:opacity-50"
+                    />
+                    <span>
+                        <span className="block text-sm font-bold text-teal-900">Permitir ventas manuales</span>
+                        <span className="mt-0.5 block text-xs text-teal-700">El vendedor podrá agregar a su cartera psicólogos registrados que no tengan propietario comercial.</span>
+                    </span>
+                </label>
 
                 <Field label="Pais" error={errors.pais}>
                     <input name="pais" value={data.pais} onChange={handleChange} className={inputClass} />

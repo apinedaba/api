@@ -13,6 +13,7 @@ const milestoneLabels = {
     activation: 'Activacion',
     month_2: 'Mes 2 activo',
     month_6: 'Mes 6 activo',
+    recovery_subscription: 'Suscripción recuperada',
 };
 
 export default function SellerCommissions({ auth, cutDate, pendingBySeller = [], items = [], totals = {} }) {
@@ -63,8 +64,8 @@ export default function SellerCommissions({ auth, cutDate, pendingBySeller = [],
                                 <p className="text-xs uppercase tracking-[0.28em] text-cyan-200">Corte mensual</p>
                                 <h1 className="mt-2 text-3xl font-black">Comisiones pendientes: {money(totals.pending)}</h1>
                                 <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                                    Regla vigente: $50 al activar cuenta, $20 si sigue activo al mes 2 y $30 si sigue activo al mes 6.
-                                    El corte automatico corre el dia 25 de cada mes.
+                                    Captación: $50 al activar, $20 al mes 2 y $30 al mes 6. Recuperación y ventas manuales: $30 (1–9), $40 (10–14) o $50 (15+) por suscripción confirmada en el mes.
+                                    El corte automático corre el día 25 de cada mes.
                                 </p>
                             </div>
 
@@ -114,11 +115,12 @@ export default function SellerCommissions({ auth, cutDate, pendingBySeller = [],
                                             {money(row.total_pending)}
                                         </span>
                                     </div>
-                                    <div className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
+                                    <div className="mt-4 grid grid-cols-5 gap-2 text-center text-xs">
                                         <MiniStat label="Items" value={row.items_count} />
                                         <MiniStat label="$50" value={row.activation_count} />
                                         <MiniStat label="$20" value={row.month_2_count} />
                                         <MiniStat label="$30" value={row.month_6_count} />
+                                        <MiniStat label="Recup." value={row.recovery_count || 0} />
                                     </div>
                                 </div>
                             ))}

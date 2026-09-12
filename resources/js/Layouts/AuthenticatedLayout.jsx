@@ -32,6 +32,7 @@ const navigationGroups = [
             { label: 'WhatsApp automation', href: 'whatsapp-automation.index', match: ['whatsapp-automation.*'] },
             { label: 'Cupones', href: 'coupons', match: ['coupons', 'coupons.*'] },
             { label: 'Vendedores', href: 'vendedores', match: ['vendedores', 'vendedores.*'] },
+            { label: 'Recuperación', href: 'seller-recovery.index', match: ['seller-recovery.*'] },
             { label: 'Pagos vendedores', href: 'seller-commissions', match: ['seller-commissions', 'seller-commissions.*'] },
         ],
     },

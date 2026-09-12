@@ -26,6 +26,7 @@ use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerCommissionController;
+use App\Http\Controllers\SellerRecoveryController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\TemporalityController;
@@ -68,6 +69,12 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return redirect('https://mindmeet.com.mx');
 });
+
+Route::get('/csrf-token', function () {
+    return response()
+        ->json(['token' => csrf_token()])
+        ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+})->name('csrf-token');
 
 // Google vuelve por navegación del navegador, no por XHR. Esta misma URL está
 // registrada en Google, pero se atiende con middleware web para conservar sesión.
@@ -300,6 +307,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'preview'])->name('vendedores.qr.image');
     Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
     Route::get('/vendedores/{vendedor}/qr-download', [VendedorController::class, 'download'])->name('vendedores.qr.download');
+    Route::get('/recuperacion-vendedores', [SellerRecoveryController::class, 'index'])->name('seller-recovery.index');
+    Route::post('/recuperacion-vendedores/asignaciones', [SellerRecoveryController::class, 'assign'])->name('seller-recovery.assign');
+    Route::post('/recuperacion-vendedores/asignaciones-masivas', [SellerRecoveryController::class, 'assignBulk'])->name('seller-recovery.assign-bulk');
 
     // Rutas administrativas para pacientes
     Route::prefix('admin')->group(function () {
@@ -350,6 +360,8 @@ Route::prefix('vendedor')->name('vendedor.')->group(function () {
         Route::get('/dashboard', [VendedorDashboardController::class, 'index'])->name('dashboard');
         Route::get('/qr', [VendedorDashboardController::class, 'downloadQr'])->name('qr');
         Route::get('/qr-preview', [VendedorDashboardController::class, 'previewQr'])->name('qr.preview');
+        Route::post('/recuperacion/ventas-manuales', [SellerRecoveryController::class, 'createManual'])->name('recovery.manual.store');
+        Route::patch('/recuperacion/{sellerReferral}/seguimiento', [SellerRecoveryController::class, 'updateFollowUp'])->name('recovery.follow-up.update');
         Route::post('/logout', [VendedorAuthController::class, 'logout'])->name('logout');
     });
 });

@@ -17,6 +17,12 @@ class SellerCommissionService
         'month_6' => 30,
     ];
 
+    public const RECOVERY_COMMISSION_TIERS = [
+        ['min' => 15, 'amount' => 50],
+        ['min' => 10, 'amount' => 40],
+        ['min' => 1, 'amount' => 30],
+    ];
+
     public function registerReferral(Vendedor $vendedor, User $user, ?string $code = null): SellerReferral
     {
         $trialEndsAt = now()->addDays(15);
@@ -29,6 +35,9 @@ class SellerCommissionService
                 'status' => 'trial',
                 'registered_at' => now(),
                 'trial_ends_at' => $trialEndsAt,
+                'source' => SellerReferral::SOURCE_SELLER_QR,
+                'pipeline_status' => SellerReferral::PIPELINE_ASSIGNED,
+                'assigned_at' => now(),
                 'metadata' => [
                     'source' => 'seller_qr',
                 ],
@@ -62,6 +71,11 @@ class SellerCommissionService
             $updates['first_activated_at'] = $this->resolveActivationDate($user, $cutDate);
         }
 
+        if ($isActive && $referral->isRecoveryOpportunity()) {
+            $updates['pipeline_status'] = SellerReferral::PIPELINE_RECOVERED;
+            $updates['converted_at'] = $referral->converted_at ?: ($updates['first_activated_at'] ?? now());
+        }
+
         $referral->update($updates);
 
         return $referral->fresh();
@@ -89,6 +103,10 @@ class SellerCommissionService
             ->whereNotNull('first_activated_at')
             ->chunkById(100, function ($referrals) use ($cutDate, $created) {
                 foreach ($referrals as $referral) {
+                    if ($referral->isRecoveryOpportunity()) {
+                        continue;
+                    }
+
                     if (!$referral->user || !$this->userHasPaidAccess($referral->user)) {
                         continue;
                     }
@@ -115,6 +133,76 @@ class SellerCommissionService
                     }
                 }
             });
+
+        $created = $created->merge($this->generateRecoverySubscriptionCommissions($cutDate));
+
+        return $created;
+    }
+
+    public function recoveryCommissionAmount(int $conversions): float
+    {
+        foreach (self::RECOVERY_COMMISSION_TIERS as $tier) {
+            if ($conversions >= $tier['min']) {
+                return (float) $tier['amount'];
+            }
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * Applies the recovery seller tiers to every paid conversion in the
+     * selected calendar month. Pending items are updated together so crossing
+     * a tier raises the amount for the seller's earlier conversions as well.
+     */
+    protected function generateRecoverySubscriptionCommissions(Carbon $cutDate): Collection
+    {
+        $monthStart = $cutDate->copy()->startOfMonth();
+        $monthEnd = $cutDate->copy()->endOfMonth();
+        $created = collect();
+
+        $referrals = SellerReferral::query()
+            ->with(['user.subscription'])
+            ->whereIn('source', [SellerReferral::SOURCE_RECOVERY, SellerReferral::SOURCE_MANUAL])
+            ->whereNotNull('first_activated_at')
+            ->whereBetween('first_activated_at', [$monthStart, $monthEnd])
+            ->get()
+            ->filter(fn (SellerReferral $referral) => $referral->user && $this->userHasPaidAccess($referral->user))
+            ->groupBy('vendedor_id');
+
+        foreach ($referrals as $sellerReferrals) {
+            $amount = $this->recoveryCommissionAmount($sellerReferrals->count());
+
+            foreach ($sellerReferrals as $referral) {
+                $item = SellerCommissionItem::firstOrCreate(
+                    [
+                        'seller_referral_id' => $referral->id,
+                        'milestone' => 'recovery_subscription',
+                    ],
+                    [
+                        'vendedor_id' => $referral->vendedor_id,
+                        'user_id' => $referral->user_id,
+                        'amount' => $amount,
+                        'status' => SellerCommissionItem::STATUS_PENDING,
+                        'eligible_at' => $referral->first_activated_at->toDateString(),
+                        'cut_date' => $cutDate->toDateString(),
+                        'notes' => 'Suscripción atribuida a recuperación/venta manual.',
+                    ]
+                );
+
+                if ($item->wasRecentlyCreated) {
+                    $created->push($item);
+                    continue;
+                }
+
+                if ($item->status === SellerCommissionItem::STATUS_PENDING) {
+                    $item->update([
+                        'amount' => $amount,
+                        'cut_date' => $cutDate->toDateString(),
+                    ]);
+                }
+            }
+        }
 
         return $created;
     }

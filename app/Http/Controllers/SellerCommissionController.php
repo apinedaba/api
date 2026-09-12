@@ -38,6 +38,7 @@ class SellerCommissionController extends Controller
                     'activation_count' => $sellerItems->where('milestone', 'activation')->count(),
                     'month_2_count' => $sellerItems->where('milestone', 'month_2')->count(),
                     'month_6_count' => $sellerItems->where('milestone', 'month_6')->count(),
+                    'recovery_count' => $sellerItems->where('milestone', 'recovery_subscription')->count(),
                 ];
             })
             ->values();

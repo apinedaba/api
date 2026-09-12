@@ -65,6 +65,7 @@ class VendedorDashboardController extends Controller
                     'id'                  => $referral->user?->id,
                     'name'                => $referral->user?->name,
                     'email'               => $referral->user?->email,
+                    'login_url'           => $this->psychologistLoginUrl($referral->user),
                     'phone'               => $this->psychologistPhone($referral->user),
                     'activo'              => (bool) $referral->user?->activo,
                     'subscription_status' => optional($referral->user?->subscription)->stripe_status,
@@ -140,6 +141,17 @@ class VendedorDashboardController extends Controller
         $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
 
         return $baseUrl . '/register?v=' . urlencode($vendedor->qr_token);
+    }
+
+    private function psychologistLoginUrl(?\App\Models\User $user): ?string
+    {
+        if (! $user?->email) {
+            return null;
+        }
+
+        $baseUrl = rtrim(config('app.front_url_psicologo') ?: config('app.frontend_url') ?: config('app.url'), '/');
+
+        return $baseUrl . '/login?' . http_build_query(['email' => $user->email]);
     }
 
     private function psychologistPhone(?\App\Models\User $user): ?string

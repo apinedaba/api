@@ -272,6 +272,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
 
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
+    Route::post('user/questionnaires/import-document', [QuestionnaireController::class, 'importDocument'])
+        ->middleware('throttle:10,1');
+    Route::get('user/questionnaires/templates', [QuestionnaireController::class, 'templates']);
+    Route::get('user/questionnaires/invitations', [QuestionnaireController::class, 'invitations']);
     Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
     Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
     Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->name('questionnaire.show.response');

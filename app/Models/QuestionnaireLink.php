@@ -14,7 +14,9 @@ class QuestionnaireLink extends Model
         'token',
         'expires_at',
         'user',
-        'patient'
+        'patient',
+        'recipient_name',
+        'recipient_email',
     ];
 
     protected $casts = [

@@ -167,6 +167,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
     Route::get('user/document-preferences', [ProfileController::class, 'documentPreferences']);
     Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
+    Route::get('user/document-requests', [PatientDocumentRequestController::class, 'professionalIndex']);
     Route::get('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'index']);
     Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store']);
     Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel']);

@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use App\Notifications\NuevoPsicologoRegistrado;
 use App\Notifications\NuevoPacienteBienvenida;
 use App\Models\Subscription;
+use App\Models\SocialRegistrationIntent;
+use Illuminate\Support\Str;
 
 class SocialiteController extends Controller
 {
@@ -48,25 +50,28 @@ class SocialiteController extends Controller
                     'avatar' => $user->avatar ?? $socialUser->avatar,
                 ]);
             } else {
-                $user = User::create([
-                    'name' => $socialUser->name,
-                    'email' => $socialUser->email,
-                    'provider_name' => $provider,
-                    'provider_id' => $socialUser->id,
-                    'avatar' => $socialUser->avatar,
-                    'password' => Hash::make(uniqid()),
-                    'email_verified_at' => now(),
-                ]);
-                Subscription::create([
-                    'user_id' => $user->id,
-                    'stripe_status' => 'init',
-                    'trial_ends_at' => null,
-                ]);
-                $user->notify(new NuevoPsicologoRegistrado($user, true));
+                // Google confirma identidad, pero el teléfono sigue siendo un
+                // requisito de registro. Guardamos una intención temporal, no
+                // una cuenta incompleta, hasta que la persona lo capture.
+                $rawToken = Str::random(64);
+                SocialRegistrationIntent::updateOrCreate(
+                    ['provider_name' => $provider, 'provider_id' => (string) $socialUser->id],
+                    [
+                        'token_hash' => hash('sha256', $rawToken),
+                        'name' => $socialUser->name ?: 'Profesional MindMeet',
+                        'email' => mb_strtolower(trim((string) $socialUser->email)),
+                        'avatar' => $socialUser->avatar,
+                        'expires_at' => now()->addMinutes(15),
+                        'completed_at' => null,
+                    ]
+                );
+
+                return redirect(config('app.front_url_psicologo') . '/registro-google?intent=' . urlencode($rawToken));
             }
 
             $token = $user->createToken('user_token')->plainTextToken;
-            return redirect(config('app.front_url_psicologo') . '/auth/callback?token=' . $token);
+            $needsPhone = ! $user->hasValidPhone();
+            return redirect(config('app.front_url_psicologo') . '/auth/callback?token=' . $token . ($needsPhone ? '&phone_required=1' : ''));
         } catch (Exception $e) {
             Log::error('Socialite Callback Error (Professional): ' . $e->getMessage());
             return redirect(config('app.front_url_psicologo') . '/login?error=social_auth_failed');

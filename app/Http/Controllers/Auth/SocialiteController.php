@@ -44,11 +44,18 @@ class SocialiteController extends Controller
             $user = User::where('email', $socialUser->email)->first();
 
             if ($user) {
-                $user->update([
+                // La identidad ya fue confirmada por Google; no corresponde
+                // pedir un segundo código OTP de correo al volver al panel.
+                // Esto también repara cuentas sociales creadas antes de que
+                // guardáramos explícitamente esta marca.
+                $user->forceFill([
                     'provider_name' => $provider,
                     'provider_id' => $socialUser->id,
                     'avatar' => $user->avatar ?? $socialUser->avatar,
-                ]);
+                    'email_verified_at' => $user->email_verified_at ?: now(),
+                    'verification_code' => null,
+                    'code_expires_at' => null,
+                ])->save();
             } else {
                 // Google confirma identidad, pero el teléfono sigue siendo un
                 // requisito de registro. Guardamos una intención temporal, no

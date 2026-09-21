@@ -71,6 +71,15 @@ class SocialRegistrationController extends Controller
                 'email_verified_at' => now(),
             ]);
 
+            // `email_verified_at` no se acepta mediante asignación masiva.
+            // Google ya autenticó la propiedad del correo, así que lo
+            // confirmamos explícitamente al finalizar el registro social.
+            $user->forceFill([
+                'email_verified_at' => now(),
+                'verification_code' => null,
+                'code_expires_at' => null,
+            ])->save();
+
             $this->ensureInitialWorkspace($user, $organizationService);
             Subscription::firstOrCreate(['user_id' => $user->id], [
                 'stripe_id' => null,

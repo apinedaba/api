@@ -13,6 +13,7 @@ use App\Models\ValidacionCedulaManual;
 use Illuminate\Support\Facades\Storage;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 
 class CedulaCheck extends Controller
@@ -272,7 +273,10 @@ class CedulaCheck extends Controller
     public function getCedulasByUser($userId = null)
     {
         $userId = $userId ?? Auth::user()->id;
-        $cedulas = ValidacionCedulaManual::where('user_id', $userId)->get();
+        $cedulas = ValidacionCedulaManual::where('user_id', $userId)
+            ->orderByRaw("CASE estado WHEN 'pendiente' THEN 0 WHEN 'rechazado' THEN 1 ELSE 2 END")
+            ->orderByDesc('created_at')
+            ->get();
         return response()->json([
             'status' => 'success',
             'data' => $cedulas
@@ -294,15 +298,44 @@ class CedulaCheck extends Controller
             'archivo_titulo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $validacion = ValidacionCedulaManual::create([
-            'user_id' => auth()->id(),
-            'numero_cedula' => $validated['numero_cedula'],
-            'nombre_completo' => $validated['nombre_completo'],
-            'institucion' => $validated['institucion'],
-            'carrera' => $validated['carrera'],
-            'fecha_expedicion' => $validated['fecha_expedicion'],
-            'estado' => 'pendiente',
-        ]);
+        $numeroCedula = $this->normalizeNumeroCedula($validated['numero_cedula']);
+        $existing = ValidacionCedulaManual::query()
+            ->whereRaw("UPPER(REPLACE(numero_cedula, ' ', '')) = ?", [$numeroCedula])
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $existing->user_id === auth()->id()
+                    ? 'Esta cédula ya tiene una solicitud ' . $existing->estado . '. No necesitas enviarla nuevamente.'
+                    : 'Esta cédula ya está registrada por otro profesional. Si te pertenece, contacta a soporte.',
+                'validacion_id' => $existing->id,
+            ], 409);
+        }
+
+        try {
+            // `request_key` tiene un índice único. Es la última barrera ante
+            // doble clics o peticiones simultáneas que lleguen al servidor.
+            $validacion = ValidacionCedulaManual::create([
+                'user_id' => auth()->id(),
+                'numero_cedula' => $numeroCedula,
+                'request_key' => hash('sha256', $numeroCedula),
+                'nombre_completo' => $validated['nombre_completo'],
+                'institucion' => $validated['institucion'],
+                'carrera' => $validated['carrera'],
+                'fecha_expedicion' => $validated['fecha_expedicion'],
+                'estado' => 'pendiente',
+            ]);
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateCedulaRequest($exception)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Esta cédula ya tiene una solicitud de validación. No necesitas enviarla nuevamente.',
+                ], 409);
+            }
+
+            throw $exception;
+        }
 
         // Guardar archivos en Cloudinary si existen
         if ($request->hasFile('archivo_cedula')) {
@@ -323,6 +356,17 @@ class CedulaCheck extends Controller
             'validacion_id' => $validacion->id,
             'data' => $validacion
         ], 201);
+    }
+
+    private function normalizeNumeroCedula(string $numeroCedula): string
+    {
+        return mb_strtoupper(preg_replace('/\s+/', '', trim($numeroCedula)));
+    }
+
+    private function isDuplicateCedulaRequest(QueryException $exception): bool
+    {
+        return (string) $exception->getCode() === '23000'
+            || str_contains(mb_strtolower($exception->getMessage()), 'duplicate');
     }
 
     /**
@@ -516,8 +560,22 @@ class CedulaCheck extends Controller
             'archivo_titulo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
+        $numeroCedula = $this->normalizeNumeroCedula($validated['numero_cedula']);
+        $otherValidation = ValidacionCedulaManual::query()
+            ->whereRaw("UPPER(REPLACE(numero_cedula, ' ', '')) = ?", [$numeroCedula])
+            ->whereKeyNot($validacion->id)
+            ->first();
+
+        if ($otherValidation) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Esta cédula ya cuenta con otra solicitud de validación.',
+            ], 409);
+        }
+
         // Actualizar datos básicos
-        $validacion->numero_cedula = $validated['numero_cedula'];
+        $validacion->numero_cedula = $numeroCedula;
+        $validacion->request_key = hash('sha256', $numeroCedula);
         $validacion->nombre_completo = $validated['nombre_completo'];
         $validacion->institucion = $validated['institucion'];
         $validacion->carrera = $validated['carrera'];
@@ -540,7 +598,18 @@ class CedulaCheck extends Controller
             $validacion->archivo_titulo = $url;
         }
 
-        $validacion->save();
+        try {
+            $validacion->save();
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateCedulaRequest($exception)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Esta cédula ya cuenta con otra solicitud de validación.',
+                ], 409);
+            }
+
+            throw $exception;
+        }
 
         // Actualizar en el perfil del usuario
         $user = $validacion->user;

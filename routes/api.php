@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialiteController;
+use App\Http\Controllers\Auth\SocialRegistrationController;
 use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
@@ -76,6 +77,10 @@ Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])
     ->middleware('throttle:resend');
+Route::get('user/social-registration/{token}', [SocialRegistrationController::class, 'show'])
+    ->middleware('throttle:12,1');
+Route::post('user/social-registration/complete', [SocialRegistrationController::class, 'complete'])
+    ->middleware('throttle:6,1');
 
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
@@ -126,6 +131,8 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 })->middleware(['signed'])->name('verification.verify');
 
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('user')->group(function () {
+    Route::post('social-registration/complete-phone', [SocialRegistrationController::class, 'completeExistingPhone'])
+        ->middleware('throttle:6,1');
     Route::get('credential', [CredentialController::class, 'psychologist']);
     Route::get('credential/pdf', [CredentialController::class, 'psychologistPdf']);
     Route::get('organizations', [OrganizationController::class, 'index']);

@@ -60,4 +60,27 @@ class ProfessionalAvailabilityCompatibilityTest extends TestCase
             'timezone' => 'America/Mexico_City',
         ])->assertOk()->assertJsonFragment(['hour' => '10:00']);
     }
+
+    public function test_public_availability_can_be_read_without_a_csrf_protected_post(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-31 08:00:00', 'America/Mexico_City'));
+
+        $professional = User::factory()->create([
+            'timezone' => 'America/Mexico_City',
+            'horarios' => [
+                'tuesday' => [
+                    ['start' => '09:00', 'end' => '11:00'],
+                ],
+            ],
+        ]);
+
+        $this->getJson("/api/patient/profesional/{$professional->id}/disponibilidad?".http_build_query([
+            'start' => '2026-08-31',
+            'end' => '2026-09-02',
+            'timezone' => 'America/Mexico_City',
+        ]))->assertOk()->assertJsonFragment([
+            'date' => '2026-09-01',
+            'hour' => '09:00',
+        ]);
+    }
 }

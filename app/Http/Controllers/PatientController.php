@@ -102,7 +102,10 @@ class PatientController extends Controller
     public function getAllPatients()
     {
         $patients = Patient::query()
-            ->where('registration_source', 'website')
+            // El directorio de superadmin reúne los registros públicos y las
+            // altas manuales del propio equipo; no mezcla pacientes creados
+            // dentro de expedientes particulares por cada psicólogo.
+            ->whereIn('registration_source', ['website', 'admin'])
             ->with(['connections.user:id,name,email,image', 'expediente'])
             ->latest()
             ->get()

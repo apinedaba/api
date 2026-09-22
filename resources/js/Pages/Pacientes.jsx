@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ModalAgregarPaciente from '@/Components/Pacientes/ModalAgregarPaciente';
 import ModalAsignarPsicologo from '@/Components/Pacientes/ModalAsignarPsicologo';
 import { Head, Link, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
@@ -15,6 +16,7 @@ export default function Pacientes({ auth, pacientes = [] }) {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedPatient, setSelectedPatient] = useState(null);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const summary = useMemo(() => ({
@@ -55,9 +57,9 @@ export default function Pacientes({ auth, pacientes = [] }) {
             header={
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600">Directorio de pacientes</p>
-                    <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Registros desde el sitio web</h1>
+                    <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Pacientes de MindMeet</h1>
                     <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                        Personas que crearon su propia cuenta en MindMeet. Las altas realizadas por psicólogos no aparecen aquí.
+                        Administra registros del sitio y altas manuales realizadas por el equipo. Los expedientes privados de cada psicólogo no aparecen aquí.
                     </p>
                 </div>
             }
@@ -68,7 +70,7 @@ export default function Pacientes({ auth, pacientes = [] }) {
             <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <div className="mx-auto max-w-7xl space-y-6">
                     <section className="grid gap-4 sm:grid-cols-3">
-                        <MetricCard label="Registros web" value={summary.total} tone="blue" />
+                        <MetricCard label="Pacientes registrados" value={summary.total} tone="blue" />
                         <MetricCard label="Cuentas activas" value={summary.active} tone="emerald" />
                         <MetricCard label="Sin psicólogo" value={summary.unassigned} tone="amber" />
                     </section>
@@ -84,6 +86,16 @@ export default function Pacientes({ auth, pacientes = [] }) {
                                 </div>
 
                                 <div className="flex flex-col gap-3 sm:flex-row">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCreateModalOpen(true)}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        Crear paciente
+                                    </button>
                                     <label className="relative block sm:w-80">
                                         <span className="sr-only">Buscar pacientes</span>
                                         <svg className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,6 +188,15 @@ export default function Pacientes({ auth, pacientes = [] }) {
                     }}
                 />
             ) : null}
+
+            <ModalAgregarPaciente
+                show={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSuccess={() => {
+                    setIsCreateModalOpen(false);
+                    refreshPatients();
+                }}
+            />
         </AuthenticatedLayout>
     );
 }
@@ -292,9 +313,9 @@ function EmptyState({ hasFilters, onReset }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M13 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
                 </svg>
             </div>
-            <h3 className="mt-4 font-bold text-slate-900">{hasFilters ? 'No encontramos coincidencias' : 'Aún no hay registros web'}</h3>
+            <h3 className="mt-4 font-bold text-slate-900">{hasFilters ? 'No encontramos coincidencias' : 'Aún no hay pacientes registrados'}</h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
-                {hasFilters ? 'Prueba con otro término o limpia los filtros.' : 'Los pacientes que se registren desde el sitio aparecerán aquí.'}
+                {hasFilters ? 'Prueba con otro término o limpia los filtros.' : 'Crea el primer paciente o espera nuevos registros desde el sitio.'}
             </p>
             {hasFilters ? <button type="button" onClick={onReset} className="mt-5 text-sm font-bold text-blue-600 hover:text-blue-700">Limpiar filtros</button> : null}
         </div>

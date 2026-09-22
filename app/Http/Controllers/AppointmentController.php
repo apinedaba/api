@@ -58,7 +58,7 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $appointments = Appointment::with(['payments', 'cart', 'user.googleAccount', 'participants.patient'])
+        $appointments = Appointment::with(['payments', 'cart', 'patient', 'user.googleAccount', 'participants.patient'])
             ->where('user', $user->id)
             ->orderBy('start')
             ->get();

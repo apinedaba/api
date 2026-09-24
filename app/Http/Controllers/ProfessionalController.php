@@ -16,7 +16,7 @@ class ProfessionalController extends Controller
      * Query params:
      * - page, perPage
      * - search, precioMax
-     * - generos (CSV), enfoques (CSV)
+     * - generos (CSV), enfoques (CSV), modalidad (CSV)
      * - pais, idioma, especialidad
      */
     public function index(Request $request)
@@ -432,7 +432,7 @@ class ProfessionalController extends Controller
             ->map(fn($format) => Str::lower($format))
             ->flatMap(function ($format) {
                 if (in_array($format, ['online', 'presencial'], true)) {
-                    return [$format, 'mixto'];
+                    return [$format, 'mixto', 'mixta'];
                 }
 
                 return [$format];

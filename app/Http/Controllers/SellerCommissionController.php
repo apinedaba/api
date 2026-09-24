@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SellerCommissionItem;
 use App\Services\SellerCommissionService;
+use App\Services\AdminVendedoresClient;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,6 +13,37 @@ class SellerCommissionController extends Controller
 {
     public function index(Request $request, SellerCommissionService $service)
     {
+        if (config('services.admin_vendedores.integration_token')) {
+            $items = collect(app(AdminVendedoresClient::class)->commissions())
+                ->map(fn (array $item) => $this->transformRemoteItem($item));
+
+            $pendingItems = $items->where('status', SellerCommissionItem::STATUS_PENDING);
+            $pendingBySeller = $pendingItems
+                ->groupBy('vendedor_id')
+                ->map(function ($sellerItems) {
+                    $first = $sellerItems->first();
+
+                    return [
+                        'vendedor_id' => $first['vendedor_id'],
+                        'vendedor' => $first['vendedor'],
+                        'total_pending' => (float) $sellerItems->sum('amount'),
+                        'items_count' => $sellerItems->count(),
+                    ];
+                })
+                ->values();
+
+            return Inertia::render('SellerCommissions', [
+                'cutDate' => now()->toDateString(),
+                'commissionMode' => 'monthly_sales',
+                'pendingBySeller' => $pendingBySeller,
+                'items' => $items->values(),
+                'totals' => [
+                    'pending' => (float) $pendingItems->sum('amount'),
+                    'paid' => (float) $items->where('status', SellerCommissionItem::STATUS_PAID)->sum('amount'),
+                    'pending_items' => $pendingItems->count(),
+                ],
+            ]);
+        }
         $cutDate = $request->filled('cut_date')
             ? Carbon::parse($request->input('cut_date'))
             : now();
@@ -44,6 +76,7 @@ class SellerCommissionController extends Controller
 
         return Inertia::render('SellerCommissions', [
             'cutDate' => $service->normalizeCutDate($cutDate)->toDateString(),
+            'commissionMode' => 'legacy',
             'pendingBySeller' => $pendingBySeller,
             'items' => $items->map(fn (SellerCommissionItem $item) => $this->transformItem($item)),
             'totals' => [
@@ -56,6 +89,10 @@ class SellerCommissionController extends Controller
 
     public function generate(Request $request, SellerCommissionService $service)
     {
+        if (config('services.admin_vendedores.integration_token')) {
+            return redirect()->route('seller-commissions')->with('status', 'Las comisiones se calculan automáticamente cuando se confirma el pago de una recuperación.');
+        }
+
         $request->validate([
             'cut_date' => ['nullable', 'date'],
         ]);
@@ -69,8 +106,14 @@ class SellerCommissionController extends Controller
     {
         $validated = $request->validate([
             'item_ids' => ['required', 'array', 'min:1'],
-            'item_ids.*' => ['integer', 'exists:seller_commission_items,id'],
+            'item_ids.*' => ['string'],
         ]);
+
+        if (config('services.admin_vendedores.integration_token')) {
+            app(AdminVendedoresClient::class)->markCommissionsPaid($validated['item_ids']);
+
+            return redirect()->route('seller-commissions')->with('status', 'Comisiones marcadas como pagadas.');
+        }
 
         SellerCommissionItem::query()
             ->whereIn('id', $validated['item_ids'])
@@ -97,6 +140,30 @@ class SellerCommissionController extends Controller
             'vendedor' => $item->vendedor,
             'psychologist' => $item->user,
             'referral' => $item->referral,
+        ];
+    }
+
+    /** Maps the isolated commercial API contract to the existing Inertia page. */
+    protected function transformRemoteItem(array $item): array
+    {
+        return [
+            'id' => $item['id'],
+            'vendedor_id' => $item['vendedor_id'],
+            'milestone' => ($item['origen'] ?? '') === 'Venta nueva' ? 'new_sale_monthly' : 'recovery_monthly',
+            'amount' => (float) ($item['monto'] ?? 0),
+            'status' => ($item['estado'] ?? 'pendiente') === 'pagado'
+                ? SellerCommissionItem::STATUS_PAID
+                : SellerCommissionItem::STATUS_PENDING,
+            'eligible_at' => $item['mes'] ?? null,
+            'cut_date' => $item['mes'] ?? null,
+            'paid_at' => $item['pagado_en'] ?? null,
+            'vendedor' => $item['vendedor'] ?? null,
+            'psychologist' => isset($item['psicologo']) ? [
+                'name' => $item['psicologo']['nombre'] ?? null,
+                'email' => $item['psicologo']['email'] ?? null,
+                'phone' => $item['psicologo']['telefono'] ?? null,
+            ] : null,
+            'referral' => null,
         ];
     }
 }

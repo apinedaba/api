@@ -26,6 +26,7 @@ use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerCommissionController;
+use App\Http\Controllers\CommissionRuleController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\TemporalityController;
@@ -246,6 +247,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
     Route::delete('/coupons/{coupon}', [DiscountCouponController::class, 'adminDestroy'])->name('coupons.destroy');
     Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
+    Route::get('/commission-rules', [CommissionRuleController::class, 'index'])->name('commission-rules');
+    Route::post('/commission-rules', [CommissionRuleController::class, 'store'])->name('commission-rules.store');
+    Route::delete('/commission-rules/{rule}', [CommissionRuleController::class, 'destroy'])->name('commission-rules.destroy');
     Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
     Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
     Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
@@ -296,6 +300,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
     Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
     Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
+    Route::post('/vendedores/{vendedor}/resend-activation', [VendedorController::class, 'resendActivation'])->name('vendedores.resend-activation');
     Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
     Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'preview'])->name('vendedores.qr.image');
     Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');

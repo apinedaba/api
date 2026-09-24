@@ -1,7 +1,7 @@
 import InputError from '@/Components/InputError';
 import Modal from '@/Components/Modal';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     ClipboardDocumentIcon,
     EyeIcon,
@@ -122,13 +122,14 @@ function SellerAvatar({ vendedor }) {
     );
 }
 
-export default function Vendedores({ auth, vendedores = [] }) {
+export default function Vendedores({ auth, vendedores = [], integrationError = null }) {
     const { flash } = usePage().props;
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [selectedVendedor, setSelectedVendedor] = useState(null);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all');
+    const [resendingVendorId, setResendingVendorId] = useState(null);
 
     const stats = useMemo(() => {
         const active = vendedores.filter((seller) => seller.status === 'active').length;
@@ -185,6 +186,11 @@ export default function Vendedores({ auth, vendedores = [] }) {
                             {flash.success}
                         </div>
                     )}
+                    {integrationError && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                            {integrationError}
+                        </div>
+                    )}
 
                     <section className="rounded-lg border border-sky-100 bg-white p-6 shadow-sm">
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -202,6 +208,12 @@ export default function Vendedores({ auth, vendedores = [] }) {
                                     className="inline-flex items-center justify-center rounded-md border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-800 transition hover:bg-sky-50"
                                 >
                                     Ver pagos
+                                </Link>
+                                <Link
+                                    href={route('commission-rules')}
+                                    className="inline-flex items-center justify-center rounded-md border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800 transition hover:bg-violet-100"
+                                >
+                                    Reglas de comisión
                                 </Link>
                                 <button
                                     type="button"
@@ -318,6 +330,20 @@ export default function Vendedores({ auth, vendedores = [] }) {
                                                 >
                                                     Editar
                                                 </button>
+                                                {!vendedor.password_defined_at && vendedor.status === 'active' && <button
+                                                    type="button"
+                                                    disabled={resendingVendorId === vendedor.id}
+                                                    onClick={() => {
+                                                        setResendingVendorId(vendedor.id);
+                                                        router.post(route('vendedores.resend-activation', vendedor.id), {}, {
+                                                            preserveScroll: true,
+                                                            onFinish: () => setResendingVendorId(null),
+                                                        });
+                                                    }}
+                                                    className="w-full rounded-md border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-wait disabled:opacity-60 xl:w-auto"
+                                                >
+                                                    {resendingVendorId === vendedor.id ? 'Reenviando…' : 'Reenviar invitación'}
+                                                </button>}
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -437,7 +463,7 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
                     {isEdit ? 'Editar vendedor' : 'Agregar vendedor'}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                    Crea su acceso, configura su estatus y genera automaticamente su link/QR de registro.
+                    {isEdit ? 'Actualiza sus datos comerciales o restablece su contraseña si es necesario.' : 'Se enviará un enlace seguro para que el vendedor cree su propia contraseña y active su acceso.'}
                 </p>
             </div>
 
@@ -472,7 +498,11 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
                     <input name="pais" value={data.pais} onChange={handleChange} className={inputClass} />
                 </Field>
 
-                <Field label={`Password ${isEdit ? '(opcional)' : ''}`} error={errors.password}>
+                {isEdit && <>
+                <div className="md:col-span-2 rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-sky-800">
+                    Restablecimiento opcional: si dejas estos campos vacíos, su contraseña no cambia.
+                </div>
+                <Field label="Nueva contraseña (opcional)" error={errors.password}>
                     <div className="relative">
                         <input
                             name="password"
@@ -500,6 +530,7 @@ function FormCreateEditVendedor({ vendedor = null, onClose }) {
                         className={inputClass}
                     />
                 </Field>
+                </>}
 
                 <Field label="Direccion" error={errors.direccion}>
                     <input name="direccion" value={data.direccion} onChange={handleChange} className={inputClass} />

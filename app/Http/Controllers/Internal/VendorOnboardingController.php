@@ -16,10 +16,37 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class VendorOnboardingController extends Controller
 {
+    /** Mail relay only: the CRM owns the seller account and activation token. */
+    public function sendCrmActivationEmail(Request $request)
+    {
+        $this->assertIntegrationToken($request);
+        $data = $request->validate([
+            'nombre' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255'],
+            'activation_url' => ['required', 'url', 'max:2048'],
+            'is_resend' => ['sometimes', 'boolean'],
+        ]);
+
+        // No usamos Notification::route aquí: un listener global de la app
+        // intenta persistir notificaciones y el vendedor vive sólo en su CRM.
+        $name = e($data['nombre']);
+        $url = e($data['activation_url']);
+        Mail::html(
+            "<h2>Hola {$name},</h2><p>Tu cuenta de vendedor de <strong>MindMeet CRM</strong> está lista.</p><p>Define tu contraseña desde el siguiente enlace personal. Vence en 48 horas y sólo puede usarse una vez.</p><p><a href=\"{$url}\" style=\"display:inline-block;padding:12px 18px;background:#087ca3;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold\">Crear mi contraseña</a></p><p><strong>Importante:</strong> si solicitaste un reenvío, utiliza únicamente el enlace de este correo; los anteriores dejan de funcionar.</p><p>Después podrás ingresar al CRM y administrar tu cartera.</p>",
+            function ($message) use ($data) {
+                $message->to($data['email'], $data['nombre'])
+                    ->subject(!empty($data['is_resend']) ? 'Nuevo enlace de activación — MindMeet CRM' : 'Activa tu acceso a MindMeet CRM');
+            },
+        );
+
+        return response()->json(['status' => 'sent']);
+    }
+
     public function create(Request $request, AdminVendedoresClient $vendors, OrganizationService $organizations)
     {
         $this->assertIntegrationToken($request);

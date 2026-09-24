@@ -78,6 +78,13 @@ class VendedorController extends Controller
         return back()->with('success', 'Vendedor desactivado correctamente.');
     }
 
+    public function resendActivation(string $vendedor)
+    {
+        try { $this->adminVendedores->resendVendorActivation($vendedor); }
+        catch (RuntimeException $exception) { return back()->withErrors(['vendedor' => $exception->getMessage()]); }
+        return back()->with('success', 'Invitación de activación reenviada al vendedor.');
+    }
+
     public function qr($vendedor)
     {
         if ($vendedor instanceof LegacyVendedor) {
@@ -124,7 +131,7 @@ class VendedorController extends Controller
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email'],
             'telefono' => ['required', 'string', 'min:10', 'max:15'],
-            'password' => [$updating ? 'nullable' : 'required', 'confirmed', 'min:8'],
+            'password' => ['nullable', 'confirmed', 'min:8'],
             'direccion' => ['nullable', 'string', 'max:255'], 'ciudad' => ['nullable', 'string', 'max:100'],
             'estado' => ['nullable', 'string', 'max:100'], 'codigo_postal' => ['nullable', 'string', 'max:10'],
             'pais' => ['nullable', 'string', 'max:100'], 'rol' => ['required', 'in:vendedor,supervisor'],
@@ -183,6 +190,7 @@ class VendedorController extends Controller
             'direccion' => $vendedor['direccion'] ?? '', 'ciudad' => $vendedor['ciudad'] ?? '', 'estado' => $vendedor['estado'] ?? '',
             'codigo_postal' => $vendedor['codigo_postal'] ?? '', 'pais' => $vendedor['pais'] ?? 'Mexico',
             'rol' => $vendedor['rol'] ?? 'vendedor', 'status' => !empty($vendedor['activo']) ? 'active' : 'inactive',
+            'password_defined_at' => $vendedor['password_defined_at'] ?? null,
             'imagen' => $vendedor['imagen'] ?? null, 'qr_token' => $vendedor['qr_token'],
             'registration_url' => $this->registrationUrl($vendedor),
             'referrals_count' => count($psychologists),

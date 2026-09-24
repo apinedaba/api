@@ -300,6 +300,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
     Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
     Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
+    Route::post('/vendedores/{vendedor}/resend-activation', [VendedorController::class, 'resendActivation'])->name('vendedores.resend-activation');
     Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
     Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'preview'])->name('vendedores.qr.image');
     Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');

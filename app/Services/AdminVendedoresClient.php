@@ -42,6 +42,7 @@ class AdminVendedoresClient
     public function createVendor(array $data): array { return $this->send(fn () => $this->request()->post('/internal/v1/vendors', $data)); }
     public function updateVendor(int|string $id, array $data): array { return $this->send(fn () => $this->request()->put("/internal/v1/vendors/{$id}", $data)); }
     public function deactivateVendor(int|string $id): array { return $this->send(fn () => $this->request()->delete("/internal/v1/vendors/{$id}")); }
+    public function resendVendorActivation(int|string $id): array { return $this->send(fn () => $this->request()->post("/internal/v1/vendors/{$id}/activation/resend")); }
 
     private function send(callable $request): array
     {

@@ -76,6 +76,7 @@ Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::get('pages/home', [HomeController::class, 'getImages']);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
 Route::post('internal/vendor-onboardings', [VendorOnboardingController::class, 'create']);
+Route::post('internal/vendor-crm-activation-email', [VendorOnboardingController::class, 'sendCrmActivationEmail']);
 Route::post('user/vendor-activation', [VendorOnboardingController::class, 'activate'])->middleware('throttle:6,1');
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])

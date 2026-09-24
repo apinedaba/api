@@ -20,10 +20,16 @@ class VendedorController extends Controller
     public function index()
     {
         try {
+            $commissionItemsBySeller = collect($this->adminVendedores->commissions())
+                ->groupBy('vendedor_id');
             $vendedores = collect($this->adminVendedores->vendors())
-                ->map(function (array $vendedor) {
+                ->map(function (array $vendedor) use ($commissionItemsBySeller) {
                     $psychologists = $this->adminVendedores->vendorPsychologists($vendedor['id']);
-                    return $this->transformVendedor($vendedor, $psychologists);
+                    return $this->transformVendedor(
+                        $vendedor,
+                        $psychologists,
+                        $commissionItemsBySeller->get($vendedor['id'], collect())->all(),
+                    );
                 })->values();
         } catch (RuntimeException $exception) {
             report($exception);
@@ -167,8 +173,11 @@ class VendedorController extends Controller
         }
     }
 
-    private function transformVendedor(array $vendedor, array $psychologists = []): array
+    private function transformVendedor(array $vendedor, array $psychologists = [], array $commissionItems = []): array
     {
+        $pendingCommissions = collect($commissionItems)
+            ->where('estado', 'pendiente');
+
         return [
             'id' => $vendedor['id'], 'nombre' => $vendedor['nombre'], 'email' => $vendedor['email'], 'telefono' => $vendedor['telefono'],
             'direccion' => $vendedor['direccion'] ?? '', 'ciudad' => $vendedor['ciudad'] ?? '', 'estado' => $vendedor['estado'] ?? '',
@@ -179,13 +188,13 @@ class VendedorController extends Controller
             'referrals_count' => count($psychologists),
             'active_referrals_count' => count(array_filter($psychologists, fn (array $item) => ($item['status'] ?? '') === 'pagado')),
             'unpaid_referrals_count' => count(array_filter($psychologists, fn (array $item) => ($item['status'] ?? '') !== 'pagado')),
-            'pending_commissions_sum' => 0,
+            'pending_commissions_sum' => (float) $pendingCommissions->sum('monto'),
             'referrals' => collect($psychologists)->map(fn (array $item) => [
                 'id' => $item['id'],
                 'status' => $item['status'] ?? 'contactado',
                 'psychologist' => ['id' => $item['mindmeet_user_id'] ?? null, 'name' => $item['nombre'], 'email' => $item['email']],
             ])->values()->all(),
-            'commission_items' => [],
+            'commission_items' => $commissionItems,
         ];
     }
 }

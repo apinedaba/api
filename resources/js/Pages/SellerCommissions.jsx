@@ -14,6 +14,7 @@ const milestoneLabels = {
     month_2: 'Mes 2 activo',
     month_6: 'Mes 6 activo',
     recovery_monthly: 'Recuperación de cartera',
+    new_sale_monthly: 'Venta nueva',
 };
 
 export default function SellerCommissions({ auth, cutDate, commissionMode = 'legacy', pendingBySeller = [], items = [], totals = {} }) {
@@ -64,8 +65,8 @@ export default function SellerCommissions({ auth, cutDate, commissionMode = 'leg
                                 <p className="text-xs uppercase tracking-[0.28em] text-cyan-200">Corte mensual</p>
                                 <h1 className="mt-2 text-3xl font-black">Comisiones pendientes: {money(totals.pending)}</h1>
                                 <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                                    {commissionMode === 'recovery'
-                                        ? 'Cada recuperación confirmada genera una comisión. La tarifa se determina por el total recuperado por el vendedor durante el mes.'
+                                    {commissionMode === 'monthly_sales'
+                                        ? 'Las ventas nuevas y recuperaciones confirmadas comparten una misma escala mensual por vendedor. Cada fila muestra su origen y monto aplicado.'
                                         : 'Regla vigente: $50 al activar cuenta, $20 si sigue activo al mes 2 y $30 si sigue activo al mes 6. El corte automático corre el día 25 de cada mes.'}
                                 </p>
                             </div>
@@ -131,7 +132,7 @@ export default function SellerCommissions({ auth, cutDate, commissionMode = 'leg
                     <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
                         <div className="border-b border-gray-100 p-6">
                             <h2 className="text-lg font-bold text-gray-900">Detalle de comisiones</h2>
-                            <p className="text-sm text-gray-500">Cada fila representa una regla cumplida por un psicologo referido.</p>
+                            <p className="text-sm text-gray-500">Cada fila representa una venta nueva o recuperación acreditada para un vendedor.</p>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-100 text-sm">

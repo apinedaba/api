@@ -14,7 +14,7 @@ class SellerCommissionController extends Controller
     public function index(Request $request, SellerCommissionService $service)
     {
         if (config('services.admin_vendedores.integration_token')) {
-            $items = collect(app(AdminVendedoresClient::class)->recoveryCommissions())
+            $items = collect(app(AdminVendedoresClient::class)->commissions())
                 ->map(fn (array $item) => $this->transformRemoteItem($item));
 
             $pendingItems = $items->where('status', SellerCommissionItem::STATUS_PENDING);
@@ -34,7 +34,7 @@ class SellerCommissionController extends Controller
 
             return Inertia::render('SellerCommissions', [
                 'cutDate' => now()->toDateString(),
-                'commissionMode' => 'recovery',
+                'commissionMode' => 'monthly_sales',
                 'pendingBySeller' => $pendingBySeller,
                 'items' => $items->values(),
                 'totals' => [
@@ -106,11 +106,11 @@ class SellerCommissionController extends Controller
     {
         $validated = $request->validate([
             'item_ids' => ['required', 'array', 'min:1'],
-            'item_ids.*' => ['integer'],
+            'item_ids.*' => ['string'],
         ]);
 
         if (config('services.admin_vendedores.integration_token')) {
-            app(AdminVendedoresClient::class)->markRecoveryCommissionsPaid($validated['item_ids']);
+            app(AdminVendedoresClient::class)->markCommissionsPaid($validated['item_ids']);
 
             return redirect()->route('seller-commissions')->with('status', 'Comisiones marcadas como pagadas.');
         }
@@ -149,7 +149,7 @@ class SellerCommissionController extends Controller
         return [
             'id' => $item['id'],
             'vendedor_id' => $item['vendedor_id'],
-            'milestone' => 'recovery_monthly',
+            'milestone' => ($item['origen'] ?? '') === 'Venta nueva' ? 'new_sale_monthly' : 'recovery_monthly',
             'amount' => (float) ($item['monto'] ?? 0),
             'status' => ($item['estado'] ?? 'pendiente') === 'pagado'
                 ? SellerCommissionItem::STATUS_PAID

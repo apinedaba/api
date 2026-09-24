@@ -31,11 +31,14 @@ class AdminVendedoresClient
     public function syncRecovery(array $data): array { return $this->send(fn () => $this->request()->post('/internal/v1/recoveries/sync', $data)); }
     public function excludeRecovery(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/recoveries/{$mindmeetUserId}/exclude")); }
     public function confirmRecoveryPayment(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/recoveries/{$mindmeetUserId}/payment")); }
+    public function confirmVendorReferralPayment(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/vendor-referrals/{$mindmeetUserId}/payment")); }
     public function commissionRules(): array { return $this->send(fn () => $this->request()->get('/internal/v1/commission-rules')); }
     public function createCommissionRule(array $data): array { return $this->send(fn () => $this->request()->post('/internal/v1/commission-rules', $data)); }
     public function deactivateCommissionRule(int|string $id): array { return $this->send(fn () => $this->request()->patch("/internal/v1/commission-rules/{$id}/deactivate")); }
     public function recoveryCommissions(): array { return $this->send(fn () => $this->request()->get('/internal/v1/recovery-commissions')); }
     public function markRecoveryCommissionsPaid(array $ids): array { return $this->send(fn () => $this->request()->patch('/internal/v1/recovery-commissions/mark-paid', ['ids' => array_values($ids)])); }
+    public function commissions(): array { return $this->send(fn () => $this->request()->get('/internal/v1/commissions')); }
+    public function markCommissionsPaid(array $keys): array { return $this->send(fn () => $this->request()->patch('/internal/v1/commissions/mark-paid', ['claves' => array_values($keys)])); }
     public function createVendor(array $data): array { return $this->send(fn () => $this->request()->post('/internal/v1/vendors', $data)); }
     public function updateVendor(int|string $id, array $data): array { return $this->send(fn () => $this->request()->put("/internal/v1/vendors/{$id}", $data)); }
     public function deactivateVendor(int|string $id): array { return $this->send(fn () => $this->request()->delete("/internal/v1/vendors/{$id}")); }

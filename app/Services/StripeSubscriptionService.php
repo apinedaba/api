@@ -46,7 +46,7 @@ class StripeSubscriptionService
             ]);
 
         if ($subscription->status === 'active') {
-            $this->notifyRecoveryPayment($user->id);
+            $this->notifySellerPayment($user->id);
         }
     }
 
@@ -64,7 +64,7 @@ class StripeSubscriptionService
             ]);
 
         if ($subscription->status === 'active' && $localSubscription?->user_id) {
-            $this->notifyRecoveryPayment($localSubscription->user_id);
+            $this->notifySellerPayment($localSubscription->user_id);
         }
     }
 
@@ -116,6 +116,20 @@ class StripeSubscriptionService
             // It is valid for paid users not to belong to a recovery portfolio.
             if ($exception->getCode() !== 409) {
                 Log::warning('No se pudo acreditar recuperación al CRM de vendedores.', ['user_id' => $userId, 'message' => $exception->getMessage()]);
+            }
+        }
+    }
+
+    private function notifySellerPayment(int $userId): void
+    {
+        $this->notifyRecoveryPayment($userId);
+
+        try {
+            app(AdminVendedoresClient::class)->confirmVendorReferralPayment($userId);
+        } catch (\RuntimeException $exception) {
+            // Usuarios sin vendedor son esperados; no se convierten en error de Stripe.
+            if ($exception->getCode() !== 409) {
+                Log::warning('No se pudo confirmar venta atribuida en el CRM de vendedores.', ['user_id' => $userId, 'message' => $exception->getMessage()]);
             }
         }
     }

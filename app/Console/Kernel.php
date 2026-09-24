@@ -52,6 +52,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('sellers:generate-commission-cut')
             ->monthlyOn(25, '02:30')
             ->timezone('America/Mexico_City');
+        $schedule->command('recoveries:sync')
+            ->hourly()
+            ->timezone('America/Mexico_City')
+            ->withoutOverlapping();
         // Desactivar temporalidades vencidas cada hora
         $schedule->command('temporalities:deactivate-expired')
             ->hourly()

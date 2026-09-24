@@ -13,9 +13,10 @@ const milestoneLabels = {
     activation: 'Activacion',
     month_2: 'Mes 2 activo',
     month_6: 'Mes 6 activo',
+    recovery_monthly: 'Recuperación de cartera',
 };
 
-export default function SellerCommissions({ auth, cutDate, pendingBySeller = [], items = [], totals = {} }) {
+export default function SellerCommissions({ auth, cutDate, commissionMode = 'legacy', pendingBySeller = [], items = [], totals = {} }) {
     const [selectedItems, setSelectedItems] = useState([]);
     const { data, setData, post, processing } = useForm({ cut_date: cutDate });
 
@@ -63,12 +64,13 @@ export default function SellerCommissions({ auth, cutDate, pendingBySeller = [],
                                 <p className="text-xs uppercase tracking-[0.28em] text-cyan-200">Corte mensual</p>
                                 <h1 className="mt-2 text-3xl font-black">Comisiones pendientes: {money(totals.pending)}</h1>
                                 <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                                    Regla vigente: $50 al activar cuenta, $20 si sigue activo al mes 2 y $30 si sigue activo al mes 6.
-                                    El corte automatico corre el dia 25 de cada mes.
+                                    {commissionMode === 'recovery'
+                                        ? 'Cada recuperación confirmada genera una comisión. La tarifa se determina por el total recuperado por el vendedor durante el mes.'
+                                        : 'Regla vigente: $50 al activar cuenta, $20 si sigue activo al mes 2 y $30 si sigue activo al mes 6. El corte automático corre el día 25 de cada mes.'}
                                 </p>
                             </div>
 
-                            <form onSubmit={generateCut} className="flex flex-wrap items-end gap-3">
+                            {commissionMode !== 'recovery' && <form onSubmit={generateCut} className="flex flex-wrap items-end gap-3">
                                 <label className="text-xs text-slate-200">
                                     Fecha de corte
                                     <input
@@ -81,7 +83,7 @@ export default function SellerCommissions({ auth, cutDate, pendingBySeller = [],
                                 <PrimaryButton disabled={processing}>
                                     Actualizar corte
                                 </PrimaryButton>
-                            </form>
+                            </form>}
                         </div>
                     </section>
 
@@ -114,11 +116,9 @@ export default function SellerCommissions({ auth, cutDate, pendingBySeller = [],
                                             {money(row.total_pending)}
                                         </span>
                                     </div>
-                                    <div className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
+                                    <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
                                         <MiniStat label="Items" value={row.items_count} />
-                                        <MiniStat label="$50" value={row.activation_count} />
-                                        <MiniStat label="$20" value={row.month_2_count} />
-                                        <MiniStat label="$30" value={row.month_6_count} />
+                                        <MiniStat label="Por pagar" value={money(row.total_pending)} />
                                     </div>
                                 </div>
                             ))}

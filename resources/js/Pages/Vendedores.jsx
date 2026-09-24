@@ -122,7 +122,7 @@ function SellerAvatar({ vendedor }) {
     );
 }
 
-export default function Vendedores({ auth, vendedores = [] }) {
+export default function Vendedores({ auth, vendedores = [], integrationError = null }) {
     const { flash } = usePage().props;
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -185,6 +185,11 @@ export default function Vendedores({ auth, vendedores = [] }) {
                             {flash.success}
                         </div>
                     )}
+                    {integrationError && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                            {integrationError}
+                        </div>
+                    )}
 
                     <section className="rounded-lg border border-sky-100 bg-white p-6 shadow-sm">
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -202,6 +207,12 @@ export default function Vendedores({ auth, vendedores = [] }) {
                                     className="inline-flex items-center justify-center rounded-md border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-800 transition hover:bg-sky-50"
                                 >
                                     Ver pagos
+                                </Link>
+                                <Link
+                                    href={route('commission-rules')}
+                                    className="inline-flex items-center justify-center rounded-md border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800 transition hover:bg-violet-100"
+                                >
+                                    Reglas de comisión
                                 </Link>
                                 <button
                                     type="button"

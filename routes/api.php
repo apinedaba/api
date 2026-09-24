@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\Auth\SocialRegistrationController;
 use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\Internal\VendorOnboardingController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
 use App\Http\Controllers\CredentialController;
@@ -74,6 +75,9 @@ Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::get('pages/home', [HomeController::class, 'getImages']);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
+Route::post('internal/vendor-onboardings', [VendorOnboardingController::class, 'create']);
+Route::post('internal/vendor-crm-activation-email', [VendorOnboardingController::class, 'sendCrmActivationEmail']);
+Route::post('user/vendor-activation', [VendorOnboardingController::class, 'activate'])->middleware('throttle:6,1');
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])
     ->middleware('throttle:resend');

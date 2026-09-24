@@ -53,6 +53,10 @@ export default function ModalAgregarPaciente({ show, onClose, onSuccess }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.email.trim() && !formData.telefono.trim()) {
+            setErrors({ contact: 'Captura al menos un correo electrónico o un teléfono.' });
+            return;
+        }
         setLoading(true);
         setErrors({});
 
@@ -141,7 +145,7 @@ export default function ModalAgregarPaciente({ show, onClose, onSuccess }) {
 
                     {/* Email */}
                     <div>
-                        <InputLabel htmlFor="email" value="Correo Electrónico *" />
+                        <InputLabel htmlFor="email" value="Correo electrónico" />
                         <TextInput
                             id="email"
                             name="email"
@@ -150,14 +154,13 @@ export default function ModalAgregarPaciente({ show, onClose, onSuccess }) {
                             onChange={handleChange}
                             className="mt-1 block w-full"
                             placeholder="ejemplo@correo.com"
-                            required
                         />
                         {errors.email && <InputError message={errors.email} className="mt-2" />}
                     </div>
 
                     {/* Teléfono */}
                     <div>
-                        <InputLabel htmlFor="telefono" value="Teléfono (10 dígitos) *" />
+                        <InputLabel htmlFor="telefono" value="Teléfono (10 dígitos)" />
                         <TextInput
                             id="telefono"
                             name="telefono"
@@ -167,9 +170,10 @@ export default function ModalAgregarPaciente({ show, onClose, onSuccess }) {
                             className="mt-1 block w-full"
                             placeholder="1234567890"
                             maxLength="10"
-                            required
                         />
                         {errors['contacto.telefono'] && <InputError message={errors['contacto.telefono']} className="mt-2" />}
+                        {errors.contact && <InputError message={errors.contact} className="mt-2" />}
+                        <p className="mt-1 text-sm text-gray-500">Captura correo o teléfono; al menos uno es obligatorio.</p>
                     </div>
 
                     {/* Contraseña */}
@@ -185,7 +189,7 @@ export default function ModalAgregarPaciente({ show, onClose, onSuccess }) {
                             placeholder="Si está vacío, se usará el teléfono"
                         />
                         <p className="mt-1 text-sm text-gray-500">
-                            Si no se proporciona, se usará el número de teléfono como contraseña
+                            Si no se proporciona, se usará el teléfono o correo como contraseña inicial
                         </p>
                         {errors.password && <InputError message={errors.password} className="mt-2" />}
                     </div>

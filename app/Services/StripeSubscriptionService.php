@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Subscription;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Stripe\Stripe;
 
@@ -43,10 +44,15 @@ class StripeSubscriptionService
                 'stripe_status' => 'canceled',
                 'ends_at' => now(),
             ]);
+
+        if ($subscription->status === 'active') {
+            $this->notifySellerPayment($user->id);
+        }
     }
 
     public function updateSubscription($subscription): void
     {
+        $localSubscription = Subscription::where('stripe_id', $subscription->id)->first();
         Subscription::where('stripe_id', $subscription->id)
             ->update([
                 'stripe_plan' => $subscription->items->data[0]->price->id ?? null,
@@ -56,6 +62,10 @@ class StripeSubscriptionService
                     : null,
                 'ends_at' => $this->resolveEndsAt($subscription),
             ]);
+
+        if ($subscription->status === 'active' && $localSubscription?->user_id) {
+            $this->notifySellerPayment($localSubscription->user_id);
+        }
     }
 
     public function cancelSubscription($subscription): void
@@ -96,5 +106,31 @@ class StripeSubscriptionService
         }
 
         return null;
+    }
+
+    private function notifyRecoveryPayment(int $userId): void
+    {
+        try {
+            app(AdminVendedoresClient::class)->confirmRecoveryPayment($userId);
+        } catch (\RuntimeException $exception) {
+            // It is valid for paid users not to belong to a recovery portfolio.
+            if ($exception->getCode() !== 409) {
+                Log::warning('No se pudo acreditar recuperación al CRM de vendedores.', ['user_id' => $userId, 'message' => $exception->getMessage()]);
+            }
+        }
+    }
+
+    private function notifySellerPayment(int $userId): void
+    {
+        $this->notifyRecoveryPayment($userId);
+
+        try {
+            app(AdminVendedoresClient::class)->confirmVendorReferralPayment($userId);
+        } catch (\RuntimeException $exception) {
+            // Usuarios sin vendedor son esperados; no se convierten en error de Stripe.
+            if ($exception->getCode() !== 409) {
+                Log::warning('No se pudo confirmar venta atribuida en el CRM de vendedores.', ['user_id' => $userId, 'message' => $exception->getMessage()]);
+            }
+        }
     }
 }

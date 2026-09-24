@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Models\Patient;
 use App\Models\GuardianAccount;
-use App\Models\Vendedor;
 use App\Models\Subscription;
 use App\Models\Clinic;
 use App\Models\ClinicMembership;
@@ -21,7 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
-use App\Services\SellerCommissionService;
+use App\Services\AdminVendedoresClient;
 use App\Services\OrganizationService;
 use App\Services\ProfessionalReferralService;
 
@@ -41,7 +40,7 @@ class RegisterController extends Controller
 
     public function registerUser(
         Request $request,
-        SellerCommissionService $sellerCommissionService,
+        AdminVendedoresClient $adminVendedores,
         OrganizationService $organizationService,
         ProfessionalReferralService $professionalReferralService
     )
@@ -84,9 +83,13 @@ class RegisterController extends Controller
         $sellerCode = $request->input('vendedor_qr_token')
             ?: $request->input('referral_code')
             ?: $request->input('v');
-        $vendedor = $sellerCode
-            ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
-            : null;
+        if ($sellerCode) {
+            try {
+                $adminVendedores->vendorByQr($sellerCode);
+            } catch (\RuntimeException) {
+                return response()->json(['message' => 'El enlace de vendedor ya no es válido.', 'errors' => ['vendedor_qr_token' => ['Solicita un enlace nuevo al vendedor.']]], 422);
+            }
+        }
 
         $colleagueCode = trim((string) $request->input('colleague_referral_code'));
         if ($colleagueCode !== '' && !$professionalReferralService->isValidCode($colleagueCode)) {
@@ -96,7 +99,7 @@ class RegisterController extends Controller
             ], 422);
         }
         $accountType = $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
-        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode, $colleagueCode, $professionalReferralService) {
+        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $sellerCode, $colleagueCode, $professionalReferralService, $adminVendedores) {
             $user = User::create([
                 'name' => trim((string) $request->name),
                 'email' => mb_strtolower(trim((string) $request->email)),
@@ -114,7 +117,7 @@ class RegisterController extends Controller
 
             $this->createInitialWorkspace($user, $accountType, $request, $organizationService);
 
-            if ($vendedor) {
+            if ($sellerCode) {
                 Subscription::firstOrCreate(
                     ['user_id' => $user->id],
                     [
@@ -126,7 +129,13 @@ class RegisterController extends Controller
                     ]
                 );
 
-                $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
+                $adminVendedores->registerReferral([
+                    'mindmeet_user_id' => $user->id,
+                    'nombre' => $user->name,
+                    'email' => $user->email,
+                    'telefono' => data_get($user->contacto, 'telefono'),
+                    'referral_code' => $sellerCode,
+                ]);
             }
 
             if ($colleagueCode !== '') {

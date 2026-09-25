@@ -11,7 +11,7 @@ use Stripe\Stripe;
 
 class SubscriptionStatusService
 {
-    public function __construct()
+    public function __construct(private PlanCatalogService $planCatalog)
     {
         Stripe::setApiKey(config('services.stripe.secret_key'));
     }
@@ -57,25 +57,17 @@ class SubscriptionStatusService
             }
         }
 
-        if (!$subscription) {
-            return [
-                'status_key' => 'not_subscribed',
-                'status_label' => 'Sin suscripción',
-                'headline' => 'Aún no tienes un plan activo.',
-                'description' => 'Activa tu suscripción para publicar tu perfil y seguir usando las herramientas de MindMeet.',
-                'can_access' => false,
-                'can_manage' => false,
-                'show_available_plans' => true,
-                'requires_payment_update' => false,
-                'subscription' => null,
-                'stripe_subscription' => null,
-                'has_lifetime_access' => false,
-            ];
+        if (!$subscription) return $this->notSubscribedSummary();
+        if (!filled($subscription->stripe_id)) {
+            return $subscription->stripe_status === 'free'
+                ? $this->freeSummary($subscription)
+                : $this->notSubscribedSummary();
         }
 
         $remoteSubscription = $this->retrieveStripeSubscription($subscription->stripe_id);
         if ($remoteSubscription) {
             $subscription = $this->syncLocalSubscription($subscription, $remoteSubscription);
+            $user->setRelation('subscription', $subscription);
         }
 
         $status = $remoteSubscription?->status ?: ($subscription->stripe_status ?: 'not_subscribed');
@@ -89,7 +81,7 @@ class SubscriptionStatusService
             'status_label' => $this->statusLabel($uiStatus),
             'headline' => $this->headlineFor($uiStatus),
             'description' => $this->descriptionFor($uiStatus, $periodEnd),
-            'can_access' => in_array($uiStatus, ['active', 'trial', 'trialing', 'canceling', 'clinic_managed'], true),
+            'can_access' => true,
             'can_manage' => filled($user->stripe_id),
             'show_available_plans' => in_array($uiStatus, ['not_subscribed', 'init', 'canceled', 'trial_disabled', 'incomplete_expired'], true),
             'requires_payment_update' => in_array($uiStatus, ['past_due', 'unpaid', 'incomplete'], true),
@@ -129,6 +121,40 @@ class SubscriptionStatusService
 
             return null;
         }
+    }
+
+    protected function freeSummary(?Subscription $subscription = null): array
+    {
+        return [
+            'status_key' => 'free',
+            'status_label' => 'Plan Free',
+            'headline' => 'Tu plan Free está activo.',
+            'description' => 'Puedes usar las funciones incluidas en Free y mejorar tu plan cuando lo necesites.',
+            'can_access' => true,
+            'can_manage' => false,
+            'show_available_plans' => true,
+            'requires_payment_update' => false,
+            'subscription' => $subscription,
+            'stripe_subscription' => null,
+            'has_lifetime_access' => false,
+        ];
+    }
+
+    protected function notSubscribedSummary(): array
+    {
+        return [
+            'status_key' => 'not_subscribed',
+            'status_label' => 'Elige tu plan',
+            'headline' => 'Selecciona cómo quieres comenzar.',
+            'description' => 'Puedes empezar con Free o activar un plan con más funciones.',
+            'can_access' => false,
+            'can_manage' => false,
+            'show_available_plans' => true,
+            'requires_payment_update' => false,
+            'subscription' => null,
+            'stripe_subscription' => null,
+            'has_lifetime_access' => false,
+        ];
     }
 
     protected function findReusableStripeSubscriptionByCustomer(?string $customerId): mixed
@@ -174,10 +200,12 @@ class SubscriptionStatusService
 
     protected function createLocalSubscriptionFromStripe(User $user, mixed $remoteSubscription): Subscription
     {
+        $plan = $this->planCatalog->fromStripePrice(data_get($remoteSubscription, 'items.data.0.price'));
         $subscription = Subscription::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'stripe_id' => $remoteSubscription->id,
+                'plan_id' => $plan?->id,
                 'stripe_plan' => data_get($remoteSubscription, 'items.data.0.price.id')
                     ?: data_get($remoteSubscription, 'items.data.0.plan.id'),
                 'stripe_status' => $remoteSubscription->status,
@@ -198,7 +226,9 @@ class SubscriptionStatusService
 
     protected function syncLocalSubscription(Subscription $subscription, mixed $remoteSubscription): Subscription
     {
+        $plan = $this->planCatalog->fromStripePrice(data_get($remoteSubscription, 'items.data.0.price'));
         $subscription->fill([
+            'plan_id' => $plan?->id,
             'stripe_plan' => data_get($remoteSubscription, 'items.data.0.price.id')
                 ?: data_get($remoteSubscription, 'items.data.0.plan.id')
                 ?: $subscription->stripe_plan,

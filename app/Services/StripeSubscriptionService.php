@@ -10,7 +10,10 @@ use Stripe\Stripe;
 
 class StripeSubscriptionService
 {
-    public function __construct()
+    public function __construct(
+        private PlanCatalogService $planCatalog,
+        private PlanAssignmentService $planAssignment
+    )
     {
         Stripe::setApiKey(config('services.stripe.secret_key'));
     }
@@ -24,11 +27,13 @@ class StripeSubscriptionService
         }
 
         $subscription = \Stripe\Subscription::retrieve($session->subscription);
+        $plan = $this->planCatalog->fromStripePrice(data_get($subscription, 'items.data.0.price'));
 
         Subscription::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'stripe_id' => $subscription->id,
+                'plan_id' => $plan?->id,
                 'stripe_plan' => $subscription->items->data[0]->price->id,
                 'stripe_status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_end
@@ -46,6 +51,7 @@ class StripeSubscriptionService
             ]);
 
         if ($subscription->status === 'active') {
+            if ($plan) $user->update(['plan_id' => $plan->id]);
             $this->notifySellerPayment($user->id);
         }
     }
@@ -53,9 +59,19 @@ class StripeSubscriptionService
     public function updateSubscription($subscription): void
     {
         $localSubscription = Subscription::where('stripe_id', $subscription->id)->first();
-        Subscription::where('stripe_id', $subscription->id)
-            ->update([
+        $user = $localSubscription?->user
+            ?: User::where('stripe_id', $subscription->customer ?? null)->first();
+        if (!$user) {
+            Log::warning('No se encontró usuario para sincronizar suscripción de Stripe.', ['stripe_subscription_id' => $subscription->id]);
+            return;
+        }
+        $plan = $this->planCatalog->fromStripePrice(data_get($subscription, 'items.data.0.price'));
+        $localSubscription = Subscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_id' => $subscription->id,
                 'stripe_plan' => $subscription->items->data[0]->price->id ?? null,
+                'plan_id' => $plan?->id,
                 'stripe_status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_end
                     ? Carbon::createFromTimestamp($subscription->trial_end)
@@ -63,18 +79,22 @@ class StripeSubscriptionService
                 'ends_at' => $this->resolveEndsAt($subscription),
             ]);
 
-        if ($subscription->status === 'active' && $localSubscription?->user_id) {
-            $this->notifySellerPayment($localSubscription->user_id);
+        if ($subscription->status === 'active') {
+            if ($plan) $user->update(['plan_id' => $plan->id]);
+            $this->notifySellerPayment($user->id);
         }
     }
 
     public function cancelSubscription($subscription): void
     {
-        Subscription::where('stripe_id', $subscription->id)
-            ->update([
+        $local = Subscription::where('stripe_id', $subscription->id)->first();
+        if ($local) {
+            $local->update([
                 'ends_at' => now(),
                 'stripe_status' => 'canceled',
             ]);
+            if ($user = User::find($local->user_id)) $this->planAssignment->activateFree($user);
+        }
     }
 
     public function paymentFailed($invoice): void

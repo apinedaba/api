@@ -15,6 +15,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use App\Services\ProfessionalReferralService;
+use App\Models\StripeWebhookEvent;
+use Throwable;
 
 class HandleStripeEventJob implements ShouldQueue
 {
@@ -29,6 +31,12 @@ class HandleStripeEventJob implements ShouldQueue
 
     public function handle(): void
     {
+        $claimed = StripeWebhookEvent::where('event_id', $this->event->id)
+            ->where('status', '!=', 'processed')
+            ->update(['status' => 'processing', 'last_error' => null]);
+        if (!$claimed) return;
+
+        try {
         Log::info("Stripe event received: {$this->event->type}");
 
         switch ($this->event->type) {
@@ -58,6 +66,15 @@ class HandleStripeEventJob implements ShouldQueue
             case 'invoice.payment_succeeded':
                 $this->handlePaidInvoice($this->event->data->object);
                 break;
+        }
+        StripeWebhookEvent::where('event_id', $this->event->id)->update([
+            'status' => 'processed', 'processed_at' => now(), 'last_error' => null,
+        ]);
+        } catch (Throwable $exception) {
+            StripeWebhookEvent::where('event_id', $this->event->id)->update([
+                'status' => 'failed', 'last_error' => mb_substr($exception->getMessage(), 0, 60000),
+            ]);
+            throw $exception;
         }
     }
 

@@ -11,6 +11,7 @@ use App\Notifications\PatientAssignedEmailNotification;
 use App\Notifications\PatientConsentSignedNotification;
 use App\Notifications\SendEmail;
 use App\Services\WhatsApp\PatientInvitationWhatsAppNotifier;
+use App\Services\PlanAccessService;
 use App\Support\PatientIdentity;
 use Cloudinary\Api\Upload\UploadApi;
 use Carbon\Carbon;
@@ -157,6 +158,18 @@ class PatientController extends Controller
         $legalRepresentative = collect($request->input('relationships', []))
             ->first(fn ($relationship) => filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN));
         $patient = PatientIdentity::findByEmailOrPhone($email, $telefono);
+        $user = Auth::user();
+        $alreadyLinked = $patient && PatientUser::where('user', $user->id)->where('patient', $patient->id)->exists();
+        if (!$alreadyLinked && !$user->canUseMore('patients')) {
+            return response()->json([
+                'message' => 'Alcanzaste el límite de pacientes de tu plan.',
+                'rasson' => 'Mejora tu plan para agregar más pacientes.',
+                'code' => 'feature_limit_reached',
+                'feature' => 'patients',
+                'limit' => $user->featureLimit('patients'),
+                'used' => $user->featureUsage('patients'),
+            ], 422);
+        }
         $isNewPatient = $patient === null;
         $initialPassword = null;
 
@@ -275,6 +288,14 @@ class PatientController extends Controller
         $this->syncRegisteredGuardian($patient);
 
         $consentUrl = null;
+        if ($request->boolean('generate_consent_link') && !$user->canUseFeature('consents')) {
+            return response()->json([
+                'message' => 'Los consentimientos están disponibles en el plan Smart.',
+                'code' => 'feature_not_available',
+                'feature' => 'consents',
+            ], 403);
+        }
+
         if ($request->boolean('generate_consent_link')) {
             $token = Str::random(72);
             $consent = array_merge($patient->consentimiento ?? [], [
@@ -291,8 +312,6 @@ class PatientController extends Controller
             $baseUrl = rtrim((string) (config('app.front_url_psicologo') ?: $request->headers->get('origin') ?: config('app.front_url')), '/');
             $consentUrl = "{$baseUrl}/consentimiento/{$token}";
         }
-
-        $user = Auth::user();
 
         $existingLink = PatientUser::where('user', $user->id)
             ->where('patient', $patient->id)
@@ -473,9 +492,19 @@ class PatientController extends Controller
             'consent_signer_role' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $content = trim((string) ($validated['consent_content'] ?? data_get($patient->consentimiento, 'content', '')));
+        $canManageConsentTemplates = app(PlanAccessService::class)->canUseFeature(auth()->user(), 'consents');
+        $restrictedConsent = $this->standardConsentValues($patient);
+        $content = $canManageConsentTemplates
+            ? trim((string) ($validated['consent_content'] ?? data_get($patient->consentimiento, 'content', '')))
+            : $restrictedConsent['content'];
         $professionalSignature = $validated['professional_signature_data_url'] ?? data_get($patient->consentimiento, 'professional_signature_data_url');
-        $documentKind = $validated['consent_document_kind'] ?? 'informed_consent';
+        $documentKind = $canManageConsentTemplates
+            ? ($validated['consent_document_kind'] ?? 'informed_consent')
+            : $restrictedConsent['document_kind'];
+        if (! $canManageConsentTemplates) {
+            $validated['consent_signed_by_name'] = $restrictedConsent['signed_by_name'];
+            $validated['consent_signer_role'] = $restrictedConsent['signer_role'];
+        }
         $representative = collect($patient->relationships ?? [])
             ->first(fn ($relationship) => filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN));
         if ($documentKind === 'minor_therapy_authorization') {
@@ -1036,6 +1065,19 @@ class PatientController extends Controller
             'consent_signer_role' => ['nullable', 'string', 'max:100'],
         ]);
 
+        $canManageConsentTemplates = app(PlanAccessService::class)->canUseFeature(auth()->user(), 'consents');
+        if (! $canManageConsentTemplates) {
+            // Free puede recabar y guardar firmas digitales; el documento y sus
+            // modalidades son el formato estándar, no valores enviados por el cliente.
+            $standard = $this->standardConsentValues($patient);
+            $content = $standard['content'];
+            $documentKind = $standard['document_kind'];
+            $type = 'digital';
+            $fileUrl = null;
+            $signedByName = $standard['signed_by_name'];
+            $signerRole = $standard['signer_role'];
+        }
+
         if (!$forcePending && !$signatureDataUrl && !$fileUrl && !$type && empty($consent)) {
             return;
         }
@@ -1097,6 +1139,30 @@ class PatientController extends Controller
     {
         $expiresAt = data_get($consent, 'public_expires_at');
         return $expiresAt ? now()->greaterThan($expiresAt) : false;
+    }
+
+    /**
+     * Canonical values used by plans that can sign, but cannot customize, documents.
+     */
+    private function standardConsentValues(Patient $patient): array
+    {
+        $birthDate = data_get($patient->relevantes, 'fechaNac');
+        $isMinor = $birthDate && Carbon::parse($birthDate)->addYears(18)->isFuture();
+        $preferences = data_get(auth()->user(), 'configurations.document_preferences', []);
+        $existing = $patient->consentimiento ?? [];
+        $representative = collect($patient->relationships ?? [])
+            ->first(fn ($relationship) => filter_var(data_get($relationship, 'es_representante_legal'), FILTER_VALIDATE_BOOLEAN));
+
+        return [
+            'content' => trim((string) (
+                data_get($existing, 'content')
+                ?: ($isMinor ? data_get($preferences, 'minor_authorization_content') : data_get($preferences, 'consent_content'))
+                ?: 'Consentimiento informado MindMeet.'
+            )),
+            'document_kind' => $isMinor ? 'minor_therapy_authorization' : 'informed_consent',
+            'signed_by_name' => $isMinor ? data_get($representative, 'nombre') : $patient->name,
+            'signer_role' => $isMinor ? (data_get($representative, 'parentesco') ?: 'Representante legal') : 'Paciente',
+        ];
     }
 
     private function configureCloudinary(): void

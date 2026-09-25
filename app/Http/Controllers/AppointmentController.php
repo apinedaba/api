@@ -131,6 +131,13 @@ class AppointmentController extends Controller
         }
 
         $user = User::findOrFail($id);
+        if (!$user->canUseFeature('realtime_schedule')) {
+            return response()->json([
+                'message' => 'La agenda en tiempo real no está incluida en el plan de este profesional.',
+                'code' => 'feature_not_available',
+                'feature' => 'realtime_schedule',
+            ], 403);
+        }
         $professionalTimezone = in_array($user->timezone, timezone_identifiers_list(), true)
             ? $user->timezone
             : config('app.timezone');
@@ -302,6 +309,27 @@ class AppointmentController extends Controller
                 'rasson' => 'La cita requiere un profesional y un paciente validos.',
                 'message' => 'Datos incompletos',
                 'type' => 'error',
+            ], 422);
+        }
+
+        $scheduledProfessional = User::findOrFail((int) $request->input('user'));
+        $isFreePlan = app(\App\Services\PlanAccessService::class)->currentPlan($scheduledProfessional)->code === 'free';
+        $format = mb_strtolower(trim((string) $request->input('formato')));
+        if ($isFreePlan && !in_array($format, ['online', 'en linea', 'en línea', 'virtual'], true)) {
+            return response()->json([
+                'message' => 'El plan Free permite agendar únicamente sesiones online.',
+                'errors' => ['formato' => ['Selecciona la modalidad online.']],
+            ], 422);
+        }
+
+        $hasRelationship = PatientUser::where('user', $scheduledProfessional->id)
+            ->where('patient', (int) $request->input('patient'))
+            ->exists();
+        if (!$hasRelationship && $createdByProfessional && !$scheduledProfessional->canUseMore('patients')) {
+            return response()->json([
+                'message' => 'Alcanzaste el límite de pacientes de tu plan.',
+                'code' => 'feature_limit_reached',
+                'feature' => 'patients',
             ], 422);
         }
 

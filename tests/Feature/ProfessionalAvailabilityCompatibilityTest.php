@@ -6,10 +6,17 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Database\Seeders\PlanFeatureSeeder;
 
 class ProfessionalAvailabilityCompatibilityTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(PlanFeatureSeeder::class);
+    }
 
     protected function tearDown(): void
     {
@@ -22,6 +29,7 @@ class ProfessionalAvailabilityCompatibilityTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-31 08:00:00', 'America/Mexico_City'));
 
         $professional = User::factory()->create([
+            'has_lifetime_access' => true,
             'timezone' => 'America/Mexico_City',
             'horarios' => [
                 'martes' => [
@@ -45,6 +53,7 @@ class ProfessionalAvailabilityCompatibilityTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-31 08:00:00', 'America/Mexico_City'));
 
         $professional = User::factory()->create([
+            'has_lifetime_access' => true,
             'timezone' => 'America/Mexico_City',
             'horarios' => [
                 'tuesday' => [
@@ -66,6 +75,7 @@ class ProfessionalAvailabilityCompatibilityTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-31 08:00:00', 'America/Mexico_City'));
 
         $professional = User::factory()->create([
+            'has_lifetime_access' => true,
             'timezone' => 'America/Mexico_City',
             'horarios' => [
                 'tuesday' => [

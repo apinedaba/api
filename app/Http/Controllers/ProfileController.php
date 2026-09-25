@@ -90,6 +90,18 @@ class ProfileController extends Controller
 
         if ($request->has('contacto')) {
             $prospectiveContact = array_merge($user->contacto ?? [], $request->input('contacto', []));
+            if (array_key_exists('publicTitle', $prospectiveContact)) {
+                $allowedTitles = ['Lic.', 'Mtro.', 'Mtra.', 'Dr.', 'Dra.', 'Psic.'];
+                if (!in_array($prospectiveContact['publicTitle'], $allowedTitles, true)) {
+                    throw ValidationException::withMessages(['contacto.publicTitle' => 'Selecciona un título profesional válido.']);
+                }
+                $name = trim((string) ($prospectiveContact['publicNameBase'] ?? ''));
+                if ($name === '') {
+                    throw ValidationException::withMessages(['contacto.publicNameBase' => 'Escribe el nombre público.']);
+                }
+                $name = preg_replace('/^(Lic\.|Mtro\.|Mtra\.|Dr\.|Dra\.|Psic\.)\s*/iu', '', $name);
+                $prospectiveContact['publicName'] = trim($prospectiveContact['publicTitle'] . ' ' . $name);
+            }
             $phone = User::normalizePhone(data_get($prospectiveContact, 'telefono'));
 
             if (preg_match('/^\d{10}$/', $phone) !== 1) {
@@ -104,6 +116,21 @@ class ProfileController extends Controller
         if (array_key_exists('configurations', $data)) {
             $existingConfigurations = $user->configurations ?? [];
             $incomingConfigurations = is_array($data['configurations']) ? $data['configurations'] : [];
+            $incomingServices = data_get($incomingConfigurations, 'sesiones');
+            $servicesChanged = $incomingServices !== null
+                && json_encode($incomingServices) !== json_encode(data_get($existingConfigurations, 'sesiones'));
+            if ($servicesChanged && app(\App\Services\PlanAccessService::class)->currentPlan($user)->code === 'free') {
+                $hasNonOnlineService = collect($incomingServices)
+                    ->contains(function ($service) {
+                        $format = mb_strtolower(trim((string) data_get($service, 'formato', data_get($service, 'modalidad'))));
+                        return !in_array($format, ['online', 'en linea', 'en línea', 'virtual'], true);
+                    });
+                if ($hasNonOnlineService) {
+                    throw ValidationException::withMessages([
+                        'configurations.sesiones' => 'El plan Free permite únicamente servicios online.',
+                    ]);
+                }
+            }
             $protectedKeys = [
                 'active_organization_id',
                 'workspace_type',
@@ -183,6 +210,21 @@ class ProfileController extends Controller
 
     public function updateDocumentPreferences(Request $request)
     {
+        $user = $request->user();
+        if (!$user->canUseFeature('consents')) {
+            $validated = $request->validate([
+                'professional_signature_data_url' => ['required', 'string', 'max:2000000'],
+            ]);
+            $configurations = $user->configurations ?? [];
+            $preferences = data_get($configurations, 'document_preferences', []);
+            $preferences['professional_signature_data_url'] = $validated['professional_signature_data_url'];
+            $preferences['updated_at'] = now()->toISOString();
+            $configurations['document_preferences'] = $preferences;
+            $user->forceFill(['configurations' => $configurations])->save();
+
+            return $this->documentPreferences($request);
+        }
+
         $validated = $request->validate([
             'consent_content' => ['required', 'string', 'max:30000'],
             'minor_authorization_content' => ['required', 'string', 'max:30000'],
@@ -194,7 +236,6 @@ class ProfileController extends Controller
             'documents.*.requires_signature' => ['required', 'boolean'],
         ]);
 
-        $user = $request->user();
         $configurations = $user->configurations ?? [];
         $configurations['document_preferences'] = [
             'consent_content' => trim($validated['consent_content']),

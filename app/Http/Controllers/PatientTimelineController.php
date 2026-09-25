@@ -77,6 +77,14 @@ class PatientTimelineController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
+        if (in_array($request->input('source'), ['dictation', 'voice'], true) && !$psychologist->canUseFeature('voice_dictation')) {
+            return response()->json([
+                'message' => 'El dictado por voz está disponible en el plan Smart.',
+                'code' => 'feature_not_available',
+                'feature' => 'voice_dictation',
+            ], 403);
+        }
+
         $note = SessionNote::create([
             'session_id' => $session->id,
             'psychologist_id' => $psychologist->id,

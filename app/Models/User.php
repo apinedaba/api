@@ -15,10 +15,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (!$user->plan_id && Schema::hasTable('plans')) {
+                $user->plan_id = Plan::where('code', config('plans.default'))->value('id');
+            }
+        });
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -41,6 +51,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'horarios',
         'timezone',
         'plan',
+        'plan_id',
         'image',
         'stripe_id',
         'stripe_connect_account_id',
@@ -106,6 +117,31 @@ class User extends Authenticatable implements MustVerifyEmail
     public function subscription()
     {
         return $this->hasOne(Subscription::class);
+    }
+
+    public function assignedPlan()
+    {
+        return $this->belongsTo(Plan::class, 'plan_id');
+    }
+
+    public function canUseFeature(string $feature): bool
+    {
+        return app(\App\Services\PlanAccessService::class)->canUseFeature($this, $feature);
+    }
+
+    public function featureLimit(string $feature): ?int
+    {
+        return app(\App\Services\PlanAccessService::class)->featureLimit($this, $feature);
+    }
+
+    public function featureUsage(string $feature): int
+    {
+        return app(\App\Services\PlanAccessService::class)->featureUsage($this, $feature);
+    }
+
+    public function canUseMore(string $feature): bool
+    {
+        return app(\App\Services\PlanAccessService::class)->canUseMore($this, $feature);
     }
 
     public function membershipAdministrativeActions(): HasMany
@@ -431,16 +467,8 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function hasBillableAccess(): bool
     {
-        if ((bool) $this->has_lifetime_access) {
-            return true;
-        }
-
-        $subscription = $this->relationLoaded('subscription')
-            ? $this->getRelation('subscription')
-            : $this->subscription()->first();
-
-        return $subscription?->stripe_status === 'active'
-            || ($subscription?->stripe_status === 'trialing' && filled($subscription?->stripe_id));
+        if ((bool) $this->has_lifetime_access) return true;
+        return $this->canUseFeature('profile_directory');
     }
 
     public function canBeActive(): bool
@@ -457,19 +485,6 @@ class User extends Authenticatable implements MustVerifyEmail
             ->where('activo', true)
             ->where('isProfileComplete', true)
             ->where('identity_verification_status', 'approved')
-            ->whereNotNull('email_verified_at')
-            ->where(function (Builder $visibilityQuery) {
-                $visibilityQuery
-                    ->where('has_lifetime_access', true)
-                    ->orWhereHas('subscription', function (Builder $subscriptionQuery) {
-                        $subscriptionQuery
-                            ->where('stripe_status', 'active')
-                            ->orWhere(function (Builder $trialQuery) {
-                                $trialQuery
-                                    ->where('stripe_status', 'trialing')
-                                    ->whereNotNull('stripe_id');
-                            });
-                    });
-            });
+            ->whereNotNull('email_verified_at');
     }
 }

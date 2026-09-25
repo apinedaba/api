@@ -159,7 +159,12 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('use
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organization'])->group(function () {
     // Info básica y gestión de cuenta
     Route::get('user/info', function (Request $request) {
-        return $request->user()->load('subscription', 'escuelas');
+        $user = $request->user()->load('subscription', 'escuelas');
+        $user->setAttribute('plan_access', app(\App\Services\PlanAccessService::class)->summary($user));
+        return $user;
+    });
+    Route::get('user/plan', function (Request $request) {
+        return app(\App\Services\PlanAccessService::class)->summary($request->user()->load('subscription'));
     });
     Route::get('/subscription/status', function (Request $request) {
 
@@ -180,8 +185,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
     Route::get('user/document-requests', [PatientDocumentRequestController::class, 'professionalIndex']);
     Route::get('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'index']);
-    Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store']);
-    Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel']);
+    Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store'])->middleware('feature:consents');
+    Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel'])->middleware('feature:consents');
 
     // Validación de cédula profesional (deshabilitada temporalmente)
     Route::post('user/sep/cedula', [CedulaCheck::class, 'buscarCedula']);
@@ -219,6 +224,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
 
     // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
     Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
+    Route::post('user/subscription/free', [StripeController::class, 'activateFreePlan']);
     Route::get('user/professional-referrals', [ProfessionalReferralController::class, 'summary']);
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
     Route::post('user/subscription/change-plan', [StripeController::class, 'changeSubscriptionPlan']);
@@ -240,11 +246,13 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
     Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
-    Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index']);
-    Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate']);
-    Route::get('user/patients/{patient}/summary-ai', [PatientSummaryAiController::class, 'index']);
-    Route::post('user/patients/{patient}/summary-ai/generate', [PatientSummaryAiController::class, 'generate']);
-    Route::put('user/patients/{patient}/summary-ai/{summary}', [PatientSummaryAiController::class, 'update']);
+    Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index'])->middleware('feature:ai_exercises');
+    Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate'])->middleware('feature:ai_exercises');
+    Route::get('user/patients/{patient}/summary-ai', [PatientSummaryAiController::class, 'index'])->middleware('feature:ai_reports');
+    Route::post('user/patients/{patient}/summary-ai/generate', [PatientSummaryAiController::class, 'generate'])->middleware('feature:ai_reports');
+    Route::put('user/patients/{patient}/summary-ai/{summary}', [PatientSummaryAiController::class, 'update'])->middleware('feature:ai_reports');
+    // Todos los planes pueden firmar el consentimiento estándar. La edición de
+    // plantillas y los formatos alternativos se restringen dentro del controlador.
     Route::post('user/patients/{id}/consent-link', [PatientController::class, 'generateConsentLink']);
     Route::put('user/patients/{id}/consent', [PatientController::class, 'updateConsent']);
     Route::patch('user/catalog/patients/{patient}/archive', [PatientUserController::class, 'archive']);
@@ -262,21 +270,21 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
 
     // Agenda y citas
     Route::get('user/appointments/patient/{patient}', [AppointmentController::class, 'getAppoinmentsByPatient']);
-    Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots']);
+    Route::get('user/appointments/slots', [AppointmentController::class, 'getAvailableSlots'])->middleware('feature:realtime_schedule');
     Route::resource('user/appointments', AppointmentController::class);
     Route::post('user/appointments/{appointment}/start', [AppointmentController::class, 'startSession'])
         ->middleware('throttle:6,1');
-    Route::get('user/appointments/{appointment}/copilot', [SessionCopilotController::class, 'show']);
-    Route::post('user/appointments/{appointment}/copilot/prepare', [SessionCopilotController::class, 'prepare'])->middleware('throttle:10,1');
-    Route::post('user/appointments/{appointment}/copilot/close', [SessionCopilotController::class, 'close'])->middleware('throttle:10,1');
-    Route::put('user/appointments/{appointment}/copilot/{draft}/apply', [SessionCopilotController::class, 'apply']);
-    Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated']);
-    Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder']);
-    Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);
-    Route::post('user/whatsapp/template', [WhatsAppNotificationController::class, 'template']);
-    Route::post('user/whatsapp/interactive-buttons', [WhatsAppNotificationController::class, 'interactiveButtons']);
+    Route::get('user/appointments/{appointment}/copilot', [SessionCopilotController::class, 'show'])->middleware('feature:session_copilot');
+    Route::post('user/appointments/{appointment}/copilot/prepare', [SessionCopilotController::class, 'prepare'])->middleware(['feature:session_copilot', 'throttle:10,1']);
+    Route::post('user/appointments/{appointment}/copilot/close', [SessionCopilotController::class, 'close'])->middleware(['feature:session_copilot', 'throttle:10,1']);
+    Route::put('user/appointments/{appointment}/copilot/{draft}/apply', [SessionCopilotController::class, 'apply'])->middleware('feature:session_copilot');
+    Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated'])->middleware('feature:whatsapp');
+    Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder'])->middleware('feature:whatsapp');
+    Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled'])->middleware('feature:whatsapp');
+    Route::post('user/whatsapp/template', [WhatsAppNotificationController::class, 'template'])->middleware('feature:whatsapp');
+    Route::post('user/whatsapp/interactive-buttons', [WhatsAppNotificationController::class, 'interactiveButtons'])->middleware('feature:whatsapp');
     Route::apiResource('user/whatsapp/templates', WhatsAppTemplateController::class)
-        ->parameters(['templates' => 'whatsappTemplate']);
+        ->parameters(['templates' => 'whatsappTemplate'])->middleware('feature:whatsapp');
     // Solicitudes de citas: consultar pendientes y actualizar estado (approved/rejected)
     Route::get('user/appointment-requests', [AppointmentRequestController::class, 'indexForAuthenticatedPsychologist']);
     Route::patch('user/appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
@@ -285,13 +293,13 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
 
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
     Route::post('user/questionnaires/import-document', [QuestionnaireController::class, 'importDocument'])
-        ->middleware('throttle:10,1');
-    Route::get('user/questionnaires/templates', [QuestionnaireController::class, 'templates']);
-    Route::get('user/questionnaires/invitations', [QuestionnaireController::class, 'invitations']);
-    Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
-    Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
-    Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->name('questionnaire.show.response');
-    Route::apiResource('user/questionnaires', QuestionnaireController::class);
+        ->middleware(['feature:questionnaires', 'throttle:10,1']);
+    Route::get('user/questionnaires/templates', [QuestionnaireController::class, 'templates'])->middleware('feature:questionnaires');
+    Route::get('user/questionnaires/invitations', [QuestionnaireController::class, 'invitations'])->middleware('feature:questionnaires');
+    Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink'])->middleware('feature:questionnaires');
+    Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient'])->middleware('feature:questionnaires');
+    Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->middleware('feature:questionnaires')->name('questionnaire.show.response');
+    Route::apiResource('user/questionnaires', QuestionnaireController::class)->middleware('feature:questionnaires');
     Route::get('user/chat-publico/{user}/{patient}', [ChatPublicController::class, 'index']);
     Route::post('user/chat-publico', [ChatPublicController::class, 'agregarComentarioPublico']);
 

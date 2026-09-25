@@ -22,6 +22,9 @@ use App\Models\PatientUser;
 use App\Services\AppointmentService;
 use App\Services\CheckoutPricingService;
 use App\Services\SubscriptionStatusService;
+use App\Services\PlanCatalogService;
+use App\Models\StripeWebhookEvent;
+use App\Services\PlanAssignmentService;
 use App\Models\User;
 use App\Models\Subscription;
 use Stripe\Checkout\Session as CheckoutSession;
@@ -43,12 +46,14 @@ class StripeController extends Controller
     protected $subscriptionStatusService;
     protected $pricingService;
     protected $settlements;
+    protected $planCatalog;
 
     public function __construct(
         AppointmentService $service,
         SubscriptionStatusService $subscriptionStatusService,
         CheckoutPricingService $pricingService,
-        PaymentSettlementService $settlements
+        PaymentSettlementService $settlements,
+        PlanCatalogService $planCatalog
     )
     {
         // Usa tu secret actual (puede ser el mismo en local y prod, tú ya lo tenías así)
@@ -57,6 +62,7 @@ class StripeController extends Controller
         $this->subscriptionStatusService = $subscriptionStatusService;
         $this->pricingService = $pricingService;
         $this->settlements = $settlements;
+        $this->planCatalog = $planCatalog;
     }
 
     public function createPaymentIntent(Request $request)
@@ -729,6 +735,13 @@ class StripeController extends Controller
             return response()->json(['error' => 'Invalid signature'], 400);
         }
 
+        $isSubscriptionCheckout = $event->type === 'checkout.session.completed'
+            && ($event->data->object->mode ?? null) === 'subscription';
+        if ($isSubscriptionCheckout || in_array($event->type, ['customer.subscription.updated', 'customer.subscription.deleted', 'invoice.payment_failed', 'invoice.paid', 'invoice.payment_succeeded'], true)) {
+            $this->dispatchSubscriptionEventOnce($event);
+            return response()->json(['received' => true]);
+        }
+
         switch ($event->type) {
             // Checkout completado (solo significa voucher generado en OXXO)
             case 'checkout.session.completed': {
@@ -838,15 +851,32 @@ class StripeController extends Controller
 
     public function getSubscriptionStatus(Request $request)
     {
-        return response()->json(
-            $this->subscriptionStatusService->summarize($request->user())
-        );
+        $user = $request->user()->load('subscription');
+        return response()->json($this->subscriptionStatusService->summarize($user) + [
+            'plan_access' => app(\App\Services\PlanAccessService::class)->summary($user),
+        ]);
+    }
+
+    public function activateFreePlan(Request $request, PlanAssignmentService $plans)
+    {
+        $subscription = $plans->activateFree($request->user());
+
+        return response()->json([
+            'message' => 'Tu plan Free está activo.',
+            'subscription' => $subscription,
+            'plan_access' => app(\App\Services\PlanAccessService::class)->summary($request->user()),
+        ]);
     }
 
     public function createSubscriptionCheckoutSession(Request $request)
     {
         Stripe::setApiKey($this->stripe_secretkey);
-        $request->validate(['plan_id' => 'required|string']);
+        $validated = $request->validate([
+            'plan_code' => ['nullable', 'string', 'required_without:plan_id'],
+            'plan_id' => ['nullable', 'string', 'required_without:plan_code'],
+        ]);
+        $plan = $this->planCatalog->resolvePaidPlan($validated['plan_code'] ?? null, $validated['plan_id'] ?? null);
+        $priceId = $this->planCatalog->stripePriceId($plan);
         $user = $request->user();
         $frontendUrl = $this->resolvePsychologistFrontendUrl();
         $subscription = $user->subscription()->first();
@@ -889,10 +919,11 @@ class StripeController extends Controller
         $sessionData = [
             'mode' => 'subscription',
             'customer' => $user->stripe_id,
-            'line_items' => [['price' => $request->plan_id, 'quantity' => 1]],
+            'line_items' => [['price' => $priceId, 'quantity' => 1]],
             'success_url' => $frontendUrl . '/perfil/suscripcion?status=success',
             'cancel_url' => $frontendUrl . '/perfil/suscripcion?status=canceled',
-            'metadata' => ['user_id' => $user->id],
+            'metadata' => ['user_id' => $user->id, 'plan_code' => $plan->code],
+            'subscription_data' => ['metadata' => ['user_id' => $user->id, 'plan_code' => $plan->code]],
             'locale' => 'es-419',
         ];
         $hasHadAnySubscription = isset($subscription->id)
@@ -902,9 +933,7 @@ class StripeController extends Controller
         Log::info('Has had any subscription before: ' . ($hasHadAnySubscription ? 'true' : 'false'));
         $isColleagueReferral = \App\Models\ProfessionalReferral::where('invited_user_id', $user->id)->exists();
         if (!$hasHadAnySubscription && !$isColleagueReferral) {
-            $sessionData['subscription_data'] = [
-                'trial_period_days' => 15, // ¡Aquí defines la duración de la prueba!
-            ];
+            $sessionData['subscription_data']['trial_period_days'] = 15;
         }
         $session = CheckoutSession::create($sessionData);
 
@@ -930,7 +959,12 @@ class StripeController extends Controller
     public function changeSubscriptionPlan(Request $request)
     {
         Stripe::setApiKey($this->stripe_secretkey);
-        $request->validate(['plan_id' => 'required|string']);
+        $validated = $request->validate([
+            'plan_code' => ['nullable', 'string', 'required_without:plan_id'],
+            'plan_id' => ['nullable', 'string', 'required_without:plan_code'],
+        ]);
+        $plan = $this->planCatalog->resolvePaidPlan($validated['plan_code'] ?? null, $validated['plan_id'] ?? null);
+        $priceId = $this->planCatalog->stripePriceId($plan);
 
         $user = $request->user();
         if (!$user->stripe_id) {
@@ -944,7 +978,7 @@ class StripeController extends Controller
 
         $currentItem = data_get($existingSubscription, 'items.data.0');
         $currentPriceId = data_get($currentItem, 'price.id') ?: data_get($currentItem, 'plan.id');
-        if ($currentPriceId === $request->plan_id) {
+        if ($currentPriceId === $priceId) {
             return response()->json(['message' => 'Tu suscripcion ya usa este plan.'], 200);
         }
 
@@ -954,7 +988,7 @@ class StripeController extends Controller
             'items' => [
                 [
                     'id' => data_get($currentItem, 'id'),
-                    'price' => $request->plan_id,
+                    'price' => $priceId,
                 ],
             ],
         ]);
@@ -963,6 +997,7 @@ class StripeController extends Controller
             ['user_id' => $user->id],
             [
                 'stripe_id' => $updatedSubscription->id,
+                'plan_id' => $plan->id,
                 'stripe_plan' => data_get($updatedSubscription, 'items.data.0.price.id'),
                 'stripe_status' => $updatedSubscription->status,
                 'trial_ends_at' => $updatedSubscription->trial_end ? \Carbon\Carbon::createFromTimestamp($updatedSubscription->trial_end) : null,
@@ -1018,24 +1053,7 @@ class StripeController extends Controller
                 $sigHeader,
                 config('services.stripe.webhook_secret')
             );
-            if ($event->type == 'checkout.session.completed') {
-                $session = $event->data->object;
-                if ($session->mode == 'subscription') {
-                    $user = User::find($session->metadata->user_id);
-                    Subscription::updateOrCreate(
-                        ['user_id' => $user->id],
-                        [
-                            'stripe_id' => null,
-                            'stripe_plan' => null,
-                            'stripe_status' => 'pending',
-                            'trial_ends_at' => null,
-                            'ends_at' => null,
-                        ]
-                    );
-                }
-            }
-
-            HandleStripeEventJob::dispatch($event);
+            $this->dispatchSubscriptionEventOnce($event);
             return response()->json(['received' => true], 200);
         } catch (\Throwable $e) {
             Log::error('Stripe webhook error', [
@@ -1067,10 +1085,12 @@ class StripeController extends Controller
 
     protected function syncUserSubscriptionFromStripe(User $user, mixed $stripeSubscription): Subscription
     {
+        $plan = $this->planCatalog->fromStripePrice(data_get($stripeSubscription, 'items.data.0.price'));
         $subscription = Subscription::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'stripe_id' => $stripeSubscription->id,
+                'plan_id' => $plan?->id,
                 'stripe_plan' => data_get($stripeSubscription, 'items.data.0.price.id')
                     ?: data_get($stripeSubscription, 'items.data.0.plan.id'),
                 'stripe_status' => $stripeSubscription->status,
@@ -1089,6 +1109,17 @@ class StripeController extends Controller
         ]);
 
         return $subscription;
+    }
+
+    protected function dispatchSubscriptionEventOnce(mixed $event): void
+    {
+        $record = StripeWebhookEvent::firstOrCreate(
+            ['event_id' => $event->id],
+            ['type' => $event->type, 'status' => 'pending']
+        );
+        if ($record->wasRecentlyCreated || $record->status === 'failed') {
+            HandleStripeEventJob::dispatch($event);
+        }
     }
 
     protected function resolveStripeSubscriptionEndsAt(mixed $stripeSubscription): ?Carbon

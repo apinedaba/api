@@ -216,8 +216,16 @@ class CatalogosController extends Controller
     {
         Stripe::setApiKey(config('services.stripe.secret_key') ?? env('STRIPE_SECRET_KEY'));
         $allPrices = \Stripe\Price::all();
+        $plansByPrice = \App\Models\Plan::whereNotNull('stripe_price_id')->get()->keyBy('stripe_price_id');
+        $plansByLookup = \App\Models\Plan::whereNotNull('stripe_lookup_key')->get()->keyBy('stripe_lookup_key');
         $prices = collect($allPrices->data)
             ->filter(fn($price) => $price->active)
+            ->map(function ($price) use ($plansByPrice, $plansByLookup) {
+                $data = $price->toArray();
+                $plan = $plansByPrice->get($price->id) ?: $plansByLookup->get($price->lookup_key);
+                $data['plan_code'] = $plan?->code;
+                return $data;
+            })
             ->values();
         return response()->json($prices, 200);
     }

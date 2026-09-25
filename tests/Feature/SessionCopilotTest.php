@@ -13,10 +13,17 @@ use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Mockery;
 use Tests\TestCase;
+use Database\Seeders\PlanFeatureSeeder;
 
 class SessionCopilotTest extends TestCase
 {
     use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(PlanFeatureSeeder::class);
+    }
 
     public function test_professional_can_generate_and_apply_reviewed_closure(): void
     {
@@ -70,7 +77,7 @@ class SessionCopilotTest extends TestCase
 
     private function context(): array
     {
-        $professional = User::factory()->create();
+        $professional = User::factory()->create(['has_lifetime_access' => true]);
         $patient = Patient::create([
             'name' => 'Paciente Copiloto',
             'email' => 'copilot+'.uniqid().'@mindmeet.test',

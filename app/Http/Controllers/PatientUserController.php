@@ -61,6 +61,14 @@ class PatientUserController extends Controller
             ], 404);
         }
 
+        if ($relation->archived_at && !Auth::user()->canUseMore('patients')) {
+            return response()->json([
+                'message' => 'Alcanzaste el límite de pacientes de tu plan.',
+                'code' => 'feature_limit_reached',
+                'feature' => 'patients',
+            ], 422);
+        }
+
         $relation->update([
             'activo' => true,
             'status' => $relation->status_before_archive ?: 'Vinculado',
@@ -133,6 +141,14 @@ class PatientUserController extends Controller
                 'rasson' => "Ya existe un paciente en tu lista con estos datos",
                 'message' => "Usuario existente",
                 'type' => "error"
+            ];
+        }
+        if (!$user->canUseMore('patients')) {
+            return [
+                'rasson' => 'Alcanzaste el límite de pacientes de tu plan.',
+                'message' => 'Mejora tu plan para agregar más pacientes.',
+                'code' => 'feature_limit_reached',
+                'type' => 'error',
             ];
         }
 

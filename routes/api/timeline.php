@@ -11,7 +11,7 @@ Route::prefix('user')->middleware(['auth:sanctum', 'handle_invalid_token', 'user
     Route::post('/sessions/{sessionId}/notes', [PatientTimelineController::class, 'storeNote']);
 
     // Subir adjunto
-    Route::post('/sessions/{sessionId}/attachments', [PatientTimelineController::class, 'storeAttachment']);
+    Route::post('/sessions/{sessionId}/attachments', [PatientTimelineController::class, 'storeAttachment'])->middleware('feature:file_uploads');
 
     // Eliminar nota
     Route::delete('/notes/{id}', [PatientTimelineController::class, 'deleteNote']);

@@ -6,8 +6,9 @@ use App\Models\PatientDocumentRequest;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class PatientDocumentAssignedNotification extends Notification
+class PatientDocumentAssignedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 

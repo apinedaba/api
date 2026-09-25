@@ -15,6 +15,7 @@ class ValidacionCedulaManual extends Model
     protected $fillable = [
         'user_id',
         'numero_cedula',
+        'request_key',
         'nombre_completo',
         'institucion',
         'carrera',
@@ -22,6 +23,8 @@ class ValidacionCedulaManual extends Model
         'archivo_cedula',
         'archivo_titulo',
         'estado',
+        'origen',
+        'vendedor_externo_id',
         'notas_admin',
         'fecha_revision',
         'revisado_por',

@@ -55,6 +55,9 @@ class ClinicalRecordPdfService
             'medications' => $medications,
             'symptoms' => $symptoms,
             'logoUrl' => data_get($user->configurations, 'expediente_logo_url') ?: self::DEFAULT_LOGO,
+            'professionalSignature' => data_get($user->configurations, 'document_preferences.professional_signature_data_url')
+                ?: data_get($patient->consentimiento, 'professional_signature_data_url')
+                ?: $expediente?->firma,
             'professionalSchool' => $this->professionalSchool($user),
             'mentalLabels' => $this->mentalLabels(),
         ])->render();

@@ -490,7 +490,7 @@ class ClinicWorkspaceController extends Controller
             ->values();
 
         $appointments = $this->buildClinicAppointmentsQuery($clinic, $psychologistIds)
-            ->with(['user:id,name,email,image', 'patient:id,name,email,phone'])
+            ->with(['user:id,name,email,image', 'user.googleAccount', 'patient:id,name,email,phone'])
             ->orderBy('start')
             ->limit(300)
             ->get()
@@ -501,6 +501,8 @@ class ClinicWorkspaceController extends Controller
                 $patient = $appointment->relationLoaded('patient')
                     ? $appointment->getRelation('patient')
                     : $appointment->patient()->first();
+                $calendarRule = collect($professional?->googleAccount?->calendar_sync_rules ?? [])
+                    ->firstWhere('calendar_id', $appointment->google_calendar_id);
 
                 return [
                     'id' => $appointment->id,
@@ -516,6 +518,8 @@ class ClinicWorkspaceController extends Controller
                     'patient_email' => $patient?->email,
                     'patient_phone' => $patient?->phone,
                     'clinic_id' => $appointment->clinic_id,
+                    'google_calendar_id' => $appointment->google_calendar_id,
+                    'google_calendar_name' => $calendarRule['calendar_name'] ?? null,
                     'extendedProps' => $appointment->extendedProps ?? [],
                 ];
             })

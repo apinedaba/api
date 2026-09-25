@@ -7,6 +7,7 @@ use App\Support\PhoneNormalizer;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use App\Models\WhatsAppNotificationRule;
 
 class WhatsAppChannel
 {
@@ -20,6 +21,19 @@ class WhatsAppChannel
 
         if (! is_array($message) || empty($message['phone'])) {
             return;
+        }
+
+        $eventKey = data_get($message, 'context.event');
+        if ($eventKey) {
+            $rule = WhatsAppNotificationRule::query()->where('event_key', $eventKey)->first();
+            if ($rule && !$rule->sendsTo('whatsapp')) return;
+            if ($rule?->whatsapp_template_key) {
+                $template = \App\Models\WhatsAppTemplate::query()->active()->where('key', $rule->whatsapp_template_key)->first();
+                if ($template?->template_name && ($message['message_type'] ?? '') === 'template') {
+                    $message['template'] = $template->template_name;
+                    $message['language'] = $template->language ?: ($message['language'] ?? 'es_MX');
+                }
+            }
         }
 
         try {

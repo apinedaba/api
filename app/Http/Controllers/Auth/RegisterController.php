@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Models\Patient;
-use App\Models\Vendedor;
+use App\Models\GuardianAccount;
 use App\Models\Subscription;
 use App\Models\Clinic;
 use App\Models\ClinicMembership;
@@ -20,8 +20,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
-use App\Services\SellerCommissionService;
+use App\Services\AdminVendedoresClient;
 use App\Services\OrganizationService;
+use App\Services\ProfessionalReferralService;
 
 class RegisterController extends Controller
 {
@@ -39,8 +40,9 @@ class RegisterController extends Controller
 
     public function registerUser(
         Request $request,
-        SellerCommissionService $sellerCommissionService,
-        OrganizationService $organizationService
+        AdminVendedoresClient $adminVendedores,
+        OrganizationService $organizationService,
+        ProfessionalReferralService $professionalReferralService
     )
     {
         $normalizedEmail = mb_strtolower(trim((string) $request->input('email')));
@@ -81,12 +83,23 @@ class RegisterController extends Controller
         $sellerCode = $request->input('vendedor_qr_token')
             ?: $request->input('referral_code')
             ?: $request->input('v');
-        $vendedor = $sellerCode
-            ? Vendedor::where('qr_token', $sellerCode)->where('status', 'active')->first()
-            : null;
+        if ($sellerCode) {
+            try {
+                $adminVendedores->vendorByQr($sellerCode);
+            } catch (\RuntimeException) {
+                return response()->json(['message' => 'El enlace de vendedor ya no es válido.', 'errors' => ['vendedor_qr_token' => ['Solicita un enlace nuevo al vendedor.']]], 422);
+            }
+        }
 
+        $colleagueCode = trim((string) $request->input('colleague_referral_code'));
+        if ($colleagueCode !== '' && !$professionalReferralService->isValidCode($colleagueCode)) {
+            return response()->json([
+                'message' => 'El enlace de invitación ya no es válido.',
+                'errors' => ['colleague_referral_code' => ['Solicita un enlace nuevo al colega que te invitó.']],
+            ], 422);
+        }
         $accountType = $request->input('account_type') === 'clinic' ? 'clinic' : 'independent';
-        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $vendedor, $sellerCommissionService, $sellerCode) {
+        $user = DB::transaction(function () use ($request, $accountType, $organizationService, $sellerCode, $colleagueCode, $professionalReferralService, $adminVendedores) {
             $user = User::create([
                 'name' => trim((string) $request->name),
                 'email' => mb_strtolower(trim((string) $request->email)),
@@ -104,7 +117,7 @@ class RegisterController extends Controller
 
             $this->createInitialWorkspace($user, $accountType, $request, $organizationService);
 
-            if ($vendedor) {
+            if ($sellerCode) {
                 Subscription::firstOrCreate(
                     ['user_id' => $user->id],
                     [
@@ -116,7 +129,20 @@ class RegisterController extends Controller
                     ]
                 );
 
-                $sellerCommissionService->registerReferral($vendedor, $user, $sellerCode);
+                $adminVendedores->registerReferral([
+                    'mindmeet_user_id' => $user->id,
+                    'nombre' => $user->name,
+                    'email' => $user->email,
+                    'telefono' => data_get($user->contacto, 'telefono'),
+                    'referral_code' => $sellerCode,
+                ]);
+            }
+
+            if ($colleagueCode !== '') {
+                $referral = $professionalReferralService->attachInvitedUser($colleagueCode, $user);
+                if ($referral) {
+                    Subscription::firstOrCreate(['user_id' => $user->id], ['stripe_id' => null, 'stripe_plan' => null, 'stripe_status' => 'init', 'trial_ends_at' => null, 'ends_at' => null]);
+                }
             }
 
             return $user->fresh();
@@ -353,9 +379,15 @@ class RegisterController extends Controller
         $data = $request->all();
         $email = PatientIdentity::normalizeEmail($request->input('email'));
         $phone = PatientIdentity::normalizePhone($request->input('phone', data_get($data, 'contacto.telefono')));
+        $patientExists = PatientIdentity::findByEmailOrPhone($email, $phone) !== null;
+        $guardianExists = $email
+            ? GuardianAccount::whereRaw('LOWER(email) = ?', [$email])->exists()
+            : false;
 
         return response()->json([
-            'exists' => PatientIdentity::findByEmailOrPhone($email, $phone) !== null,
+            'exists' => $patientExists || $guardianExists,
+            'patient_exists' => $patientExists,
+            'guardian_exists' => $guardianExists,
         ]);
     }
 }

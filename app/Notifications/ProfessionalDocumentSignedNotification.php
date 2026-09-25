@@ -31,6 +31,17 @@ class ProfessionalDocumentSignedNotification extends Notification
             'kind' => 'patient-document-signed',
             'patient_id' => $this->patient->id,
             'document_request_id' => $this->document->id,
+            'document' => [
+                'id' => $this->document->id,
+                'patient_id' => $this->patient->id,
+                'title' => $this->document->title,
+                'status' => $this->document->status,
+                'signer_name' => $this->document->signer_name,
+                'signed_at' => $this->document->signed_at?->toISOString(),
+                'public_url' => $this->document->public_url,
+                'pdf_url' => $this->document->pdf_url,
+                'requires_signature' => (bool) $this->document->requires_signature,
+            ],
         ];
     }
 }

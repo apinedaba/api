@@ -11,18 +11,22 @@ use App\Http\Controllers\Admin\AdminMindmeetBenefitController;
 use App\Http\Controllers\Admin\AdminPatientController;
 use App\Http\Controllers\Admin\AdminRedReportController;
 use App\Http\Controllers\Admin\AdminRedTaxonomyController;
+use App\Http\Controllers\Admin\AdminSessionOperationsController;
 use App\Http\Controllers\AdminWhatsAppAutomationController;
 use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\CedulaCheck;
+use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\DiscountCouponController;
 use App\Http\Controllers\FacebookCatalogController;
+use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\HelpCenterAdminController;
 use App\Http\Controllers\HomeContentController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerCommissionController;
+use App\Http\Controllers\CommissionRuleController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\TemporalityContentController;
 use App\Http\Controllers\TemporalityController;
@@ -34,7 +38,6 @@ use App\Jobs\TestNotificacionJob;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
 use App\Models\Clinic;
-use App\Models\ConsultaContacto;
 use App\Models\MinderReport;
 use App\Models\MinderSupportAppointment;
 use App\Models\MinderSupportThread;
@@ -67,6 +70,11 @@ Route::get('/', function () {
     return redirect('https://mindmeet.com.mx');
 });
 
+// Google vuelve por navegación del navegador, no por XHR. Esta misma URL está
+// registrada en Google, pero se atiende con middleware web para conservar sesión.
+Route::get('/api/user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback'])
+    ->name('google.calendar.callback');
+
 Route::get('/dashboard', function () {
     $today = now()->startOfDay();
     $tomorrow = now()->addDay()->startOfDay();
@@ -82,7 +90,6 @@ Route::get('/dashboard', function () {
     $incompleteProfiles = User::query()
         ->where(fn ($query) => $query->where('isProfileComplete', false)->orWhereNull('isProfileComplete'))
         ->count();
-    $activeLeads = ConsultaContacto::whereIn('status', ['new', 'viewed', 'contacted', 'created'])->count();
     $pendingCarts = AppointmentCart::whereIn('estado', ['pendiente', 'pendientePago', 'voucher_generado'])->count();
     $openSupportThreads = MinderSupportThread::where('status', 'open')->count();
     $pendingSupportAppointments = MinderSupportAppointment::where('status', 'pending')->count();
@@ -109,13 +116,6 @@ Route::get('/dashboard', function () {
         'hint' => 'Profesionales que aún no terminan su información pública.',
         'href' => route('psicologos', ['filter' => 'incomplete_profiles']),
         'tone' => $incompleteProfiles > 0 ? 'amber' : 'green',
-    ];
-    $attentionItems[] = [
-        'label' => 'Leads activos',
-        'value' => $activeLeads,
-        'hint' => 'Solicitudes aún no convertidas o descartadas.',
-        'href' => route('analytics', ['lead_status' => 'active']),
-        'tone' => $activeLeads > 0 ? 'blue' : 'green',
     ];
     $attentionItems[] = [
         'label' => 'Pagos/carritos pendientes',
@@ -156,14 +156,6 @@ Route::get('/dashboard', function () {
             'sort_date' => optional($patient->created_at)->timestamp,
             'href' => route('paciente', $patient->id),
         ]))
-        ->merge(ConsultaContacto::with('user:id,name')->latest()->limit(4)->get()->map(fn ($lead) => [
-            'type' => 'Lead recibido',
-            'title' => $lead->nombre ?: $lead->email,
-            'subtitle' => optional($lead->user)->name ?: 'Sin psicólogo asignado',
-            'date' => optional($lead->created_at)->diffForHumans(),
-            'sort_date' => optional($lead->created_at)->timestamp,
-            'href' => route('analytics'),
-        ]))
         ->sortByDesc(fn ($item) => $item['sort_date'])
         ->take(8)
         ->values();
@@ -178,9 +170,12 @@ Route::get('/dashboard', function () {
             'payments_month' => (float) Payment::where('created_at', '>=', $monthStart)
                 ->whereIn('status', ['paid', 'succeeded', 'completed', 'approved'])
                 ->sum('amount'),
-            'leads_month' => ConsultaContacto::where('created_at', '>=', $monthStart)->count(),
-            'converted_leads_month' => ConsultaContacto::where('status', ConsultaContacto::STATUS_CONVERTED)
-                ->where(fn ($query) => $query->where('converted_at', '>=', $monthStart)->orWhere('updated_at', '>=', $monthStart))
+            'completed_appointments_month' => Appointment::where('start', '>=', $monthStart)
+                ->where(function ($query) {
+                    $query->whereNotNull('completed_at')
+                        ->orWhereIn('lifecycle_status', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada'])
+                        ->orWhereIn('statusUser', ['completed', 'complete', 'completada', 'completado', 'concluida', 'terminada', 'finalizada']);
+                })
                 ->count(),
             'clinics_active' => Clinic::where('status', 'active')->count(),
             'active_subscriptions' => Subscription::whereIn('stripe_status', ['active', 'trialing'])->count(),
@@ -216,6 +211,18 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/mi-credencial', fn () => Inertia::render('MiCredencial'))->name('admin.credential.page');
+
+    Route::prefix('admin/api')->group(function () {
+        Route::get('/audience-routing/summary', [\App\Http\Controllers\PublicAudienceResponseController::class, 'summary'])
+            ->name('admin.audience-routing.summary');
+        Route::get('/credential', [CredentialController::class, 'administrator'])->name('admin.credential.show');
+        Route::get('/credential/pdf', [CredentialController::class, 'administratorPdf'])->name('admin.credential.pdf');
+        Route::post('/credential/photo', [CredentialController::class, 'administratorPhoto'])->name('admin.credential.photo');
+    });
+
+    Route::get('/operacion-sesiones', [AdminSessionOperationsController::class, 'index'])->name('session-operations.index');
+    Route::post('/admin/api/citas/{appointment}/pagos', [AdminSessionOperationsController::class, 'storePayment'])->name('session-operations.payments.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit.su');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update.su');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy.su');
@@ -231,6 +238,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/whatsapp-automation', [AdminWhatsAppAutomationController::class, 'index'])->name('whatsapp-automation.index');
     Route::post('/whatsapp-automation/templates', [AdminWhatsAppAutomationController::class, 'storeTemplate'])->name('whatsapp-automation.templates.store');
+    Route::put('/whatsapp-automation/forum-publisher', [AdminWhatsAppAutomationController::class, 'updateForumPublisher'])->name('whatsapp-automation.forum-publisher.update');
     Route::put('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'updateTemplate'])->name('whatsapp-automation.templates.update');
     Route::delete('/whatsapp-automation/templates/{template}', [AdminWhatsAppAutomationController::class, 'destroyTemplate'])->name('whatsapp-automation.templates.destroy');
     Route::put('/whatsapp-automation/rules/{rule}', [AdminWhatsAppAutomationController::class, 'updateRule'])->name('whatsapp-automation.rules.update');
@@ -239,6 +247,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/coupons/{coupon}', [DiscountCouponController::class, 'adminUpdate'])->name('coupons.update');
     Route::delete('/coupons/{coupon}', [DiscountCouponController::class, 'adminDestroy'])->name('coupons.destroy');
     Route::get('/seller-commissions', [SellerCommissionController::class, 'index'])->name('seller-commissions');
+    Route::get('/commission-rules', [CommissionRuleController::class, 'index'])->name('commission-rules');
+    Route::post('/commission-rules', [CommissionRuleController::class, 'store'])->name('commission-rules.store');
+    Route::delete('/commission-rules/{rule}', [CommissionRuleController::class, 'destroy'])->name('commission-rules.destroy');
     Route::post('/seller-commissions/generate', [SellerCommissionController::class, 'generate'])->name('seller-commissions.generate');
     Route::patch('/seller-commissions/mark-paid', [SellerCommissionController::class, 'markPaid'])->name('seller-commissions.mark-paid');
     Route::get('/help-center', [HelpCenterAdminController::class, 'index'])->name('help-center.index');
@@ -273,6 +284,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
     Route::patch('/psicologo/{id}/ensure-public-visibility', [UserController::class, 'ensurePublicVisibility'])->name('psicologo.ensure-public-visibility');
     Route::patch('/psicologo/{id}/membership', [UserController::class, 'updateMembership'])->name('psicologo.membership.update');
+    Route::post('/psicologo/{id}/membership/end', [UserController::class, 'endMembership'])->name('psicologo.membership.end');
     Route::post('user/psicologo/{id}/solicitud', [UserController::class, 'solicitudDeVerificacion'])->name('user.psicologo.solicitud');
     Route::patch('/psicologo/{id}/validate-identity', [UserController::class, 'validateIdentity'])->name('psicologos.validate');
 
@@ -288,6 +300,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
     Route::put('/vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
     Route::delete('/vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
+    Route::post('/vendedores/{vendedor}/resend-activation', [VendedorController::class, 'resendActivation'])->name('vendedores.resend-activation');
     Route::get('/vendedores/{vendedor}/qr', [VendedorController::class, 'qr'])->name('vendedores.qr');
     Route::get('/vendedores/{vendedor}/qr-image', [VendedorController::class, 'preview'])->name('vendedores.qr.image');
     Route::get('/vendedores/{vendedor}/qr-preview', [VendedorController::class, 'preview'])->name('vendedores.qr.preview');
@@ -401,6 +414,8 @@ Route::middleware('auth')->prefix('minder')->name('minder.')->group(function () 
     Route::post('/support/{thread}/messages', [AdminMinderSupportController::class, 'store'])->name('support.messages.store');
     Route::patch('/support/{thread}/close', [AdminMinderSupportController::class, 'closeThread'])->name('support.close');
     Route::get('/support-appointments', [AdminMinderSupportAppointmentController::class, 'index'])->name('support-appointments.index');
+    Route::get('/support-appointments/google/connect', [AdminMinderSupportAppointmentController::class, 'connectGoogleCalendar'])->name('support-appointments.google.connect');
+    Route::delete('/support-appointments/google', [AdminMinderSupportAppointmentController::class, 'disconnectGoogleCalendar'])->name('support-appointments.google.disconnect');
     Route::put('/support-appointments/settings', [AdminMinderSupportAppointmentController::class, 'updateSettings'])->name('support-appointments.settings');
     Route::patch('/support-appointments/{appointment}', [AdminMinderSupportAppointmentController::class, 'update'])->name('support-appointments.update');
 });

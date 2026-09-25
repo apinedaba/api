@@ -203,10 +203,10 @@ class PatientExerciseAiController extends Controller
             ],
             'expediente' => [
                 'diagnostico_registrado_por_psicologo' => $this->clean($expediente?->diagnostico),
-                'plan_tratamiento' => $this->clean($expediente?->plan_tratamiento),
+                'plan_tratamiento' => $this->structuredClinicalData($expediente?->plan_tratamiento),
                 'escalas' => $this->scaleSummary($expediente?->escalas ?? []),
-                'examen_mental_resumen' => $this->filledKeys($expediente?->examen_mental ?? []),
-                'antecedentes_resumen' => $this->clean($expediente?->antecedentes),
+                'examen_mental' => $this->structuredClinicalData($expediente?->examen_mental),
+                'antecedentes' => $this->structuredClinicalData($expediente?->antecedentes),
             ],
             'sesiones_recientes' => $sessions->map(fn ($session) => [
                 'fecha_relativa' => optional($session->start)->diffForHumans(),
@@ -280,14 +280,21 @@ class PatientExerciseAiController extends Controller
         }
     }
 
-    private function filledKeys(array $items): array
+    private function structuredClinicalData($value, int $depth = 0)
     {
-        return collect($items)
-            ->filter(fn ($value) => filled($value))
-            ->keys()
-            ->take(12)
-            ->values()
-            ->all();
+        if ($depth > 3) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return collect($value)
+                ->take(30)
+                ->map(fn ($item) => $this->structuredClinicalData($item, $depth + 1))
+                ->filter(fn ($item) => $item !== null && $item !== '' && $item !== [])
+                ->all();
+        }
+
+        return $this->clean($value);
     }
 
     private function scaleSummary(array $scales): array

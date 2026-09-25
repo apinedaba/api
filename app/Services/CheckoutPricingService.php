@@ -19,7 +19,12 @@ class CheckoutPricingService
     public function buildFromCart(AppointmentCart $cart, ?string $mode = null): array
     {
         $chargeMode = $this->normalizeChargeMode($mode);
-        $sessionBaseAmount = round((float) ($cart->precio ?? 0), 2);
+        $originalSessionAmount = round((float) ($cart->precio ?? 0), 2);
+        $couponDiscountAmount = round(min(
+            $originalSessionAmount,
+            max((float) ($cart->coupon_discount_amount ?? 0), 0)
+        ), 2);
+        $sessionBaseAmount = round($originalSessionAmount - $couponDiscountAmount, 2);
         $chargeSubtotal = $chargeMode === 'avg'
             ? round($sessionBaseAmount * 0.10, 2)
             : $sessionBaseAmount;

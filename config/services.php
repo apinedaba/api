@@ -29,6 +29,14 @@ return [
         'secret_key' => env('STRIPE_SECRET_KEY'),
         'public_key' => env('STRIPE_PUBLIC_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'connect_timeout' => (int) env('STRIPE_CONNECT_TIMEOUT', 5),
+        'request_timeout' => (int) env('STRIPE_REQUEST_TIMEOUT', 20),
+    ],
+    'admin_vendedores' => [
+        'base_url' => env('ADMIN_VENDEDORES_API_URL', 'http://127.0.0.1:8001'),
+        'integration_token' => env('ADMIN_VENDEDORES_INTEGRATION_TOKEN'),
+        'connect_timeout' => (int) env('ADMIN_VENDEDORES_CONNECT_TIMEOUT', 3),
+        'timeout' => (int) env('ADMIN_VENDEDORES_TIMEOUT', 10),
     ],
     'checkout' => [
         'platform_fee_rate' => (float) env('MINDMEET_CHECKOUT_PLATFORM_FEE_RATE', 0.06),

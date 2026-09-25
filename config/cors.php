@@ -19,7 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => explode(',', env('ALLOWED_ORIGINS', 'http://localhost:3000')),
+    'allowed_origins' => array_values(array_unique(array_filter(array_map('trim', array_merge(
+        [
+            'https://mindmeet.com.mx',
+            'https://www.mindmeet.com.mx',
+        ],
+        explode(',', env('ALLOWED_ORIGINS', 'http://localhost:3000'))
+    ))))),
 
     'allowed_origins_patterns' => array_filter(explode(',', env('ALLOWED_ORIGIN_PATTERNS', ''))),
 

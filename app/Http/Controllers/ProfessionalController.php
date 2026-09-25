@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Support\MexicoGeography;
 
 class ProfessionalController extends Controller
 {
@@ -15,7 +16,7 @@ class ProfessionalController extends Controller
      * Query params:
      * - page, perPage
      * - search, precioMax
-     * - generos (CSV), enfoques (CSV)
+     * - generos (CSV), enfoques (CSV), modalidad (CSV)
      * - pais, idioma, especialidad
      */
     public function index(Request $request)
@@ -29,6 +30,7 @@ class ProfessionalController extends Controller
         $page = (int) ($params['page'] ?? 1);
         $perPage = (int) ($params['perPage'] ?? 10);
         $search = trim($params['search'] ?? '');
+        $couponCode = strtoupper(trim($params['coupon_code'] ?? ''));
         $precioMax = $params['precioMax'] ?? null;
         $pais = $this->firstQueryValue($params['pais'] ?? null);
         $idioma = $this->firstQueryValue($params['idioma'] ?? null);
@@ -88,6 +90,12 @@ class ProfessionalController extends Controller
          */
         if ($search !== '') {
             $q->where('name', 'like', "%{$search}%");
+        }
+
+        if ($couponCode !== '') {
+            $q->whereHas('activeDiscountCoupons', function ($couponQuery) use ($couponCode) {
+                $couponQuery->where('discount_coupons.code', $couponCode);
+            });
         }
 
         if ($pais) {
@@ -412,7 +420,7 @@ class ProfessionalController extends Controller
         $values = $this->queryValues($value);
         $ignoredStatusTerms = ['activo', 'active', 'publico', 'published', 'visible'];
 
-        return collect($values)
+        return collect(MexicoGeography::expandStateFilters($values))
             ->reject(fn($estado) => in_array(Str::lower($estado), $ignoredStatusTerms, true))
             ->values()
             ->all();
@@ -424,7 +432,7 @@ class ProfessionalController extends Controller
             ->map(fn($format) => Str::lower($format))
             ->flatMap(function ($format) {
                 if (in_array($format, ['online', 'presencial'], true)) {
-                    return [$format, 'mixto'];
+                    return [$format, 'mixto', 'mixta'];
                 }
 
                 return [$format];

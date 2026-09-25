@@ -13,6 +13,21 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PatientDocumentRequestController extends Controller
 {
+    public function professionalIndex(Request $request)
+    {
+        $documents = PatientDocumentRequest::query()
+            ->with('patient:id,name')
+            ->where('user_id', $request->user()->id)
+            ->whereIn('status', ['pending', 'signed', 'delivered'])
+            ->latest()
+            ->get();
+
+        return response()->json($documents->map(fn ($document) => [
+            ...$this->professionalPayload($document),
+            'patient' => $document->patient?->only(['id', 'name']),
+        ]));
+    }
+
     public function patientIndex(Request $request)
     {
         return response()->json(PatientDocumentRequest::where('patient_id', $request->user()->id)
@@ -41,6 +56,14 @@ class PatientDocumentRequestController extends Controller
             'signer_role' => ['nullable', 'string', 'max:100'],
         ]);
         $preferences = data_get($request->user()->configurations, 'document_preferences', []);
+        $professionalSignature = data_get($preferences, 'professional_signature_data_url');
+        if ($validated['requires_signature']) {
+            abort_unless(
+                is_string($professionalSignature) && preg_match('/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/', $professionalSignature),
+                422,
+                'Guarda primero tu firma profesional en Mis documentos antes de solicitar una firma.'
+            );
+        }
         $isMinorAuthorization = ($validated['template_id'] ?? null) === 'minor-therapy-authorization';
         $birthDate = data_get($patient->relevantes, 'fechaNac');
         $isMinor = $birthDate && now()->diffInYears($birthDate) < 18;
@@ -57,8 +80,7 @@ class PatientDocumentRequestController extends Controller
             'user_id' => $request->user()->id,
             'organization_id' => $request->attributes->get('active_organization')?->id ?: $patient->organization_id,
             'public_token' => Str::random(72),
-            'professional_signature_data_url' => $validated['requires_signature']
-                ? data_get($preferences, 'professional_signature_data_url') : null,
+            'professional_signature_data_url' => $validated['requires_signature'] ? $professionalSignature : null,
             'status' => $validated['requires_signature'] ? 'pending' : 'delivered',
             'expires_at' => now()->addDays(30),
         ]);
@@ -124,7 +146,12 @@ class PatientDocumentRequestController extends Controller
 
     private function professionalPayload(PatientDocumentRequest $document): array
     {
-        return [...$document->toArray(), 'public_url' => rtrim(config('app.frontend_url', env('FRONTEND_URL', 'https://app.mindmeet.com.mx')), '/') . '/documento/' . $document->getRawOriginal('public_token')];
+        $token = $document->getRawOriginal('public_token');
+        return [
+            ...$document->toArray(),
+            'public_url' => rtrim(config('app.frontend_url', env('FRONTEND_URL', 'https://app.mindmeet.com.mx')), '/') . '/documento/' . $token,
+            'pdf_url' => $document->status === 'signed' ? url('/api/public/documents/'.$token.'/pdf') : null,
+        ];
     }
 
     private function publicPayload(PatientDocumentRequest $document): array

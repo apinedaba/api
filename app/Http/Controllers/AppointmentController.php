@@ -7,6 +7,7 @@ use App\Events\NewNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentCart;
+use App\Models\AppointmentParticipant;
 use App\Models\AppointmentRequest;
 use App\Models\ConsultaContacto;
 use App\Models\OrganizationMembership;
@@ -57,10 +58,18 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $appointments = Appointment::with(['payments', 'cart'])
+        $appointments = Appointment::with(['payments', 'cart', 'patient', 'user.googleAccount', 'participants.patient'])
             ->where('user', $user->id)
             ->orderBy('start')
             ->get();
+
+        $appointments->each(function (Appointment $appointment): void {
+            $account = $appointment->getRelation('user')?->googleAccount;
+            $rule = collect($account?->calendar_sync_rules ?? [])
+                ->firstWhere('calendar_id', $appointment->google_calendar_id);
+            $appointment->setAttribute('google_calendar_name', $rule['calendar_name'] ?? null);
+            $appointment->unsetRelation('user');
+        });
 
         return response()->json($appointments, 200);
     }
@@ -101,9 +110,6 @@ class AppointmentController extends Controller
 
     public function getAvailableSlots(Request $request, $id = null)
     {
-        $now = Carbon::now();
-        $start = Carbon::parse($request->start)->startOfDay();
-        $end = Carbon::parse($request->end)->endOfDay();
         $middlewares = Route::getCurrentRoute()->gatherMiddleware();
         $authUser = $request->user();
 
@@ -125,7 +131,16 @@ class AppointmentController extends Controller
         }
 
         $user = User::findOrFail($id);
-        $workingHours = $user->horarios ?? [];
+        $professionalTimezone = in_array($user->timezone, timezone_identifiers_list(), true)
+            ? $user->timezone
+            : config('app.timezone');
+        $patientTimezone = in_array($request->input('timezone'), timezone_identifiers_list(), true)
+            ? $request->input('timezone')
+            : $professionalTimezone;
+        $now = Carbon::now($professionalTimezone);
+        $start = Carbon::parse($request->start, $professionalTimezone)->startOfDay();
+        $end = Carbon::parse($request->end, $professionalTimezone)->endOfDay();
+        $workingHours = $this->normalizeWorkingHours($user->horarios ?? []);
 
         $appointments = Appointment::where('user', $id)
             ->whereBetween('start', [$start, $end])
@@ -155,8 +170,8 @@ class AppointmentController extends Controller
             $slotsFoundToday = false;
 
             foreach ($workingHours[$weekday] as $block) {
-                $blockStart = Carbon::parse("$fecha {$block['start']}");
-                $blockEnd = Carbon::parse("$fecha {$block['end']}");
+                $blockStart = Carbon::parse("$fecha {$block['start']}", $professionalTimezone);
+                $blockEnd = Carbon::parse("$fecha {$block['end']}", $professionalTimezone);
                 $slotStart = $blockStart->copy();
 
                 while ($slotStart->lte($now)) {
@@ -180,9 +195,12 @@ class AppointmentController extends Controller
                     });
 
                     if (! $empalme && ! $requestTaken) {
+                        $patientSlot = $slotStart->copy()->timezone($patientTimezone);
                         $slots[] = [
-                            'date' => $fecha,
-                            'hour' => $slotStart->format('H:i'),
+                            'date' => $patientSlot->format('Y-m-d'),
+                            'hour' => $patientSlot->format('H:i'),
+                            'starts_at' => $slotStart->copy()->utc()->toIso8601String(),
+                            'timezone' => $patientTimezone,
                         ];
                         $slotsFoundToday = true;
                     }
@@ -232,8 +250,11 @@ class AppointmentController extends Controller
             'until' => 'nullable|date|after_or_equal:start',
             'interval' => 'nullable|integer|min:1',
             'syncWithGoogle' => 'nullable|boolean',
+            'google_calendar_id' => 'nullable|string|max:255',
             'clinic_id' => 'nullable|exists:clinics,id',
             'organization_id' => 'nullable|exists:organizations,id',
+            'participant_ids' => 'nullable|array|max:20',
+            'participant_ids.*' => 'integer|distinct|exists:patients,id',
         ]);
 
         if ($createdByProfessional) {
@@ -293,8 +314,80 @@ class AppointmentController extends Controller
             ], 423);
         }
 
-        $start = Carbon::parse($request->input('start'));
-        $end = Carbon::parse($request->input('end'));
+        $participantIds = collect([$request->input('patient')])
+            ->merge($request->input('participant_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $sessionType = Str::lower((string) $request->input('tipoSesion'));
+        $participantCount = $participantIds->count();
+
+        if ($sessionType === 'individual_therapy' && $participantCount !== 1) {
+            return response()->json([
+                'message' => 'La terapia individual admite exactamente un paciente.',
+                'errors' => ['participant_ids' => ['Selecciona solamente al paciente principal.']],
+            ], 422);
+        }
+
+        if ($sessionType === 'couples_therapy' && $participantCount !== 2) {
+            return response()->json([
+                'message' => 'La terapia de pareja requiere exactamente dos participantes.',
+                'errors' => ['participant_ids' => ['Agrega a la segunda persona de la pareja.']],
+            ], 422);
+        }
+
+        if (in_array($sessionType, ['family_therapy', 'group_therapy'], true) && $participantCount < 2) {
+            return response()->json([
+                'message' => 'Este tipo de sesión requiere al menos dos participantes.',
+                'errors' => ['participant_ids' => ['Agrega por lo menos un participante adicional.']],
+            ], 422);
+        }
+
+        $relatedPatientIds = PatientUser::query()
+            ->where('user', (int) $request->input('user'))
+            ->whereIn('patient', $participantIds)
+            ->pluck('patient')
+            ->map(fn ($id) => (int) $id);
+
+        if ($participantIds->diff($relatedPatientIds)->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Uno o más participantes no pertenecen a tus pacientes.',
+                'errors' => ['participant_ids' => ['Revisa los participantes seleccionados.']],
+            ], 422);
+        }
+
+        if ($sessionType === 'couples_therapy') {
+            $hasChild = Patient::query()
+                ->whereIn('id', $participantIds)
+                ->get()
+                ->contains(function (Patient $patient): bool {
+                    $birthDate = data_get($patient->relevantes, 'fechaNac.date')
+                        ?: data_get($patient->relevantes, 'fechaNac');
+
+                    if (! is_string($birthDate) || trim($birthDate) === '') {
+                        return false;
+                    }
+
+                    try {
+                        return Carbon::parse($birthDate)->age < 13;
+                    } catch (\Throwable) {
+                        return false;
+                    }
+                });
+
+            if ($hasChild) {
+                return response()->json([
+                    'message' => 'La terapia de pareja no puede asignarse a menores de 13 años. Considera terapia familiar.',
+                    'errors' => ['tipoSesion' => ['El tipo de sesión no coincide con la edad de los participantes.']],
+                ], 422);
+            }
+        }
+
+        $professional = User::findOrFail((int) $request->input('user'));
+        $professionalTimezone = $this->resolveProfessionalTimezone($professional);
+        $start = $this->parseAppointmentDate($request->input('start'), $professionalTimezone);
+        $end = $this->parseAppointmentDate($request->input('end'), $professionalTimezone);
         $isRecurrent = $request->boolean('is_recurrent');
         $frequency = strtoupper((string) $request->input('frequency', data_get($request->input('recurrence', []), 'frequency', '')));
         $until = $request->input('until', data_get($request->input('recurrence', []), 'until'));
@@ -360,6 +453,7 @@ class AppointmentController extends Controller
                 'recurrence_until' => $isRecurrent ? Carbon::parse($until)->toDateString() : null,
                 'recurrence_position' => $occurrence['position'],
                 'synced_with_google' => $syncWithGoogle,
+                'google_calendar_id' => $syncWithGoogle ? $request->input('google_calendar_id') : null,
                 'extendedProps' => [
                     'tipoSesion' => $request->input('tipoSesion'),
                     'formato' => $request->input('formato'),
@@ -370,7 +464,19 @@ class AppointmentController extends Controller
 
             $this->createAppointmentCart($appointment, $request);
 
-            $appointments[] = $appointment->fresh(['patient', 'user']);
+            $appointmentParticipants = $participantIds->map(fn (int $patientId) => [
+                'appointment_id' => $appointment->id,
+                'patient_id' => $patientId,
+                'role' => $patientId === (int) $request->input('patient') ? 'primary' : 'participant',
+                'attendance_status' => 'expected',
+                'consent_status' => 'pending',
+                'notifications_enabled' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+            AppointmentParticipant::insert($appointmentParticipants);
+
+            $appointments[] = $appointment->fresh(['patient', 'user', 'participants.patient']);
 
             if (! $isRecurrent) {
                 $this->sendNotificacionCreateAppoimentEmail($appointment);
@@ -526,7 +632,7 @@ class AppointmentController extends Controller
     public function show(Appointment $appointment): JsonResponse
     {
         $appointment = Appointment::where('id', $appointment->id)
-            ->with(['patient', 'payments', 'cart', 'user'])
+            ->with(['patient', 'payments', 'cart', 'user', 'participants.patient'])
             ->first();
         $appointment->requires_start_code = app(SessionStartCodeService::class)->appliesTo($appointment);
 
@@ -537,8 +643,11 @@ class AppointmentController extends Controller
     {
         $patient = request()->user();
         $appointment = Appointment::where('id', $id)
-            ->where('patient', $patient->id)
-            ->with(['cart', 'user', 'payments'])
+            ->where(function ($query) use ($patient): void {
+                $query->where('patient', $patient->id)
+                    ->orWhereHas('participants', fn ($participants) => $participants->where('patient_id', $patient->id));
+            })
+            ->with(['cart', 'user', 'payments', 'patient', 'participants.patient'])
             ->first();
 
         return response()->json($appointment, 200);
@@ -817,7 +926,7 @@ class AppointmentController extends Controller
             'action_plan' => ['nullable', 'string'],
             'observations' => ['nullable', 'string'],
             'psychometric_scales' => ['nullable', 'array'],
-            'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string'],
+            'psychometric_scales.*.id' => ['required_with:psychometric_scales', 'string', 'distinct'],
             'psychometric_scales.*.label' => ['nullable', 'string'],
             'psychometric_scales.*.name' => ['nullable', 'string'],
             'psychometric_scales.*.items' => ['required_with:psychometric_scales', 'array'],
@@ -916,8 +1025,19 @@ class AppointmentController extends Controller
 
         try {
             if ($request->hasAny(['start', 'end'])) {
-                $nextStart = Carbon::parse($fieldsToUpdate['start'] ?? $originalData->start);
-                $nextEnd = Carbon::parse($fieldsToUpdate['end'] ?? $originalData->end);
+                $professionalTimezone = $this->resolveProfessionalTimezone($originalData->user()->first());
+                $nextStart = array_key_exists('start', $fieldsToUpdate)
+                    ? $this->parseAppointmentDate($fieldsToUpdate['start'], $professionalTimezone)
+                    : Carbon::parse($originalData->start);
+                $nextEnd = array_key_exists('end', $fieldsToUpdate)
+                    ? $this->parseAppointmentDate($fieldsToUpdate['end'], $professionalTimezone)
+                    : Carbon::parse($originalData->end);
+                if (array_key_exists('start', $fieldsToUpdate)) {
+                    $fieldsToUpdate['start'] = $nextStart;
+                }
+                if (array_key_exists('end', $fieldsToUpdate)) {
+                    $fieldsToUpdate['end'] = $nextEnd;
+                }
                 $conflict = $this->findOverlappingAppointment(
                     (int) $originalData->user,
                     $nextStart,
@@ -1086,6 +1206,71 @@ class AppointmentController extends Controller
         }
 
         return $occurrences;
+    }
+
+    private function resolveProfessionalTimezone(?User $professional): string
+    {
+        $timezone = $professional?->timezone;
+
+        return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true)
+            ? $timezone
+            : config('app.timezone');
+    }
+
+    private function normalizeWorkingHours(mixed $workingHours): array
+    {
+        if (! is_array($workingHours)) {
+            return [];
+        }
+
+        $dayAliases = [
+            'monday' => ['monday', 'lunes'],
+            'tuesday' => ['tuesday', 'martes'],
+            'wednesday' => ['wednesday', 'miercoles', 'miércoles'],
+            'thursday' => ['thursday', 'jueves'],
+            'friday' => ['friday', 'viernes'],
+            'saturday' => ['saturday', 'sabado', 'sábado'],
+            'sunday' => ['sunday', 'domingo'],
+        ];
+
+        $normalized = [];
+        foreach ($dayAliases as $day => $aliases) {
+            $blocks = collect($aliases)
+                ->flatMap(fn (string $alias) => is_array($workingHours[$alias] ?? null) ? $workingHours[$alias] : [])
+                ->map(function ($block) {
+                    if (! is_array($block)) {
+                        return null;
+                    }
+
+                    $start = $block['start'] ?? $block['start_time'] ?? null;
+                    $end = $block['end'] ?? $block['end_time'] ?? null;
+
+                    if (! is_string($start) || ! is_string($end)
+                        || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $start)
+                        || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $end)
+                        || $start >= $end) {
+                        return null;
+                    }
+
+                    return ['start' => $start, 'end' => $end];
+                })
+                ->filter()
+                ->unique(fn (array $block) => $block['start'].'-'.$block['end'])
+                ->values()
+                ->all();
+
+            if ($blocks !== []) {
+                $normalized[$day] = $blocks;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function parseAppointmentDate(mixed $value, string $professionalTimezone): Carbon
+    {
+        return Carbon::parse($value, $professionalTimezone)
+            ->timezone(config('app.timezone'));
     }
 
     private function handleGoogleSyncRequest(array $appointments): ?JsonResponse

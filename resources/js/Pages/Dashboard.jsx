@@ -25,10 +25,6 @@ export default function Dashboard({
     community = {},
     quickLinks = [],
 }) {
-    const leadConversion = summary.leads_month > 0
-        ? `${Math.round((summary.converted_leads_month / summary.leads_month) * 100)}%`
-        : '0%';
-
     const cards = [
         {
             label: 'Psicólogos visibles',
@@ -117,9 +113,9 @@ export default function Dashboard({
                             <h2 className="mt-1 text-xl font-black text-slate-950">Pulso del mes</h2>
 
                             <div className="mt-5 grid gap-3">
-                                <MetricRow label="Leads recibidos" value={number.format(summary.leads_month || 0)} />
-                                <MetricRow label="Leads convertidos" value={number.format(summary.converted_leads_month || 0)} />
-                                <MetricRow label="Conversión" value={leadConversion} />
+                                <MetricRow label="Citas del mes" value={number.format(summary.appointments_month || 0)} />
+                                <MetricRow label="Sesiones completadas" value={number.format(summary.completed_appointments_month || 0)} />
+                                <MetricRow label="Pacientes registrados" value={number.format(summary.patients_total || 0)} />
                                 <MetricRow label="Clínicas activas" value={number.format(summary.clinics_active || 0)} />
                                 <MetricRow label="Preguntas abiertas" value={number.format(community.open_questions || 0)} />
                             </div>

@@ -16,6 +16,12 @@ class GoogleAccount extends Model
         'access_token',
         'refresh_token',
         'expires_in',
+        'default_calendar_id',
+        'calendar_sync_rules',
+    ];
+
+    protected $casts = [
+        'calendar_sync_rules' => 'array',
     ];
 
     protected function accessToken(): Attribute

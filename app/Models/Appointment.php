@@ -51,6 +51,7 @@ class Appointment extends Model
         'cart_id',
         'link',
         'google_event_id',
+        'google_calendar_id',
         'recurrence_id',
         'recurrence_frequency',
         'recurrence_interval',
@@ -137,6 +138,11 @@ class Appointment extends Model
     public function patient()
     {
         return $this->hasOne(Patient::class, 'id', 'patient');
+    }
+
+    public function participants()
+    {
+        return $this->hasMany(AppointmentParticipant::class)->with('patient');
     }
 
     public function user()

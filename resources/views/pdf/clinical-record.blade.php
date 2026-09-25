@@ -55,7 +55,10 @@
         th, td { border: 1px solid #dce7f3; padding: 8px; vertical-align: top; }
         .session { border-left: 4px solid #0f9ec2; margin-bottom: 10px; }
         .signature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 56px; }
-        .signature { border-top: 1px solid #9aa4b2; padding-top: 8px; text-align: center; }
+        .signature { text-align: center; }
+        .signature-image { height: 96px; display: flex; align-items: flex-end; justify-content: center; padding: 4px 12px 8px; }
+        .signature-image img { max-width: 240px; max-height: 88px; object-fit: contain; }
+        .signature-line { border-top: 1px solid #9aa4b2; padding-top: 8px; }
         .footer-note { color: #667085; font-size: 10px; }
         .pill { display: inline-block; border-radius: 999px; background: #e6f7fb; color: #087c96; font-size: 10px; font-weight: 700; padding: 3px 8px; }
     </style>
@@ -308,21 +311,31 @@
             <p class="muted" style="margin-top:8px">Estado: {{ data_get($patient->consentimiento, 'status') === 'signed' ? 'Firmado digitalmente' : (data_get($patient->consentimiento, 'status') === 'uploaded' ? 'Consentimiento escaneado cargado' : 'Consentimiento fisico registrado') }}</p>
             <p class="muted" style="margin-top:8px">Este documento puede actualizarse conforme a la evolucion clinica del paciente y al criterio profesional responsable.</p>
             @php($signatureSource = data_get($patient->consentimiento, 'signature_data_url') ?: data_get($patient->consentimiento, 'signature_url'))
-            @if($signatureSource)
-                <div style="margin-top:14px">
-                    <p class="muted">Firma digital del paciente</p>
-                    <img src="{{ $signatureSource }}" alt="Firma digital" style="max-width:260px; max-height:90px; border:1px solid #e5e7eb; padding:8px">
-                </div>
-            @endif
         </div>
         <div class="signature-grid">
             <div class="signature">
-                <strong>{{ $patient->name ?: 'Paciente' }}</strong>
-                <p class="muted">Paciente</p>
+                <div class="signature-image">
+                    @if($signatureSource)
+                        <img src="{{ $signatureSource }}" alt="Firma del paciente">
+                    @endif
+                </div>
+                <div class="signature-line">
+                    <strong>{{ $patient->name ?: 'Paciente' }}</strong>
+                    <p class="muted">Paciente</p>
+                </div>
             </div>
             <div class="signature">
-                <strong>{{ $user->name ?: 'Profesional responsable' }}</strong>
-                <p class="muted">{{ data_get($school, 'profesion', 'Profesional') }}{{ data_get($school, 'cedula') ? ' · Cedula ' . data_get($school, 'cedula') : '' }}</p>
+                <div class="signature-image">
+                    @if($professionalSignature)
+                        <img src="{{ $professionalSignature }}" alt="Firma del profesional">
+                    @else
+                        <span class="muted">Firma profesional no registrada</span>
+                    @endif
+                </div>
+                <div class="signature-line">
+                    <strong>{{ $user->name ?: 'Profesional responsable' }}</strong>
+                    <p class="muted">{{ data_get($school, 'profesion', 'Profesional') }}{{ data_get($school, 'cedula') ? ' · Cedula ' . data_get($school, 'cedula') : '' }}</p>
+                </div>
             </div>
         </div>
     </section>

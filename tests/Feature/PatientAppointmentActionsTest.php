@@ -39,6 +39,25 @@ class PatientAppointmentActionsTest extends TestCase
         ]);
     }
 
+    public function test_manual_appointment_uses_the_professional_timezone(): void
+    {
+        $professional = User::factory()->create(['timezone' => 'America/Hermosillo']);
+        $patient = $this->makePatient('hermosillo+'.uniqid().'@mindmeet.test');
+        Sanctum::actingAs($professional);
+
+        $response = $this->postJson('/api/user/appointments', [
+            'patient' => $patient->id,
+            'title' => 'Sesion en Hermosillo',
+            'start' => '2030-08-28 10:00',
+            'end' => '2030-08-28 11:00',
+        ])->assertOk();
+
+        $appointment = Appointment::findOrFail($response->json('appointments.0.id'));
+
+        $this->assertSame('2030-08-28 10:00', $appointment->start->timezone('America/Hermosillo')->format('Y-m-d H:i'));
+        $this->assertSame('2030-08-28 11:00', $appointment->end->timezone('America/Hermosillo')->format('Y-m-d H:i'));
+    }
+
     public function test_patient_can_confirm_own_appointment(): void
     {
         [$patient, $appointment] = $this->makePatientAppointment();

@@ -148,5 +148,13 @@ return [
                 'agenda_url' => 'URL de la agenda',
             ],
         ],
+        'new_forum_question' => [
+            'label' => 'Nueva publicación en Mentes en Red',
+            'description' => 'Avisa a todos los psicólogos activos sobre una publicación autorizada.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'question_title' => 'Título de la publicación',
+            ],
+        ],
     ],
 ];

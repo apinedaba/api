@@ -10,9 +10,23 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
+use App\Support\MexicoGeography;
 
 class CatalogosController extends Controller
 {
+    public function modalidad(): array
+    {
+        return [
+            'type' => 'checkbox',
+            'values' => [
+                ['label' => 'Online', 'value' => 'online'],
+                ['label' => 'Presencial', 'value' => 'presencial'],
+            ],
+            'label' => 'Modalidad',
+            'key' => 'modalidad',
+        ];
+    }
+
     public function generos()
     {
         $generos = User::whereNotNull('personales')
@@ -20,6 +34,8 @@ class CatalogosController extends Controller
             ->where('activo', 1)
             ->pluck('personales')
             ->map(fn($p) => $p['genero'] ?? null)
+            ->filter()
+            ->map(fn($state) => MexicoGeography::canonicalState($state))
             ->filter()
             ->unique()
             ->values();
@@ -184,6 +200,7 @@ class CatalogosController extends Controller
     public function getCatalogs(): JsonResponse
     {
         $data = [
+            $this->modalidad(),
             $this->generos(),
             $this->enfoque(),
             $this->especialidades(),

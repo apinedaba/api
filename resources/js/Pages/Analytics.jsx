@@ -28,7 +28,7 @@ const statusLabels = {
 };
 
 const growthMetrics = {
-    leads: { label: 'Leads', color: '#2563eb', type: 'area', axis: 'activity' },
+    appointments: { label: 'Citas', color: '#2563eb', type: 'area', axis: 'activity' },
     psychologists_registered: { label: 'Nuevos psicólogos', color: '#7c3aed', type: 'line', axis: 'psychologists' },
     patients_registered: { label: 'Nuevos pacientes', color: '#06b6d4', type: 'line', axis: 'psychologists' },
     psychologists_active: { label: 'Nuevos activos', color: '#10b981', type: 'line', axis: 'psychologists' },
@@ -41,7 +41,6 @@ export default function Analytics({ auth, analytics, filters }) {
         from: filters?.from || '',
         to: filters?.to || '',
         only_activity: filters?.only_activity ?? true,
-        lead_status: filters?.lead_status || '',
         granularity: filters?.granularity || 'day',
         search: '',
     });
@@ -67,7 +66,6 @@ export default function Analytics({ auth, analytics, filters }) {
             from: form.from,
             to: form.to,
             only_activity: form.only_activity ? 1 : 0,
-            lead_status: form.lead_status || undefined,
             granularity: form.granularity,
         }, {
             preserveState: true,
@@ -114,12 +112,6 @@ export default function Analytics({ auth, analytics, filters }) {
             cell: row => number(row.totals.whatsapp_clicks),
         },
         {
-            name: 'Leads',
-            selector: row => row.totals.leads,
-            sortable: true,
-            cell: row => number(row.totals.leads),
-        },
-        {
             name: 'Citas',
             selector: row => row.totals.appointments,
             sortable: true,
@@ -138,10 +130,10 @@ export default function Analytics({ auth, analytics, filters }) {
             cell: row => number(row.totals.sessions_completed),
         },
         {
-            name: 'Conversion',
-            selector: row => row.rates.lead_conversion,
+            name: 'Vista a cita',
+            selector: row => row.rates.view_to_appointment,
             sortable: true,
-            cell: row => <span className="font-semibold text-emerald-700">{percent(row.rates.lead_conversion)}</span>,
+            cell: row => <span className="font-semibold text-emerald-700">{percent(row.rates.view_to_appointment)}</span>,
         },
         {
             name: 'Estado',
@@ -176,7 +168,7 @@ export default function Analytics({ auth, analytics, filters }) {
                                     <h1 className="text-3xl font-black tracking-tight">Interaccion por psicologo</h1>
                                     <p className="mt-2 max-w-3xl text-sm text-blue-100">
                                         Conteo unico por sesion o IP para evitar que recargas inflen las metricas. Ideal para medir catalogo,
-                                        campañas, leads y conversion interna.
+                                        campañas, citas y actividad registrada en la plataforma.
                                     </p>
                                 </div>
                                 <span className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold">
@@ -231,28 +223,19 @@ export default function Analytics({ auth, analytics, filters }) {
                             <Kpi title="Psicologos con actividad" value={analytics?.summary?.professionals_with_activity} />
                             <Kpi title="Vistas unicas" value={analytics?.summary?.profile_views} />
                             <Kpi title="Clicks de contacto" value={analytics?.summary?.contact_clicks} />
-                            <Kpi title="Leads capturados" value={analytics?.summary?.leads} />
                             <Kpi title="Citas agendadas" value={analytics?.summary?.appointments} />
                             <Kpi title="Citas pagadas" value={analytics?.summary?.paid_appointments} />
                             <Kpi title="Sesiones completadas" value={analytics?.summary?.sessions_completed} />
-                            <Kpi title="Conversion global" value={percent(analytics?.summary?.lead_conversion)} />
+                            <Kpi title="Vista a cita" value={percent(analytics?.summary?.appointment_conversion)} />
                         </div>
-                        {form.lead_status === 'active' && (
-                            <div className="border-t border-slate-100 px-5 pb-5">
-                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-700">
-                                    <span className="font-semibold">Mostrando métricas de leads activos: nuevos, vistos, contactados o creados.</span>
-                                    <Link href={route('analytics')} className="font-bold hover:underline">Ver todos los leads</Link>
-                                </div>
-                            </div>
-                        )}
                     </section>
 
                     <section className="space-y-6">
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                             <GrowthKpi
-                                title="Leads del periodo"
-                                value={analytics?.growth?.period?.leads}
-                                change={analytics?.growth?.changes?.leads}
+                                title="Citas del periodo"
+                                value={analytics?.growth?.period?.appointments}
+                                change={analytics?.growth?.changes?.appointments}
                                 detail="vs. periodo anterior"
                                 tone="blue"
                             />
@@ -329,12 +312,11 @@ export default function Analytics({ auth, analytics, filters }) {
                             </p>
                         </div>
 
-                        <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-                            <LeadStatusCard items={analytics?.growth?.lead_statuses || []} total={analytics?.growth?.period?.leads || 0} />
+                        <div>
                             <FunnelCard
                                 views={analytics?.summary?.profile_views || 0}
                                 contacts={analytics?.summary?.contact_clicks || 0}
-                                leads={analytics?.summary?.leads || 0}
+                                appointments={analytics?.summary?.appointments || 0}
                             />
                         </div>
                     </section>
@@ -344,7 +326,7 @@ export default function Analytics({ auth, analytics, filters }) {
                             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <h2 className="text-lg font-bold text-slate-900">Ranking por psicologo</h2>
-                                    <p className="text-sm text-slate-500">Compara vistas, clicks, leads y conversion.</p>
+                                    <p className="text-sm text-slate-500">Compara vistas, contactos, citas y sesiones reales.</p>
                                 </div>
                                 <input
                                     type="search"
@@ -366,7 +348,6 @@ export default function Analytics({ auth, analytics, filters }) {
 
                         <aside className="space-y-6">
                             <BreakdownCard title="Fuentes con mas interaccion" items={analytics?.topInteractionSources || []} labelKey="source" />
-                            <BreakdownCard title="Fuentes con mas leads" items={analytics?.topSources || []} labelKey="source" />
                             <BreakdownCard title="Campañas con mas interaccion" items={analytics?.topCampaigns || []} labelKey="campaign" />
                             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                                 <h3 className="text-base font-bold text-slate-900">Eventos mapeados</h3>
@@ -449,7 +430,7 @@ function GrowthChart({ data, visibleMetrics, mode }) {
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
                 <defs>
-                    <linearGradient id="leadsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="appointmentsGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
                         <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
                     </linearGradient>
@@ -487,7 +468,7 @@ function GrowthChart({ data, visibleMetrics, mode }) {
                     </>
                 ) : Object.entries(growthMetrics).map(([key, metric]) => visibleMetrics.includes(key) && (
                     metric.type === 'area'
-                        ? <Area key={key} yAxisId={metric.axis} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} fill="url(#leadsGradient)" strokeWidth={3} />
+                        ? <Area key={key} yAxisId={metric.axis} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} fill="url(#appointmentsGradient)" strokeWidth={3} />
                         : <Line key={key} yAxisId={metric.axis} type="monotone" dataKey={key} name={metric.label} stroke={metric.color} strokeWidth={3} dot={{ r: 2, fill: metric.color }} activeDot={{ r: 6 }} />
                 ))}
             </AreaChart>
@@ -495,41 +476,17 @@ function GrowthChart({ data, visibleMetrics, mode }) {
     );
 }
 
-function LeadStatusCard({ items, total }) {
-    const labels = { new: 'Nuevos', viewed: 'Vistos', contacted: 'Contactados', created: 'Creados', converted: 'Convertidos', closed: 'Cerrados', sin_estado: 'Sin estado' };
-    const palette = ['bg-blue-600', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-slate-500'];
-
-    return (
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Calidad del pipeline</p>
-            <h3 className="mt-1 text-lg font-black text-slate-950">Estado de los leads</h3>
-            <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-slate-100">
-                {items.map((item, index) => <div key={item.status} className={palette[index % palette.length]} style={{ width: `${total ? (item.total / total) * 100 : 0}%` }} />)}
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-                {items.length ? items.map((item, index) => (
-                    <div key={item.status} className="flex items-center gap-2 text-sm">
-                        <span className={`h-2.5 w-2.5 rounded-full ${palette[index % palette.length]}`} />
-                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-600">{labels[item.status] || item.status}</span>
-                        <span className="font-black text-slate-950">{number(item.total)}</span>
-                    </div>
-                )) : <p className="col-span-2 text-sm text-slate-500">Sin leads en este periodo.</p>}
-            </div>
-        </div>
-    );
-}
-
-function FunnelCard({ views, contacts, leads }) {
+function FunnelCard({ views, contacts, appointments }) {
     const rows = [
         { label: 'Vistas únicas', value: views, color: 'bg-blue-600', width: 100 },
         { label: 'Clicks de contacto', value: contacts, color: 'bg-violet-500', width: views ? Math.max((contacts / views) * 100, 12) : 12 },
-        { label: 'Leads capturados', value: leads, color: 'bg-emerald-500', width: views ? Math.max((leads / views) * 100, 12) : 12 },
+        { label: 'Citas registradas', value: appointments, color: 'bg-emerald-500', width: views ? Math.max((appointments / views) * 100, 12) : 12 },
     ];
 
     return (
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Conversión</p>
-            <h3 className="mt-1 text-lg font-black text-slate-950">Embudo de adquisición</h3>
+            <h3 className="mt-1 text-lg font-black text-slate-950">Actividad a citas</h3>
             <div className="mt-5 space-y-4">
                 {rows.map((row) => (
                     <div key={row.label}>

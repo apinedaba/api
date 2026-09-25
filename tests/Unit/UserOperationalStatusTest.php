@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\User;
+use App\Models\Subscription;
 use PHPUnit\Framework\TestCase;
 
 class UserOperationalStatusTest extends TestCase
@@ -96,5 +97,71 @@ class UserOperationalStatusTest extends TestCase
 
         $this->assertFalse($user->syncPhoneFromWhatsapp(false));
         $this->assertNull(data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_mobile_is_used_when_phone_and_whatsapp_are_missing(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'telefono' => null,
+                'whatsapp' => null,
+                'movil' => '+52 55 2468 1357',
+            ],
+        ]);
+
+        $this->assertTrue($user->syncPhoneFromPreferredContact(false));
+        $this->assertSame('5524681357', data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_whatsapp_has_priority_over_mobile(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'telefono' => null,
+                'whatsapp' => '5598765432',
+                'movil' => '5524681357',
+            ],
+        ]);
+
+        $this->assertTrue($user->syncPhoneFromPreferredContact(false));
+        $this->assertSame('5598765432', data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_legacy_mobile_key_is_also_supported(): void
+    {
+        $user = new User([
+            'contacto' => [
+                'mobile' => '5511223344',
+            ],
+        ]);
+
+        $this->assertTrue($user->syncPhoneFromPreferredContact(false));
+        $this->assertSame('5511223344', data_get($user->contacto, 'telefono'));
+    }
+
+    public function test_active_status_requires_approved_identity_verified_email_and_membership(): void
+    {
+        $user = new User([
+            'isProfileComplete' => true,
+            'contacto' => ['telefono' => '5512345678'],
+            'educacion' => ['especialidades' => ['ansiedad']],
+            'horarios' => ['lunes' => [['start' => '09:00', 'end' => '10:00']]],
+            'configurations' => ['sesiones' => [['tipoSesion' => 'Individual']]],
+            'identity_verification_status' => 'pending',
+            'email_verified_at' => now(),
+            'has_lifetime_access' => false,
+        ]);
+        $user->setRelation('subscription', new Subscription([
+            'stripe_status' => 'pending',
+        ]));
+
+        $this->assertTrue($user->hasOperationalSetup());
+        $this->assertFalse($user->canBeActive());
+
+        $user->identity_verification_status = 'approved';
+        $this->assertFalse($user->canBeActive());
+
+        $user->has_lifetime_access = true;
+        $this->assertTrue($user->canBeActive());
     }
 }

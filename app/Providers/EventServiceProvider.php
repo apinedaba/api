@@ -5,6 +5,8 @@ namespace App\Providers;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationFailed;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Event;
 
@@ -24,6 +26,13 @@ class EventServiceProvider extends ServiceProvider
         ],
         NotificationSent::class => [
             \App\Listeners\BroadcastAndPushDatabaseNotification::class,
+            \App\Listeners\AuditNotificationDelivery::class,
+        ],
+        NotificationSending::class => [
+            \App\Listeners\RespectNotificationPreferences::class,
+        ],
+        NotificationFailed::class => [
+            \App\Listeners\AuditNotificationFailure::class,
         ],
     ];
 

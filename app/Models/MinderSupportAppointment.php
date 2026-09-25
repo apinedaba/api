@@ -15,6 +15,8 @@ class MinderSupportAppointment extends Model
         'duration_minutes',
         'status',
         'meeting_url',
+        'google_event_id',
+        'google_calendar_id',
         'admin_notes',
         'cancelled_at',
     ];

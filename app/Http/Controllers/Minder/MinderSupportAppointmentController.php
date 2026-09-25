@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Minder;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MinderSupportAppointmentMail;
 use App\Models\Administrator;
 use App\Models\MinderSupportAppointment;
 use App\Models\MinderSupportSetting;
 use App\Notifications\MinderSupportAppointmentNotification;
 use App\Services\MinderSupportScheduleService;
+use App\Services\MinderSupportGoogleCalendarService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
 class MinderSupportAppointmentController extends Controller
@@ -24,11 +27,14 @@ class MinderSupportAppointmentController extends Controller
                 ->latest('scheduled_at')
                 ->get(),
             'slots' => $schedule->slots(),
-            'settings' => MinderSupportSetting::current()->only(['duration_minutes', 'minimum_notice_hours']),
+            'settings' => [
+                ...MinderSupportSetting::current()->only(['duration_minutes', 'minimum_notice_hours']),
+                'google_calendar_connected' => app(MinderSupportGoogleCalendarService::class)->isConnected(),
+            ],
         ]);
     }
 
-    public function store(Request $request, MinderSupportScheduleService $schedule): JsonResponse
+    public function store(Request $request, MinderSupportScheduleService $schedule, MinderSupportGoogleCalendarService $googleCalendar): JsonResponse
     {
         $validated = $request->validate([
             'topic' => 'required|in:configuration,clinic,payments,marketing,training,other',
@@ -52,32 +58,60 @@ class MinderSupportAppointmentController extends Controller
             ]);
         });
 
-        $request->user()->notify(new MinderSupportAppointmentNotification($appointment, 'requested'));
-        $administrators = Administrator::query()->get();
-        Notification::send($administrators, new MinderSupportAppointmentNotification($appointment, 'requested'));
-
-        if (! $administrators->pluck('email')->map(fn ($email) => strtolower($email))->contains(strtolower($settings->support_email))) {
-            Notification::route('mail', $settings->support_email)
-                ->notify(new MinderSupportAppointmentNotification($appointment, 'requested'));
+        $automaticallyConfirmed = false;
+        if ($googleCalendar->isConnected()) {
+            try {
+                $appointment->load('user');
+                $googleCalendar->createEvent($appointment);
+                $automaticallyConfirmed = true;
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
-        return response()->json(['data' => $appointment, 'message' => 'Solicitud de horario enviada.'], 201);
+        $event = $automaticallyConfirmed ? 'confirmed' : 'requested';
+        $request->user()->notify(new MinderSupportAppointmentNotification($appointment, $event));
+        $administrators = Administrator::query()->get();
+        Notification::send($administrators, new MinderSupportAppointmentNotification($appointment, $event));
+
+        if (! $administrators->pluck('email')->map(fn ($email) => strtolower($email))->contains(strtolower($settings->support_email))) {
+            try {
+                Mail::to($settings->support_email)->send(new MinderSupportAppointmentMail($appointment, $event));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        return response()->json([
+            'data' => $appointment->fresh(),
+            'message' => $automaticallyConfirmed
+                ? 'Sesión confirmada y agregada a Google Calendar con enlace de Meet.'
+                : 'Solicitud de horario enviada. El equipo MindMeet la confirmará.',
+        ], 201);
     }
 
-    public function cancel(Request $request, MinderSupportAppointment $appointment): JsonResponse
+    public function cancel(Request $request, MinderSupportAppointment $appointment, MinderSupportGoogleCalendarService $googleCalendar): JsonResponse
     {
         abort_if($appointment->user_id !== $request->user()->id, 403);
         abort_unless(in_array($appointment->status, ['pending', 'confirmed'], true), 422, 'Esta sesión ya no se puede cancelar.');
 
         $appointment->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        try {
+            $googleCalendar->deleteEvent($appointment);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
         $request->user()->notify(new MinderSupportAppointmentNotification($appointment, 'cancelled'));
         $settings = MinderSupportSetting::current();
         $administrators = Administrator::query()->get();
         Notification::send($administrators, new MinderSupportAppointmentNotification($appointment, 'cancelled'));
 
         if (! $administrators->pluck('email')->map(fn ($email) => strtolower($email))->contains(strtolower($settings->support_email))) {
-            Notification::route('mail', $settings->support_email)
-                ->notify(new MinderSupportAppointmentNotification($appointment, 'cancelled'));
+            try {
+                Mail::to($settings->support_email)->send(new MinderSupportAppointmentMail($appointment, 'cancelled'));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return response()->json(['message' => 'Sesión cancelada.']);

@@ -28,6 +28,9 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'provider_name',
+        'provider_id',
+        'avatar',
         'password',
         'isProfileComplete',
         'personales',
@@ -36,6 +39,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'educacion',
         'configurations',
         'horarios',
+        'timezone',
         'plan',
         'image',
         'stripe_id',
@@ -50,7 +54,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'activo',
         'cedula_selfie_url',
         'ine_selfie_url',
-        'identity_verification_status'
+        'identity_verification_status',
+        'credential_public_id',
     ];
 
     /**
@@ -101,6 +106,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function subscription()
     {
         return $this->hasOne(Subscription::class);
+    }
+
+    public function membershipAdministrativeActions(): HasMany
+    {
+        return $this->hasMany(MembershipAdministrativeAction::class)->latest();
     }
 
     public function ownedClinics(): HasMany
@@ -313,9 +323,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(DiscountCoupon::class);
     }
 
-    public function activeDiscountCoupons(): HasMany
+    public function activeDiscountCoupons()
     {
-        return $this->discountCoupons()->currentlyAvailable();
+        return $this->belongsToMany(DiscountCoupon::class)
+            ->currentlyAvailable()
+            ->withTimestamps();
     }
 
     public function sellerReferral(): HasOne
@@ -361,19 +373,25 @@ class User extends Authenticatable implements MustVerifyEmail
         return preg_match('/^\d{10}$/', self::normalizePhone(data_get($this->contacto, 'telefono'))) === 1;
     }
 
-    public function syncPhoneFromWhatsapp(bool $persist = true): bool
+    public function syncPhoneFromPreferredContact(bool $persist = true): bool
     {
         if ($this->hasValidPhone()) {
             return false;
         }
 
-        $whatsapp = self::normalizePhone(data_get($this->contacto, 'whatsapp'));
-        if (preg_match('/^\d{10}$/', $whatsapp) !== 1) {
+        $phone = collect([
+            data_get($this->contacto, 'whatsapp'),
+            data_get($this->contacto, 'movil'),
+            data_get($this->contacto, 'mobile'),
+        ])->map(fn ($value) => self::normalizePhone($value))
+            ->first(fn ($value) => preg_match('/^\d{10}$/', $value) === 1);
+
+        if (! $phone) {
             return false;
         }
 
         $contact = is_array($this->contacto) ? $this->contacto : [];
-        $contact['telefono'] = $whatsapp;
+        $contact['telefono'] = $phone;
         $this->contacto = $contact;
 
         if ($persist && $this->exists) {
@@ -381,6 +399,11 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return true;
+    }
+
+    public function syncPhoneFromWhatsapp(bool $persist = true): bool
+    {
+        return $this->syncPhoneFromPreferredContact($persist);
     }
 
     public static function normalizePhone(mixed $value): string
@@ -396,14 +419,36 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function syncOperationalStatus(): bool
     {
-        $this->syncPhoneFromWhatsapp();
-        $shouldBeActive = $this->hasOperationalSetup();
+        $this->syncPhoneFromPreferredContact();
+        $shouldBeActive = $this->canBeActive();
 
         if ((bool) $this->activo !== $shouldBeActive) {
             $this->forceFill(['activo' => $shouldBeActive])->saveQuietly();
         }
 
         return $shouldBeActive;
+    }
+
+    public function hasBillableAccess(): bool
+    {
+        if ((bool) $this->has_lifetime_access) {
+            return true;
+        }
+
+        $subscription = $this->relationLoaded('subscription')
+            ? $this->getRelation('subscription')
+            : $this->subscription()->first();
+
+        return $subscription?->stripe_status === 'active'
+            || ($subscription?->stripe_status === 'trialing' && filled($subscription?->stripe_id));
+    }
+
+    public function canBeActive(): bool
+    {
+        return $this->hasOperationalSetup()
+            && $this->identity_verification_status === 'approved'
+            && filled($this->email_verified_at)
+            && $this->hasBillableAccess();
     }
 
     public function scopePubliclyVisible(Builder $query): Builder

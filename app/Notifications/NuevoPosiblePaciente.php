@@ -72,16 +72,16 @@ class NuevoPosiblePaciente extends Notification
 
     public function toArray(object $notifiable): array
     {
-        $leadLabel = $this->lead->lead_type === 'package'
+        $requestLabel = $this->lead->lead_type === 'package'
             ? 'el paquete ' . ($this->lead->package_name ?? 'de sesiones')
             : $this->lead->tipo_sesion;
 
         return [
-            'title' => 'Nuevo lead recibido',
-            'body' => "{$this->lead->nombre} mostro interes en {$leadLabel}.",
-            'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/leads',
-            'action_label' => 'Ver lead',
-            'kind' => 'lead-created',
+            'title' => 'Nueva solicitud recibida',
+            'body' => "{$this->lead->nombre} mostró interés en {$requestLabel}.",
+            'action_url' => rtrim(config('app.front_url_user') ?: config('app.front_url'), '/') . '/dashboard',
+            'action_label' => 'Ir al inicio',
+            'kind' => 'contact-request-created',
             'lead_email' => $this->lead->email,
             'lead_phone' => $this->lead->telefono,
             'lead_type' => $this->lead->lead_type,

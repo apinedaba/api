@@ -8,6 +8,7 @@ use App\Models\QuestionnairesLinkResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use App\Services\QuestionnaireDocumentImportService;
 
 class QuestionnaireController extends Controller
 {
@@ -27,6 +28,54 @@ class QuestionnaireController extends Controller
     public function create()
     {
         //
+    }
+
+    /**
+     * Creates an editable questionnaire draft from a private uploaded document.
+     * The upload is read from PHP's temporary storage and is never persisted.
+     */
+    public function importDocument(Request $request, QuestionnaireDocumentImportService $importer)
+    {
+        $request->validate([
+            // Some Linux fileinfo installations identify valid DOCX files as a generic ZIP/octet-stream.
+            // The importer still opens and validates the internal Word document before reading it.
+            'document' => ['required', 'file', 'max:15360', 'extensions:pdf,doc,docx'],
+        ], [
+            'document.max' => 'El archivo no puede superar 15 MB.',
+            'document.extensions' => 'Solo se aceptan archivos PDF o Word (.doc o .docx).',
+        ]);
+
+        try {
+            return response()->json($importer->import($request->file('document')));
+        } catch (\RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+    }
+
+    /** Generic, non-licensed templates that a professional can copy and edit. */
+    public function templates()
+    {
+        return response()->json(['data' => config('questionnaire_templates')]);
+    }
+
+    /** Invitations created for contacts that do not yet have a patient file. */
+    public function invitations()
+    {
+        return QuestionnaireLink::query()
+            ->where('user', Auth::id())
+            ->whereNotNull('recipient_email')
+            ->with('questionnaire:id,title')
+            ->latest()
+            ->get([
+                'id',
+                'questionnaire_id',
+                'token',
+                'status',
+                'expires_at',
+                'recipient_name',
+                'recipient_email',
+                'created_at',
+            ]);
     }
 
     /**
@@ -125,6 +174,25 @@ class QuestionnaireController extends Controller
                 ]);
             }
             if ($response && $response->status == "pending") {
+                $missingRequired = collect($response->questionnaire?->structure ?? [])
+                    ->filter(fn ($field) => ($field['type'] ?? null) !== 'section' && ! empty($field['required']))
+                    ->filter(function ($field) use ($request) {
+                        $value = data_get($request->response, $field['id'] ?? '');
+
+                        return $value === null
+                            || $value === ''
+                            || (is_array($value) && count($value) === 0);
+                    })
+                    ->pluck('id')
+                    ->values();
+
+                if ($missingRequired->isNotEmpty()) {
+                    return response()->json([
+                        'message' => 'Completa las preguntas obligatorias antes de enviar.',
+                        'errors' => ['required_questions' => $missingRequired],
+                    ], 422);
+                }
+
                 $response = QuestionnairesLinkResponses::create([
                     'questionnaire_link_id' => $response->id,
                     'response' => $request->response,
@@ -136,6 +204,7 @@ class QuestionnaireController extends Controller
                 return response()->json([
                     'message' => 'Respuestas guardadas exitosamente.',
                     "response" => $update,
+                    'status' => 'completed',
                     'alert' => [
                         'rasson' => 'El cuestionario se envio con exito, ya notificamos a tu profesional',
                         'message' => "Cuestionario enviado ",

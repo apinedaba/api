@@ -48,14 +48,19 @@ class DeepSeekExerciseService
             throw new RuntimeException('DeepSeek devolvio una respuesta invalida.');
         }
 
-        return [
+        $result = [
             'summary' => Str::limit((string) Arr::get($decoded, 'summary', ''), 500, ''),
             'activities' => $this->normalizeActivities(Arr::get($decoded, 'activities', [])),
             'quickIdeas' => $this->normalizeStrings(Arr::get($decoded, 'quickIdeas', []), 6, 180),
             'safetyNotes' => $this->normalizeStrings(Arr::get($decoded, 'safetyNotes', []), 5, 220),
             'tokenUsage' => data_get($response->json(), 'usage'),
             'model' => data_get($response->json(), 'model', config('services.deepseek.model')),
+            'generatedBy' => 'ai',
         ];
+
+        $this->assertUsefulResult($result, $requestContext);
+
+        return $result;
     }
 
     private function maxTokens(array $requestContext): int
@@ -180,13 +185,18 @@ class DeepSeekExerciseService
                 'content' => implode("\n", [
                     'Eres un asistente clinico para psicologos de MindMeet.',
                     'Genera sugerencias de actividades terapeuticas, no diagnosticos ni indicaciones medicas.',
+                    'No resumas ni reformules simplemente el expediente. Diseña intervenciones nuevas, concretas y aplicables a partir de los objetivos y patrones documentados.',
+                    'Cada actividad debe vincularse con un objetivo clinico concreto, explicar brevemente por que puede ser pertinente y definir una señal observable para evaluar su utilidad.',
+                    'Las actividades deben ser distintas entre si. Evita consejos genericos como respirar, escribir o reflexionar salvo que los conviertas en un protocolo especifico para este contexto.',
+                    'Respeta el tipo de solicitud, formato, duracion, cantidad, restricciones y enfoque preferido indicados por el profesional.',
                     'Privacidad: trabaja solo con el contexto anonimo recibido. No pidas ni infieras nombre, correo, telefono, direccion o identidad.',
                     'Seguridad: si hay senales de crisis, autolesion, violencia o riesgo, prioriza derivacion, plan de seguridad y supervision profesional.',
                     'Las propuestas deben ser revisadas y adaptadas por el psicologo antes de aplicarse.',
                     'Responde solo JSON valido con las llaves: summary, activities, quickIdeas, safetyNotes.',
                     'summary maximo 45 palabras.',
-                    'activities debe ser un arreglo de objetos con: title, objective, steps, duration, materials, homePractice, cautions.',
+                    'activities debe ser un arreglo de objetos con: title, objective, clinicalRationale, steps, duration, materials, homePractice, successIndicator, adaptations, cautions.',
                     'Cada objective, homePractice y cautions maximo 22 palabras. steps debe tener 3 a 4 pasos breves.',
+                    'clinicalRationale y successIndicator deben ser concretos y maximo 28 palabras. adaptations debe ser un arreglo breve.',
                     'Usa espanol claro y muy compacto. Evita explicaciones largas para optimizar tokens.',
                 ]),
             ],
@@ -218,15 +228,41 @@ class DeepSeekExerciseService
                 return [
                     'title' => Str::limit((string) Arr::get($activity, 'title', 'Actividad sugerida'), 100, ''),
                     'objective' => Str::limit((string) Arr::get($activity, 'objective', ''), 260, ''),
+                    'clinicalRationale' => Str::limit((string) Arr::get($activity, 'clinicalRationale', ''), 320, ''),
                     'steps' => $this->normalizeStrings(Arr::get($activity, 'steps', []), 6, 220),
                     'duration' => Str::limit((string) Arr::get($activity, 'duration', ''), 60, ''),
                     'materials' => Str::limit((string) Arr::get($activity, 'materials', 'Sin materiales especiales'), 120, ''),
                     'homePractice' => Str::limit((string) Arr::get($activity, 'homePractice', ''), 260, ''),
+                    'successIndicator' => Str::limit((string) Arr::get($activity, 'successIndicator', ''), 320, ''),
+                    'adaptations' => $this->normalizeStrings(Arr::get($activity, 'adaptations', []), 4, 180),
                     'cautions' => Str::limit((string) Arr::get($activity, 'cautions', ''), 260, ''),
                 ];
             })
             ->values()
             ->all();
+    }
+
+    private function assertUsefulResult(array $result, array $requestContext): void
+    {
+        $mode = Arr::get($requestContext, 'mode', 'activities');
+        $activities = Arr::get($result, 'activities', []);
+        $quickIdeas = Arr::get($result, 'quickIdeas', []);
+
+        if ($mode === 'quick_ideas' && count($quickIdeas) >= 3) {
+            return;
+        }
+
+        $hasUsefulActivity = collect($activities)->contains(fn ($activity) =>
+            filled(Arr::get($activity, 'title'))
+            && filled(Arr::get($activity, 'objective'))
+            && filled(Arr::get($activity, 'clinicalRationale'))
+            && count(Arr::get($activity, 'steps', [])) >= 3
+            && filled(Arr::get($activity, 'successIndicator'))
+        );
+
+        if (! $hasUsefulActivity) {
+            throw new RuntimeException('La IA no genero actividades clinicas suficientemente completas. Intenta de nuevo con un objetivo mas especifico.');
+        }
     }
 
     private function normalizeStrings($items, int $limit, int $maxLength): array

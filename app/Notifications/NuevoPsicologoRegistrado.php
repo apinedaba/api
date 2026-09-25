@@ -29,6 +29,11 @@ class NuevoPsicologoRegistrado extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
+        // La notificación puede recibir una instancia creada antes de que se
+        // persistan todos sus atributos. Leemos el estado actual para que el
+        // correo nunca se construya con un OTP vacío.
+        $notifiable->refresh();
+
         if ($notifiable->hasVerifiedEmail()) {
             return (new MailMessage)
                 ->subject('Te damos la bienvenida a MindMeet')
@@ -36,6 +41,13 @@ class NuevoPsicologoRegistrado extends Notification
                     'name' => $notifiable->name ?? '',
                     'dashboardUrl' => rtrim(config('app.front_url'), '/') . '/dashboard',
                 ]);
+        }
+
+        if (blank($notifiable->verification_code) || ! $notifiable->code_expires_at || $notifiable->code_expires_at->isPast()) {
+            $notifiable->forceFill([
+                'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+                'code_expires_at' => now()->addMinutes(10),
+            ])->save();
         }
 
         $verificationUrl = URL::temporarySignedRoute(
@@ -59,7 +71,7 @@ class NuevoPsicologoRegistrado extends Notification
         return (new MailMessage)
             ->subject('Te damos la bienvenida a MindMeet')
             ->view('email.registro', [
-                'usuario' => $this->user,
+                'usuario' => $notifiable,
                 'verificationUrl' => $verificationUrl,
             ]);
     }

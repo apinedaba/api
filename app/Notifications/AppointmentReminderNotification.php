@@ -10,8 +10,9 @@ use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class AppointmentReminderNotification extends Notification
+class AppointmentReminderNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -63,7 +64,7 @@ class AppointmentReminderNotification extends Notification
                 'patient_id' => $patient?->id,
                 'user_id' => $professional?->id,
                 'reminder_key' => $this->reminderKey,
-                'event' => 'appointment_session_reminder',
+                'event' => 'appointment_reminder',
                 'recipient' => $isProfessional ? 'professional' : 'patient',
             ],
         ];

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppointmentCart;
+use App\Models\DiscountCoupon;
 use App\Models\Patient;
 use App\Services\CheckoutPricingService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AppointmentCartController extends Controller
@@ -190,16 +192,27 @@ class AppointmentCartController extends Controller
             'tipoSesion' => 'required|string',
             'duracion' => 'required|string',
             'precio' => 'required|numeric|min:0',
+            'patient_timezone' => ['nullable', 'timezone:all'],
+            'coupon_code' => ['nullable', 'string', 'max:40'],
         ]);
         // return response()->json($request->except(['categoria', 'user']) + [
         //         'estado' => 'pendiente',
         //     ]);
-        $patient = auth()->user();  // auth:patient
+        // EnsurePatient resolves a guardian session to the represented patient.
+        // Using auth()->user() here bypasses that resolver and assigns the cart
+        // to the guardian instead of the person selected for the appointment.
+        $patient = $request->user();
         $estado = $request->estado === 'pendientePago' ? 'pendientePago' : 'pendiente';
+        $coupon = $this->resolveCoupon(
+            (int) $request->input('user_id'),
+            (string) $request->input('coupon_code', ''),
+            (float) $request->input('precio')
+        );
         $cartPayload = [
             'user_id' => $request->input('user_id'),
             'fecha' => $request->input('fecha'),
             'hora' => $request->input('hora'),
+            'patient_timezone' => $request->input('patient_timezone'),
             'tipoSesion' => $request->input('tipoSesion'),
             'duracion' => (string) $request->input('duracion'),
             'precio' => $request->input('precio'),
@@ -211,6 +224,11 @@ class AppointmentCartController extends Controller
             'patient_id' => $patient->id,
             'estado' => $estado,
             'source' => 'website',
+            'discount_coupon_id' => $coupon?->id,
+            'coupon_code' => $coupon?->code,
+            'coupon_discount_type' => $coupon?->discount_type,
+            'coupon_discount_value' => $coupon ? (float) $coupon->discount_value : null,
+            'coupon_discount_amount' => $coupon?->calculateDiscountForAmount((float) $request->input('precio')),
         ];
 
         $cart = AppointmentCart::updateOrCreate(
@@ -224,6 +242,28 @@ class AppointmentCartController extends Controller
         $this->pricingService->fillCart($cart)->save();
 
         return response()->json($cart);
+    }
+
+    private function resolveCoupon(int $psychologistId, string $code, float $amount): ?DiscountCoupon
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') {
+            return null;
+        }
+
+        $coupon = DiscountCoupon::query()
+            ->forPsychologist($psychologistId)
+            ->where('code', $code)
+            ->currentlyAvailable()
+            ->first();
+
+        if (!$coupon || !$coupon->appliesToLeadType('session') || $amount <= 0) {
+            throw ValidationException::withMessages([
+                'coupon_code' => ['El cupon no esta disponible para esta sesion.'],
+            ]);
+        }
+
+        return $coupon;
     }
 
     private function firstScalar(mixed $value): mixed
@@ -258,7 +298,7 @@ class AppointmentCartController extends Controller
      */
     public function show(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
+        $patient = request()->user();
         $cart = AppointmentCart::with('user')
             ->where('patient_id', $patient->id)
             ->where('estado', 'pendiente')
@@ -274,7 +314,7 @@ class AppointmentCartController extends Controller
      */
     public function cartById(AppointmentCart $appointmentCart)
     {
-        $patient = auth()->user();
+        $patient = request()->user();
         $cart = AppointmentCart::with('user')
             ->where('patient_id', $patient->id)
             ->where('estado', 'pendientePago')

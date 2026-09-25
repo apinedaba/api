@@ -7,8 +7,9 @@ use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class ProfessionalAppointmentCreatedNotification extends Notification
+class ProfessionalAppointmentCreatedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 

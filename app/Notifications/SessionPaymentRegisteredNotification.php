@@ -8,8 +8,9 @@ use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class SessionPaymentRegisteredNotification extends Notification
+class SessionPaymentRegisteredNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 

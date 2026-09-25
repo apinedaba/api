@@ -13,11 +13,13 @@ const navigationGroups = [
             { label: 'Beneficios MindMeet', href: 'mindmeet-benefits.index', match: ['mindmeet-benefits.*'] },
             { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
+            { label: 'Mi credencial', href: 'admin.credential.page', match: ['admin.credential.*'] },
         ],
     },
     {
         title: 'Operacion',
         items: [
+            { label: 'Sesiones y pagos', href: 'session-operations.index', match: ['session-operations.*'] },
             { label: 'Psicologos', href: 'psicologos', match: ['psicologos', 'psicologoShow', 'psicologo.*', 'psicologos.*'] },
             { label: 'Registros web', href: 'pacientes', match: ['pacientes', 'paciente', 'pacientes.*', 'paciente.*'] },
             { label: 'Carritos', href: 'carts', match: ['carts', 'cartByPatient'] },

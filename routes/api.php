@@ -10,9 +10,13 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialiteController;
+use App\Http\Controllers\Auth\SocialRegistrationController;
 use App\Http\Controllers\Auth\UserAuthController;
+use App\Http\Controllers\Internal\VendorOnboardingController;
 use App\Http\Controllers\AvailabilitiController;
 use App\Http\Controllers\CatalogosController;
+use App\Http\Controllers\CredentialController;
+use App\Http\Controllers\ProfessionalReferralController;
 use App\Http\Controllers\CedulaCheck;
 use App\Http\Controllers\ChatPublicController;
 use App\Http\Controllers\ClinicalRecordPdfController;
@@ -32,6 +36,7 @@ use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\MindmeetFeedbackController;
 use App\Http\Controllers\MindmeetBenefitController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\GuardianAccountController;
 use App\Http\Controllers\PatientDocumentRequestController;
@@ -41,6 +46,7 @@ use App\Http\Controllers\PatientUserController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
+use App\Http\Controllers\PublicAudienceResponseController;
 use App\Http\Controllers\ProfessionalPayoutController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
@@ -54,6 +60,7 @@ use App\Http\Controllers\UserStepsController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\WhatsAppNotificationController;
 use App\Http\Controllers\WhatsAppTemplateController;
+use App\Http\Controllers\SessionCopilotController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
@@ -68,9 +75,16 @@ Route::post('user/login', [UserAuthController::class, 'login']);
 Route::resource('ai/diagnose', AiDiagnoseController::class);
 Route::get('pages/home', [HomeController::class, 'getImages']);
 Route::post('user/register', [RegisterController::class, 'registerUser']);
+Route::post('internal/vendor-onboardings', [VendorOnboardingController::class, 'create']);
+Route::post('internal/vendor-crm-activation-email', [VendorOnboardingController::class, 'sendCrmActivationEmail']);
+Route::post('user/vendor-activation', [VendorOnboardingController::class, 'activate'])->middleware('throttle:6,1');
 Route::post('user/verify-registration-code', [RegisterController::class, 'verifyCode']);
 Route::post('user/resend-registration-code', [RegisterController::class, 'resendCode'])
     ->middleware('throttle:resend');
+Route::get('user/social-registration/{token}', [SocialRegistrationController::class, 'show'])
+    ->middleware('throttle:12,1');
+Route::post('user/social-registration/complete', [SocialRegistrationController::class, 'complete'])
+    ->middleware('throttle:6,1');
 
 Route::get('user/auth/{provider}/redirect/professional', [SocialiteController::class, 'redirectProfessional']);
 Route::get('user/auth/{provider}/callback/professional', [SocialiteController::class, 'callbackProfessional']);
@@ -80,6 +94,8 @@ Route::get('patient/public-questionnaire/{token}', [QuestionnaireLinkController:
     ->name('questionnaire.public.show.patient');
 // Endpoint público para confirmar citas desde links enviados por email
 Route::post('public/appointments/confirm', [AppointmentController::class, 'publicConfirm']);
+Route::post('public/audience-routing', [PublicAudienceResponseController::class, 'store'])
+    ->middleware('throttle:60,1');
 Route::post('public/appointments/{uuid}/reschedule', [AppointmentController::class, 'publicReschedule']);
 // Endpoint público para obtener datos legibles de la cita (no expone id)
 Route::get('public/appointments/{hash}', [AppointmentController::class, 'publicShow']);
@@ -119,6 +135,10 @@ Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
 })->middleware(['signed'])->name('verification.verify');
 
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('user')->group(function () {
+    Route::post('social-registration/complete-phone', [SocialRegistrationController::class, 'completeExistingPhone'])
+        ->middleware('throttle:6,1');
+    Route::get('credential', [CredentialController::class, 'psychologist']);
+    Route::get('credential/pdf', [CredentialController::class, 'psychologistPdf']);
     Route::get('organizations', [OrganizationController::class, 'index']);
     Route::post('organizations', [OrganizationController::class, 'store']);
     Route::post('organizations/{organization}/switch', [OrganizationController::class, 'switch']);
@@ -158,6 +178,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('user/service-setup/progress', [ProfileController::class, 'updateServiceSetupProgress']);
     Route::get('user/document-preferences', [ProfileController::class, 'documentPreferences']);
     Route::put('user/document-preferences', [ProfileController::class, 'updateDocumentPreferences']);
+    Route::get('user/document-requests', [PatientDocumentRequestController::class, 'professionalIndex']);
     Route::get('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'index']);
     Route::post('user/patients/{patient}/document-requests', [PatientDocumentRequestController::class, 'store']);
     Route::delete('user/patients/{patient}/document-requests/{documentRequest}', [PatientDocumentRequestController::class, 'cancel']);
@@ -185,6 +206,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('user/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::patch('user/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::delete('user/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::get('user/notification-preferences', [NotificationPreferenceController::class, 'index']);
+    Route::put('user/notification-preferences', [NotificationPreferenceController::class, 'update']);
     Route::get('user/professional-analytics/summary', [ProfessionalAnalyticsController::class, 'summary']);
     Route::get('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'show']);
     Route::post('user/mindmeet-feedback', [MindmeetFeedbackController::class, 'store']);
@@ -195,6 +219,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
 
     // --- Rutas de gestión de suscripción (DEBEN ESTAR AQUÍ) ---
     Route::get('user/subscription/status', [StripeController::class, 'getSubscriptionStatus']);
+    Route::get('user/professional-referrals', [ProfessionalReferralController::class, 'summary']);
     Route::post('user/subscription/checkout-session', [StripeController::class, 'createSubscriptionCheckoutSession']);
     Route::post('user/subscription/change-plan', [StripeController::class, 'changeSubscriptionPlan']);
     Route::get('user/subscription/portal', [StripeController::class, 'createCustomerPortalSession']);
@@ -241,6 +266,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::resource('user/appointments', AppointmentController::class);
     Route::post('user/appointments/{appointment}/start', [AppointmentController::class, 'startSession'])
         ->middleware('throttle:6,1');
+    Route::get('user/appointments/{appointment}/copilot', [SessionCopilotController::class, 'show']);
+    Route::post('user/appointments/{appointment}/copilot/prepare', [SessionCopilotController::class, 'prepare'])->middleware('throttle:10,1');
+    Route::post('user/appointments/{appointment}/copilot/close', [SessionCopilotController::class, 'close'])->middleware('throttle:10,1');
+    Route::put('user/appointments/{appointment}/copilot/{draft}/apply', [SessionCopilotController::class, 'apply']);
     Route::post('user/appointments/{appointment}/whatsapp/created', [WhatsAppNotificationController::class, 'appointmentCreated']);
     Route::post('user/appointments/{appointment}/whatsapp/reminder', [WhatsAppNotificationController::class, 'appointmentReminder']);
     Route::post('user/appointments/{appointment}/whatsapp/cancelled', [WhatsAppNotificationController::class, 'appointmentCancelled']);
@@ -255,6 +284,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::patch('appointment-requests/{id}', [AppointmentRequestController::class, 'update']);
 
     // Funcionalidades avanzadas (cuestionarios, chat, etc.)
+    Route::post('user/questionnaires/import-document', [QuestionnaireController::class, 'importDocument'])
+        ->middleware('throttle:10,1');
+    Route::get('user/questionnaires/templates', [QuestionnaireController::class, 'templates']);
+    Route::get('user/questionnaires/invitations', [QuestionnaireController::class, 'invitations']);
     Route::post('user/questionnaires/{questionnaireId}/generate-link', [QuestionnaireLinkController::class, 'generateLink']);
     Route::get('user/questionnaires/patient/{patient}', [QuestionnaireController::class, 'getQuestionnairesByPatient']);
     Route::get('user/public-questionnaire/{token}/{user}', [QuestionnaireLinkController::class, 'showQuestionnaireResponse'])->name('questionnaire.show.response');
@@ -267,6 +300,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::get('user/sintomas/{user}/{patient}', [SintomasController::class, 'index']);
     Route::post('user/sintomas', [SintomasController::class, 'agregarSintoma']);
     Route::get('user/google/connection-status', [GoogleCalendarController::class, 'checkConnectionStatus']);
+    Route::get('user/google/calendar-settings', [GoogleCalendarController::class, 'settings']);
+    Route::put('user/google/calendar-settings', [GoogleCalendarController::class, 'updateSettings']);
+    Route::get('user/google/auth-url', [GoogleCalendarController::class, 'authUrl']);
 
     Route::apiResource('user/expedientes', ExpedienteController::class);
     Route::post('user/patient/{id}/send-invitation', [PatientController::class, 'sendInvitacion']);
@@ -276,9 +312,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/office', [\App\Http\Controllers\Api\OfficeController::class, 'store']);
     Route::get('user/offices', [\App\Http\Controllers\Api\OfficeController::class, 'index']);
     Route::delete('user/office/{id}', [\App\Http\Controllers\Api\OfficeController::class, 'destroy']);
-    Route::get('user/posibles-pacientes', [ConsultaContactoController::class, 'getData']);
-    Route::patch('user/posibles-pacientes/{lead}/status', [ConsultaContactoController::class, 'updateStatus']);
-
     // Documentación Drive
     Route::get('user/documentacion', [DocumentacionController::class, 'index']);
     Route::get('user/documentacion/categorias', [DocumentacionController::class, 'categorias']);
@@ -292,8 +325,6 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::post('user/assistant/elena/message', [ElenaAssistantController::class, 'message']);
     Route::post('user/assistant/elena/confirm', [ElenaAssistantController::class, 'confirm']);
 });
-Route::get('user/google/calendar/callback', [GoogleCalendarController::class, 'handleCallback']);
-
 // Búsqueda pública de psicólogos por ubicación
 Route::get('psychologists/search', [\App\Http\Controllers\Api\OfficeController::class, 'search']);
 
@@ -306,6 +337,8 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token'])->prefix('patient/gua
 });
 
 Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('patient')->group(function () {
+    Route::get('credential', [CredentialController::class, 'patient']);
+    Route::get('credential/pdf', [CredentialController::class, 'patientPdf']);
     Route::get('info', function (Request $request) {
         $guardian = $request->attributes->get('guardian_account');
         if ($guardian) return array_merge($request->user()->toArray(), [
@@ -337,6 +370,9 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::patch('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::delete('notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::get('notification-preferences', [NotificationPreferenceController::class, 'index']);
+    Route::put('notification-preferences', [NotificationPreferenceController::class, 'update']);
     Route::get('emotion-logs', [EmotionLogController::class, 'index']);
     Route::post('emotion-logs', [EmotionLogController::class, 'store']);
     Route::post('availability', [AvailabilitiController::class, 'store']);
@@ -345,6 +381,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'patient'])->prefix('
     Route::get('cart/reserva/{id}', [AppointmentCartController::class, 'cartById']);
     Route::post('stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
     Route::post('stripe/confirmar-pago', [StripeController::class, 'confirmarPago']);
+    Route::post('stripe/oxxo-voucher', [StripeController::class, 'confirmOxxoVoucher']);
     // OXXO con Elements (nuevo / ajustado)
     Route::post('/stripe/oxxo-intent', [StripeController::class, 'createOxxoIntent']);
     // (opcional) Checkout OXXO por si lo usas en otro lado
@@ -370,11 +407,11 @@ Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 
-require __DIR__.'/api/catalogos.php';
-require __DIR__.'/api/contratos.php';
-require __DIR__.'/api/professional.php';
-require __DIR__.'/api/deviceToken.php';
-require __DIR__.'/api/timeline.php';
-require __DIR__.'/api/attachments.php';
-require __DIR__.'/api/minder.php';
-require __DIR__.'/api/red.php';
+require __DIR__ . '/api/catalogos.php';
+require __DIR__ . '/api/contratos.php';
+require __DIR__ . '/api/professional.php';
+require __DIR__ . '/api/deviceToken.php';
+require __DIR__ . '/api/timeline.php';
+require __DIR__ . '/api/attachments.php';
+require __DIR__ . '/api/minder.php';
+require __DIR__ . '/api/red.php';

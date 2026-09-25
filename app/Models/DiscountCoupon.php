@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class DiscountCoupon extends Model
 {
@@ -39,6 +40,21 @@ class DiscountCoupon extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function psychologists(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTimestamps();
+    }
+
+    public function scopeForPsychologist(Builder $query, int $userId): Builder
+    {
+        return $query->where(function (Builder $couponQuery) use ($userId) {
+            $couponQuery->where('user_id', $userId)
+                ->orWhereHas('psychologists', fn (Builder $psychologistQuery) =>
+                    $psychologistQuery->where('users.id', $userId)
+                );
+        });
     }
 
     public function scopeCurrentlyAvailable(Builder $query): Builder

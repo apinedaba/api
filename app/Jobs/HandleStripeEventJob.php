@@ -6,6 +6,7 @@ use App\Events\SubscriptionActivated;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\SubscriptionBillingNotificationService;
+use App\Services\StripeSubscriptionService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,6 +14,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use App\Services\ProfessionalReferralService;
 
 class HandleStripeEventJob implements ShouldQueue
 {
@@ -35,17 +37,26 @@ class HandleStripeEventJob implements ShouldQueue
                 Log::info('Checkout session completed');
 
                 if (($session->mode ?? null) === 'subscription') {
-                    $this->handleNewSubscription($session);
+                    // Este servicio es el único punto de verdad para suscripciones:
+                    // actualiza MindMeet y acredita la venta en el CRM cuando aplica.
+                    app(StripeSubscriptionService::class)->handleNewSubscription($session);
                 }
                 break;
 
             case 'customer.subscription.updated':
+                app(StripeSubscriptionService::class)->updateSubscription($this->event->data->object);
+                break;
+
             case 'customer.subscription.deleted':
-                $this->handleSubscriptionChange($this->event->data->object);
+                app(StripeSubscriptionService::class)->cancelSubscription($this->event->data->object);
                 break;
 
             case 'invoice.payment_failed':
-                $this->handleFailedPayment($this->event->data->object);
+                app(StripeSubscriptionService::class)->paymentFailed($this->event->data->object);
+                break;
+            case 'invoice.paid':
+            case 'invoice.payment_succeeded':
+                $this->handlePaidInvoice($this->event->data->object);
                 break;
         }
     }
@@ -135,6 +146,13 @@ class HandleStripeEventJob implements ShouldQueue
         }
 
         app(SubscriptionBillingNotificationService::class)->notifyFailedCharge($user, $invoice);
+    }
+
+    protected function handlePaidInvoice($invoice): void
+    {
+        if (empty($invoice->subscription) || empty($invoice->customer) || empty($invoice->id)) return;
+        $user = User::where('stripe_id', $invoice->customer)->first();
+        if ($user) app(ProfessionalReferralService::class)->creditFirstPaidSubscription($user, $invoice->id);
     }
 
     protected function resolveSubscriptionEndsAt($stripeSubscription): ?Carbon

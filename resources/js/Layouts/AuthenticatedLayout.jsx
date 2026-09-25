@@ -11,6 +11,7 @@ const navigationGroups = [
             { label: 'Analytics', href: 'analytics', match: ['analytics'] },
             { label: 'Evaluaciones MindMeet', href: 'mindmeet-feedback.index', match: ['mindmeet-feedback.*'] },
             { label: 'Beneficios MindMeet', href: 'mindmeet-benefits.index', match: ['mindmeet-benefits.*'] },
+            { label: 'Blog', href: 'blog-posts.index', match: ['blog-posts.*'] },
             { label: 'Contenido home', href: 'home-content.index', match: ['home-content.*'] },
             { label: 'Centro de ayuda', href: 'help-center.index', match: ['help-center.*'] },
             { label: 'Mi credencial', href: 'admin.credential.page', match: ['admin.credential.*'] },

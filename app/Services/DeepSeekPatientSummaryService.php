@@ -39,13 +39,19 @@ class DeepSeekPatientSummaryService
         $content = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim((string) $content));
         $decoded = json_decode($content, true);
 
-        if (! is_array($decoded) || ! filled(Arr::get($decoded, 'content'))) {
+        if (! is_array($decoded)) {
+            throw new RuntimeException('Adel devolvio un resumen invalido.');
+        }
+
+        $summaryContent = trim((string) Arr::get($decoded, 'content'));
+
+        if (mb_strlen($summaryContent) < 180) {
             throw new RuntimeException('Adel devolvio un resumen invalido.');
         }
 
         return [
             'title' => Str::limit((string) Arr::get($decoded, 'title', 'Resumen clinico'), 180, ''),
-            'content' => trim((string) Arr::get($decoded, 'content')),
+            'content' => $summaryContent,
             'model' => data_get($response->json(), 'model', config('services.deepseek.model')),
             'token_usage' => data_get($response->json(), 'usage'),
         ];
@@ -59,12 +65,17 @@ class DeepSeekPatientSummaryService
                 'content' => implode("\n", [
                     'Eres Adel, asistente de documentacion clinica de MindMeet.',
                     'Redacta un resumen profesional usando exclusivamente el JSON anonimo proporcionado.',
-                    'No inventes hechos, diagnosticos, fechas ni conclusiones. Distingue datos documentados de observaciones.',
+                    'No te limites a copiar, enumerar o fusionar campos. Integra la informacion en una sintesis clinica coherente y util para tomar decisiones.',
+                    'Identifica patrones longitudinales, cambios, recursos, dificultades, respuesta a intervenciones y asuntos pendientes solo cuando exista evidencia suficiente.',
+                    'Relaciona objetivos, intervenciones y resultados documentados. Si hay contradicciones o vacios relevantes, señalalos como informacion pendiente, no los completes.',
+                    'No inventes hechos, diagnosticos, fechas ni conclusiones. Distingue datos documentados de inferencias clinicas prudentes.',
                     'Adapta lenguaje, profundidad y tecnicismos al destinatario indicado.',
                     'Para familia o escuela evita detalles sensibles innecesarios y lenguaje estigmatizante.',
                     'Para psiquiatria prioriza motivo, evolucion, sintomas, escalas, intervenciones, medicacion y preguntas de interconsulta si estan presentes.',
                     'No incluyas nombre, correo, telefono, direccion, IDs ni otros identificadores.',
                     'Incluye al final: Documento generado con apoyo de IA y sujeto a revision del profesional tratante.',
+                    'Estructura content con: Motivo y contexto, Sintesis del proceso, Evolucion y respuesta, Consideraciones actuales y Siguientes pasos o preguntas pendientes.',
+                    'Omite encabezados sin evidencia. Evita repetir el mismo dato en secciones distintas.',
                     'Responde solo JSON valido con title y content. content debe ser texto claro con encabezados y saltos de linea, sin Markdown complejo.',
                 ]),
             ],

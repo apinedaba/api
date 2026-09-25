@@ -174,7 +174,7 @@ class VendorOnboardingController extends Controller
         ], 201);
     }
 
-    public function activate(Request $request)
+    public function activate(Request $request, AdminVendedoresClient $vendors)
     {
         $data = $request->validate([
             'token' => ['required', 'string'],
@@ -197,6 +197,17 @@ class VendorOnboardingController extends Controller
             ])->save();
             $activation->forceFill(['used_at' => now()])->save();
         });
+
+        // La activación no depende de la disponibilidad del CRM; se sincroniza
+        // como hito comercial y un fallo queda registrado para revisión.
+        try {
+            $vendors->confirmVendorReferralActivation($activation->user->id);
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo sincronizar activación de referido con Admin Vendedores', [
+                'mindmeet_user_id' => $activation->user->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'message' => 'Tu cuenta fue activada. Ya puedes iniciar sesión.',

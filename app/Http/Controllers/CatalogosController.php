@@ -14,6 +14,19 @@ use App\Support\MexicoGeography;
 
 class CatalogosController extends Controller
 {
+    public function modalidad(): array
+    {
+        return [
+            'type' => 'checkbox',
+            'values' => [
+                ['label' => 'Online', 'value' => 'online'],
+                ['label' => 'Presencial', 'value' => 'presencial'],
+            ],
+            'label' => 'Modalidad',
+            'key' => 'modalidad',
+        ];
+    }
+
     public function generos()
     {
         $generos = User::whereNotNull('personales')
@@ -187,6 +200,7 @@ class CatalogosController extends Controller
     public function getCatalogs(): JsonResponse
     {
         $data = [
+            $this->modalidad(),
             $this->generos(),
             $this->enfoque(),
             $this->especialidades(),

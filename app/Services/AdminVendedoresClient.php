@@ -32,6 +32,7 @@ class AdminVendedoresClient
     public function excludeRecovery(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/recoveries/{$mindmeetUserId}/exclude")); }
     public function confirmRecoveryPayment(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/recoveries/{$mindmeetUserId}/payment")); }
     public function confirmVendorReferralPayment(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/vendor-referrals/{$mindmeetUserId}/payment")); }
+    public function confirmVendorReferralActivation(int $mindmeetUserId): array { return $this->send(fn () => $this->request()->post("/internal/v1/vendor-referrals/{$mindmeetUserId}/activation")); }
     public function commissionRules(): array { return $this->send(fn () => $this->request()->get('/internal/v1/commission-rules')); }
     public function createCommissionRule(array $data): array { return $this->send(fn () => $this->request()->post('/internal/v1/commission-rules', $data)); }
     public function deactivateCommissionRule(int|string $id): array { return $this->send(fn () => $this->request()->patch("/internal/v1/commission-rules/{$id}/deactivate")); }

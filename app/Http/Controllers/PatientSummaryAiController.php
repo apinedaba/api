@@ -190,6 +190,9 @@ class PatientSummaryAiController extends Controller
             'content' => $summary->content,
             'sections' => $summary->included_sections,
             'instructions' => $summary->instructions,
+            'model' => $summary->model,
+            'token_usage' => $summary->token_usage,
+            'generated_by' => 'ai',
             'created_at' => optional($summary->created_at)->toISOString(),
             'updated_at' => optional($summary->updated_at)->toISOString(),
         ];

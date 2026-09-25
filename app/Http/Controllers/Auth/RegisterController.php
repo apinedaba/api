@@ -109,6 +109,7 @@ class RegisterController extends Controller
                 'configurations' => [
                     'workspace_type' => $accountType === 'clinic' ? 'clinic' : 'independent',
                     'registration_mode' => $accountType === 'clinic' ? 'clinic_owner' : 'independent',
+                    'vendor_referral_code' => $sellerCode ?: null,
                 ],
                 'password' => Hash::make($request->password),
                 'verification_code' => str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT),
@@ -245,7 +246,7 @@ class RegisterController extends Controller
         return $slug;
     }
 
-    public function verifyCode(Request $request)
+    public function verifyCode(Request $request, AdminVendedoresClient $adminVendedores)
     {
         $request->validate([
             'email' => 'required|email|exists:users,email',
@@ -263,6 +264,17 @@ class RegisterController extends Controller
         }
         $user->markEmailAsVerified();
         $user->forceFill(['verification_code' => null, 'code_expires_at' => null])->save();
+
+        if (filled(data_get($user->configurations, 'vendor_referral_code'))) {
+            try {
+                $adminVendedores->confirmVendorReferralActivation($user->id);
+            } catch (\Throwable $exception) {
+                Log::warning('No se pudo sincronizar la verificación de un referido con Admin Vendedores', [
+                    'mindmeet_user_id' => $user->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         if ($request->hasSession()) {
             Auth::guard('user_web')->login($user, true);

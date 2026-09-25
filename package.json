@@ -21,6 +21,10 @@
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
+        "@tiptap/extension-image": "^3.31.3",
+        "@tiptap/extension-link": "^3.31.3",
+        "@tiptap/react": "^3.31.3",
+        "@tiptap/starter-kit": "^3.31.3",
         "puppeteer": "^25.1.0",
         "react-data-table-component": "^7.7.0",
         "react-hot-toast": "^2.6.0",

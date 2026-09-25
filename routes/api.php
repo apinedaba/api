@@ -404,6 +404,8 @@ Route::get('patient/numberPatients', [PatientController::class, 'getNumberPatien
 Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'store']);
 
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
+Route::get('public/blog', [\App\Http\Controllers\BlogPostController::class, 'index']);
+Route::get('public/blog/{slug}', [\App\Http\Controllers\BlogPostController::class, 'show']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 

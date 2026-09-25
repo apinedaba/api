@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAppointmentController;
+use App\Http\Controllers\Admin\AdminBlogPostController;
 use App\Http\Controllers\Admin\AdminMinderGroupController;
 use App\Http\Controllers\Admin\AdminMinderMetricsController;
 use App\Http\Controllers\Admin\AdminMinderReportController;
@@ -234,6 +235,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/mindmeet-benefits', [AdminMindmeetBenefitController::class, 'store'])->name('mindmeet-benefits.store');
     Route::put('/mindmeet-benefits/{mindmeetBenefit}', [AdminMindmeetBenefitController::class, 'update'])->name('mindmeet-benefits.update');
     Route::delete('/mindmeet-benefits/{mindmeetBenefit}', [AdminMindmeetBenefitController::class, 'destroy'])->name('mindmeet-benefits.destroy');
+    Route::get('/blog-posts', [AdminBlogPostController::class, 'index'])->name('blog-posts.index');
+    Route::post('/blog-posts', [AdminBlogPostController::class, 'store'])->name('blog-posts.store');
+    Route::put('/blog-posts/{blogPost}', [AdminBlogPostController::class, 'update'])->name('blog-posts.update');
+    Route::delete('/blog-posts/{blogPost}', [AdminBlogPostController::class, 'destroy'])->name('blog-posts.destroy');
     Route::get('/facebook-catalog', [FacebookCatalogController::class, 'index'])->name('facebook-catalog.index');
     Route::put('/facebook-catalog/{user}', [FacebookCatalogController::class, 'upsert'])->name('facebook-catalog.upsert');
     Route::get('/whatsapp-automation', [AdminWhatsAppAutomationController::class, 'index'])->name('whatsapp-automation.index');

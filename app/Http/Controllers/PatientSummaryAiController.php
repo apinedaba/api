@@ -120,8 +120,9 @@ class PatientSummaryAiController extends Controller
         if ($has('mental_exam')) $context['examen_mental'] = $this->compact($expediente?->examen_mental ?? []);
 
         if ($has('sessions')) {
-            $context['sesiones_recientes'] = Appointment::where('patient', $patient->id)->where('user', $userId)
-                ->orderByDesc('start')->limit(8)->get()->map(fn ($session) => $this->compact([
+            $sessions = Appointment::where('patient', $patient->id)->where('user', $userId)
+                ->orderByDesc('start')->limit(8)->get()->sortBy('start')->values();
+            $context['sesiones_recientes'] = $sessions->map(fn ($session) => $this->compact([
                     'fecha' => optional($session->start)->toDateString(),
                     'objetivo' => $this->clean($session->objective),
                     'descripcion' => $this->clean($session->session_description ?: $session->comments),

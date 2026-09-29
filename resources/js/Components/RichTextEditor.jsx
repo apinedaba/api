@@ -53,7 +53,7 @@ export default function RichTextEditor({ value, onChange }) {
                 {button('Deshacer', () => editor.chain().focus().undo().run())}
                 {button('Rehacer', () => editor.chain().focus().redo().run())}
             </div>
-            <EditorContent editor={editor} />
+            <EditorContent className="max-h-[500px] overflow-y-auto p-3" editor={editor} />
         </div>
     );
 }

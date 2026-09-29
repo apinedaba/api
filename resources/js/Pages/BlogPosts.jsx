@@ -160,7 +160,7 @@ function PostEditor({ post, categories, onClose }) {
                 <div className="space-y-5">
                     <Field label="Título" error={errors.title}><input value={data.title} onChange={e => setData('title', e.target.value)} className="input" placeholder="Cómo cuidar tu salud mental todos los días" /></Field>
                     <Field label="Extracto para tarjetas" error={errors.excerpt}><textarea value={data.excerpt} onChange={e => setData('excerpt', e.target.value)} rows="3" className="input" placeholder="Una introducción breve que invite a leer..." /></Field>
-                    <Field label="Contenido" error={errors.content} hint="Usa la barra para dar formato, agregar enlaces e insertar imágenes desde Cloudinary."><RichTextEditor value={data.content} onChange={value => setData('content', value)} /></Field>
+                    <Field label="Contenido" error={errors.content} hint="Usa la barra para dar formato, agregar enlaces e insertar imágenes desde Cloudinary."><RichTextEditor  value={data.content} onChange={value => setData('content', value)} /></Field>
                     <div className="grid gap-4 md:grid-cols-2">
                         <Field label="Meta título" error={errors.meta_title}><input value={data.meta_title || ''} maxLength="70" onChange={e => setData('meta_title', e.target.value)} className="input" /></Field>
                         <Field label="Meta descripción" error={errors.meta_description}><textarea value={data.meta_description || ''} maxLength="170" onChange={e => setData('meta_description', e.target.value)} rows="2" className="input" /></Field>

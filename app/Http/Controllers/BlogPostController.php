@@ -60,7 +60,7 @@ class BlogPostController extends Controller
             ->whereKeyNot($post->id)
             ->whereNotIn('id', $related->pluck('id'))
             ->inRandomOrder()
-            ->limit(3)
+            ->limit(5)
             ->get()
             ->map(fn (BlogPost $suggestedPost) => $this->serialize($suggestedPost, false));
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
+use App\Models\BlogCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -10,9 +11,9 @@ class BlogPostController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $posts = BlogPost::query()
+        $posts = BlogPost::query()->with('categoryRelation')
             ->published()
-            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->string('category')))
+            ->when($request->filled('category'), fn ($query) => $query->whereHas('categoryRelation', fn ($categoryQuery) => $categoryQuery->where('slug', $request->string('category'))))
             ->when($request->filled('q'), function ($query) use ($request) {
                 $term = '%'.$request->string('q')->trim().'%';
                 $query->where(function ($search) use ($term) {
@@ -26,41 +27,47 @@ class BlogPostController extends Controller
             ->paginate(min(max($request->integer('per_page', 12), 1), 50));
 
         $payload = $posts->through(fn (BlogPost $post) => $this->serialize($post, false))->toArray();
-        $payload['categories'] = BlogPost::query()
-            ->published()
-            ->whereNotNull('category')
-            ->distinct()
-            ->orderBy('category')
-            ->pluck('category')
-            ->values();
+        $payload['categories'] = BlogCategory::query()->orderBy('name')->get()
+            ->map(fn (BlogCategory $category) => $this->serializeCategory($category));
 
         return response()->json($payload);
     }
 
     public function show(string $slug): JsonResponse
     {
-        $post = BlogPost::query()->published()->where('slug', $slug)->firstOrFail();
+        $post = BlogPost::query()->with('categoryRelation')->published()->where('slug', $slug)->firstOrFail();
 
-        $related = BlogPost::query()
+        $related = BlogPost::query()->with('categoryRelation')
             ->published()
             ->whereKeyNot($post->id)
             ->where(function ($query) use ($post) {
-                if ($post->category) {
-                    $query->where('category', $post->category);
+                if ($post->category_id) {
+                    $query->where('category_id', $post->category_id);
                 }
 
                 foreach ($post->tags ?? [] as $tag) {
                     $query->orWhereJsonContains('tags', $tag);
                 }
             })
-            ->latest('published_at')
+            ->inRandomOrder()
             ->limit(3)
             ->get()
             ->map(fn (BlogPost $relatedPost) => $this->serialize($relatedPost, false));
 
+        $suggested = BlogPost::query()
+            ->with('categoryRelation')
+            ->published()
+            ->whereKeyNot($post->id)
+            ->whereNotIn('id', $related->pluck('id'))
+            ->inRandomOrder()
+            ->limit(3)
+            ->get()
+            ->map(fn (BlogPost $suggestedPost) => $this->serialize($suggestedPost, false));
+
         return response()->json([
             'data' => $this->serialize($post, true),
             'related' => $related,
+            'suggested' => $suggested,
         ]);
     }
 
@@ -73,8 +80,9 @@ class BlogPostController extends Controller
             'slug' => $post->slug,
             'excerpt' => $post->excerpt,
             'author_name' => $post->author_name,
-            'category' => $post->category,
+            'category' => $post->categoryRelation ? $this->serializeCategory($post->categoryRelation) : null,
             'tags' => $post->tags ?? [],
+            'sources' => $post->sources ?? [],
             'cover_image_url' => $post->cover_image_url,
             'cover_image_alt' => $post->cover_image_alt ?: $post->title,
             'meta_title' => $post->meta_title ?: $post->title,
@@ -89,5 +97,10 @@ class BlogPostController extends Controller
         }
 
         return $data;
+    }
+
+    private function serializeCategory(BlogCategory $category): array
+    {
+        return ['name' => $category->name, 'slug' => $category->slug, 'description' => $category->description];
     }
 }

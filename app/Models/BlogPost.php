@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BlogPost extends Model
 {
@@ -19,7 +20,9 @@ class BlogPost extends Model
         'content',
         'author_name',
         'category',
+        'category_id',
         'tags',
+        'sources',
         'cover_image_url',
         'cover_image_public_id',
         'cover_image_alt',
@@ -32,6 +35,7 @@ class BlogPost extends Model
 
     protected $casts = [
         'tags' => 'array',
+        'sources' => 'array',
         'is_featured' => 'boolean',
         'published_at' => 'datetime',
     ];
@@ -42,5 +46,10 @@ class BlogPost extends Model
             ->where('status', 'published')
             ->whereNotNull('published_at')
             ->where('published_at', '<=', now());
+    }
+
+    public function categoryRelation(): BelongsTo
+    {
+        return $this->belongsTo(BlogCategory::class, 'category_id');
     }
 }

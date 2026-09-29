@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 const emptyPost = {
     title: '', slug: '', excerpt: '', content: '', author_name: 'Equipo MindMeet',
-    category: '', tags: '', cover_image_url: '', cover_image: null,
+    category_id: '', tags: '', sources: '', cover_image_url: '', cover_image: null,
     cover_image_alt: '', meta_title: '', meta_description: '', status: 'draft',
     is_featured: false, published_at: '',
 };
@@ -15,6 +15,7 @@ const emptyPost = {
 export default function BlogPosts({ auth, posts = [], categories = [] }) {
     const [editing, setEditing] = useState(null);
     const [showEditor, setShowEditor] = useState(false);
+    const [showCategories, setShowCategories] = useState(false);
     const stats = useMemo(() => ({
         total: posts.length,
         published: posts.filter((post) => post.status === 'published').length,
@@ -45,7 +46,7 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                                 <h1 className="mt-1 text-3xl font-black text-slate-950">Blog de MindMeet</h1>
                                 <p className="mt-2 max-w-2xl text-sm text-slate-600">Crea, programa y publica artículos que aparecerán automáticamente en el sitio público.</p>
                             </div>
-                            <PrimaryButton onClick={() => openEditor()}>Nuevo artículo</PrimaryButton>
+                            <div className="flex gap-3"><button type="button" onClick={() => setShowCategories(true)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">Categorías</button><PrimaryButton onClick={() => openEditor()}>Nuevo artículo</PrimaryButton></div>
                         </div>
                         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             <Metric label="Total" value={stats.total} />
@@ -69,7 +70,7 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                                             {post.status === 'published' ? 'Publicado' : 'Borrador'}
                                         </span>
                                         {post.is_featured && <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700">Destacado</span>}
-                                        {post.category && <span className="text-slate-500">{post.category}</span>}
+                                        {post.category && <span className="text-slate-500">{post.category.name}</span>}
                                     </div>
                                     <h2 className="mt-2 truncate text-lg font-black text-slate-950">{post.title}</h2>
                                     <p className="mt-1 line-clamp-2 text-sm text-slate-600">{post.excerpt}</p>
@@ -85,8 +86,11 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                 </div>
             </div>
 
-            <Modal show={showEditor} onClose={() => setShowEditor(false)} maxWidth="5xl">
+            <Modal show={showEditor} onClose={() => setShowEditor(false)} maxWidth="[1280px]">
                 <PostEditor post={editing} categories={categories} onClose={() => setShowEditor(false)} />
+            </Modal>
+            <Modal show={showCategories} onClose={() => setShowCategories(false)} maxWidth="2xl">
+                <CategoryManager categories={categories} onClose={() => setShowCategories(false)} />
             </Modal>
         </AuthenticatedLayout>
     );
@@ -167,8 +171,9 @@ function PostEditor({ post, categories, onClose }) {
                     <Field label="Fecha de publicación" error={errors.published_at}><input type="datetime-local" value={data.published_at || ''} onChange={e => setData('published_at', e.target.value)} className="input" /></Field>
                     <Field label="Dirección pública del artículo" error={errors.slug} hint="Si dejas el slug vacío, se genera automáticamente desde el título."><div className="flex items-center rounded-xl border border-slate-200 bg-white"><span className="pl-3 text-sm text-slate-400">mindmeet.com.mx/blog/</span><input value={data.slug || ''} onChange={e => setData('slug', e.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm focus:ring-0" placeholder="mi-articulo" /></div></Field>
                     <Field label="Autor" error={errors.author_name}><input value={data.author_name || ''} onChange={e => setData('author_name', e.target.value)} className="input" /></Field>
-                    <Field label="Categoría" error={errors.category}><input list="blog-categories" value={data.category || ''} onChange={e => setData('category', e.target.value)} className="input" /><datalist id="blog-categories">{categories.map(category => <option key={category} value={category} />)}</datalist></Field>
+                    <Field label="Categoría" error={errors.category_id}><select value={data.category_id || ''} onChange={e => setData('category_id', e.target.value)} className="input"><option value="">Sin categoría</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
                     <Field label="Etiquetas" error={errors.tags} hint="Separadas por comas."><input value={data.tags || ''} onChange={e => setData('tags', e.target.value)} className="input" placeholder="ansiedad, bienestar, terapia" /></Field>
+                    <Field label="Fuentes bibliográficas" error={errors.sources} hint="Una referencia por línea. Ejemplo: Goleman, D. (1995). Inteligencia emocional. Kairós."><textarea value={data.sources || ''} onChange={e => setData('sources', e.target.value)} rows="5" className="input" placeholder="Apellido, N. (Año). Título del libro. Editorial." /></Field>
                     <Field label="Imagen de portada" error={errors.cover_image} hint="JPG, PNG o WebP. Máximo 8 MB."><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setData('cover_image', e.target.files?.[0] || null)} className="input" /></Field>
                     <Field label="URL externa de la imagen" error={errors.cover_image_url} hint="Opcional. Puedes pegar una URL de Cloudinary en lugar de subir un archivo."><input type="url" value={data.cover_image_url || ''} onChange={e => setData('cover_image_url', e.target.value)} className="input" placeholder="https://res.cloudinary.com/..." /></Field>
                     {data.cover_image_url && <div><span className="mb-1 block text-xs font-black uppercase tracking-wider text-slate-500">Portada actual</span><img src={data.cover_image_url} alt={data.cover_image_alt || data.title} className="aspect-video w-full rounded-2xl object-cover" /></div>}
@@ -194,7 +199,7 @@ function BlogPreview({ post, onClose }) {
                     <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700">Cerrar</button>
                 </div>
                 <header className="bg-gradient-to-br from-sky-50 via-white to-violet-50 px-6 py-14 text-center sm:px-12">
-                    {post.category && <p className="text-xs font-black uppercase tracking-[.25em] text-blue-700">{post.category}</p>}
+                    {post.category && <p className="text-xs font-black uppercase tracking-[.25em] text-blue-700">{post.category.name}</p>}
                     <h1 className="mx-auto mt-4 max-w-4xl text-4xl font-black leading-tight text-slate-950">{post.title || 'Título del artículo'}</h1>
                     <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">{post.excerpt || 'El extracto aparecerá en este espacio.'}</p>
                     <p className="mt-6 text-sm text-slate-500">Por {post.author_name || 'Equipo MindMeet'}</p>
@@ -204,6 +209,40 @@ function BlogPreview({ post, onClose }) {
             </div>
         </div>
     );
+}
+
+function CategoryManager({ categories, onClose }) {
+    const [editing, setEditing] = useState(null);
+    const { data, setData, errors, processing, reset } = useForm({ name: '', description: '' });
+
+    const edit = (category) => {
+        setEditing(category);
+        setData({ name: category.name, description: category.description || '' });
+    };
+
+    const submit = (event) => {
+        event.preventDefault();
+        router.post(editing ? route('blog-categories.update', editing.id) : route('blog-categories.store'), {
+            ...data, _method: editing ? 'put' : 'post',
+        }, { preserveScroll: true, onSuccess: () => { setEditing(null); reset(); } });
+    };
+
+    const remove = (category) => {
+        if (window.confirm(`¿Eliminar la categoría "${category.name}"?`)) {
+            router.delete(route('blog-categories.destroy', category.id), { preserveScroll: true });
+        }
+    };
+
+    return <div className="max-h-[90vh] overflow-y-auto p-6">
+        <div className="mb-6 flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-blue-700">Organización editorial</p><h2 className="text-2xl font-black text-slate-950">Categorías del blog</h2><p className="mt-1 text-sm text-slate-600">Cada categoría tiene una descripción y una landing pública propia.</p></div><button type="button" onClick={onClose} className="text-sm font-bold text-slate-500">Cerrar</button></div>
+        <form onSubmit={submit} className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
+            <p className="mb-3 text-sm font-black text-slate-800">{editing ? 'Editar categoría' : 'Nueva categoría'}</p>
+            <div className="space-y-3"><input value={data.name} onChange={event => setData('name', event.target.value)} className="input" placeholder="Nombre" /><textarea value={data.description} onChange={event => setData('description', event.target.value)} className="input" rows="3" placeholder="Descripción para la landing de categoría" /></div>
+            {(errors.name || errors.description) && <p className="mt-2 text-xs font-semibold text-red-600">{errors.name || errors.description}</p>}
+            <div className="mt-3 flex justify-end gap-2">{editing && <button type="button" onClick={() => { setEditing(null); reset(); }} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600">Cancelar</button>}<PrimaryButton disabled={processing}>{editing ? 'Guardar' : 'Crear categoría'}</PrimaryButton></div>
+        </form>
+        <div className="mt-5 space-y-3">{categories.map(category => <div key={category.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-slate-950">{category.name}</h3><p className="mt-1 text-sm text-slate-600">{category.description || 'Sin descripción'}</p><p className="mt-2 text-xs font-bold text-slate-400">{category.posts_count} artículo{category.posts_count === 1 ? '' : 's'} · /blog/categoria/{category.slug}</p></div><div className="flex gap-2"><button type="button" onClick={() => edit(category)} className="text-sm font-bold text-blue-700">Editar</button><button type="button" disabled={category.posts_count > 0} onClick={() => remove(category)} className="text-sm font-bold text-red-600 disabled:cursor-not-allowed disabled:opacity-40">Eliminar</button></div></div></div>)}</div>
+    </div>;
 }
 
 function Field({ label, error, hint, children }) {

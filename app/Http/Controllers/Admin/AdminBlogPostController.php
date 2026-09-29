@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
+use App\Models\BlogCategory;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
@@ -16,16 +17,12 @@ class AdminBlogPostController extends Controller
     public function index()
     {
         return Inertia::render('BlogPosts', [
-            'posts' => BlogPost::query()
+            'posts' => BlogPost::query()->with('categoryRelation')
                 ->latest('updated_at')
                 ->get()
                 ->map(fn (BlogPost $post) => $this->serialize($post)),
-            'categories' => BlogPost::query()
-                ->whereNotNull('category')
-                ->distinct()
-                ->orderBy('category')
-                ->pluck('category')
-                ->values(),
+            'categories' => BlogCategory::query()->withCount('posts')->orderBy('name')->get()
+                ->map(fn (BlogCategory $category) => $this->serializeCategory($category)),
         ]);
     }
 
@@ -64,8 +61,9 @@ class AdminBlogPostController extends Controller
             'excerpt' => ['required', 'string', 'max:600'],
             'content' => ['required', 'string'],
             'author_name' => ['nullable', 'string', 'max:120'],
-            'category' => ['nullable', 'string', 'max:100'],
+            'category_id' => ['nullable', 'integer', Rule::exists('blog_categories', 'id')],
             'tags' => ['nullable', 'string', 'max:1000'],
+            'sources' => ['nullable', 'string', 'max:5000'],
             'cover_image_url' => ['nullable', 'url', 'max:1000'],
             'cover_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'cover_image_alt' => ['nullable', 'string', 'max:180'],
@@ -93,6 +91,12 @@ class AdminBlogPostController extends Controller
         $data['author_name'] = $data['author_name'] ?: 'Equipo MindMeet';
         $data['tags'] = collect(explode(',', (string) ($data['tags'] ?? '')))
             ->map(fn ($tag) => trim($tag))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $data['sources'] = collect(preg_split('/\r\n|\r|\n/', (string) ($data['sources'] ?? '')))
+            ->map(fn ($source) => trim($source))
             ->filter()
             ->unique()
             ->values()
@@ -127,8 +131,10 @@ class AdminBlogPostController extends Controller
             'excerpt' => $post->excerpt,
             'content' => $post->content,
             'author_name' => $post->author_name,
-            'category' => $post->category,
+            'category' => $post->categoryRelation ? $this->serializeCategory($post->categoryRelation) : null,
+            'category_id' => $post->category_id,
             'tags' => implode(', ', $post->tags ?? []),
+            'sources' => implode("\n", $post->sources ?? []),
             'cover_image_url' => $post->cover_image_url,
             'cover_image_alt' => $post->cover_image_alt,
             'meta_title' => $post->meta_title,
@@ -137,6 +143,17 @@ class AdminBlogPostController extends Controller
             'is_featured' => $post->is_featured,
             'published_at' => optional($post->published_at)->format('Y-m-d\TH:i'),
             'updated_at' => optional($post->updated_at)->format('d/m/Y H:i'),
+        ];
+    }
+
+    private function serializeCategory(BlogCategory $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'description' => $category->description,
+            'posts_count' => $category->posts_count,
         ];
     }
 }

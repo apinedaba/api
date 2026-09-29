@@ -4,13 +4,19 @@ namespace App\Services\WhatsApp;
 
 use App\Jobs\SendWhatsAppMessageJob;
 use App\Models\Appointment;
+use App\Models\Patient;
 use App\Models\WhatsAppNotificationRule;
 use App\Models\WhatsAppTemplate;
+use App\Services\NotificationPreferenceService;
+use App\Support\ProfessionalContact;
 use Illuminate\Support\Facades\Log;
 
 class AppointmentWhatsAppNotifier
 {
-    public function __construct(protected WhatsAppService $whatsApp)
+    public function __construct(
+        protected WhatsAppService $whatsApp,
+        protected NotificationPreferenceService $preferences,
+    )
     {
     }
 
@@ -57,9 +63,9 @@ class AppointmentWhatsAppNotifier
             'patient_id' => $appointment->patient,
             'user_id' => $appointment->user,
             'has_patient' => (bool) $patient,
-            'has_patient_phone' => filled($patient?->phone),
+            'has_patient_phone' => filled($this->recipientPhone($patient)),
             'recipient' => $recipientType,
-            'has_recipient_phone' => filled($recipient?->phone),
+            'has_recipient_phone' => filled($this->recipientPhone($recipient)),
             'rule_active' => $rule?->is_active,
             'rule_channels' => $rule?->channels,
         ]);
@@ -87,7 +93,20 @@ class AppointmentWhatsAppNotifier
             return false;
         }
 
-        if (! filled($recipient->phone)) {
+        if (! $this->preferences->eventEnabled($recipient, $templateKey, 'whatsapp')) {
+            Log::channel('whatsapp')->info('WhatsApp appointment notification skipped by recipient preference', [
+                'source' => $source,
+                'event' => $templateKey,
+                'appointment_id' => $appointment->id,
+                'recipient' => $recipientType,
+                'recipient_id' => $recipient->id,
+            ]);
+
+            return false;
+        }
+
+        $phone = $this->recipientPhone($recipient);
+        if (! filled($phone)) {
             Log::channel('whatsapp')->warning('WhatsApp appointment notification skipped: missing recipient phone', [
                 'source' => $source,
                 'event' => $templateKey,
@@ -116,7 +135,7 @@ class AppointmentWhatsAppNotifier
 
         SendWhatsAppMessageJob::dispatch([
             'message_type' => 'template',
-            'phone' => $recipient->phone,
+            'phone' => $phone,
             'template' => $template,
             'language' => $templateConfig->language ?: 'es_MX',
             'components' => $this->whatsApp->appointmentTemplateComponents(
@@ -157,6 +176,29 @@ class AppointmentWhatsAppNotifier
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Los pacientes históricos a veces tienen WhatsApp solo en el JSON de
+     * contacto. No debemos omitirlos si el campo phone todavía está vacío.
+     */
+    protected function recipientPhone(?object $recipient): ?string
+    {
+        if (! $recipient) {
+            return null;
+        }
+
+        if ($recipient instanceof Patient) {
+            $phone = data_get($recipient->contacto, 'whatsapp')
+                ?: data_get($recipient->contacto, 'telefono')
+                ?: $recipient->phone;
+
+            return filled($phone) ? (string) $phone : null;
+        }
+
+        return $recipient instanceof \App\Models\User
+            ? ProfessionalContact::whatsapp($recipient)
+            : (filled($recipient->phone ?? null) ? (string) $recipient->phone : null);
     }
 
     protected function templateConfig(string $templateKey): ?WhatsAppTemplate

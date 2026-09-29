@@ -67,6 +67,19 @@ return [
                 'appointment_title' => 'Título de la cita',
             ],
         ],
+        'appointment_patient_response' => [
+            'label' => 'Respuesta del paciente a una cita',
+            'description' => 'Avisa al psicólogo cuando el paciente confirma, cancela o solicita reprogramar.',
+            'recipients' => ['professional'],
+            'variables' => [
+                'patient_name' => 'Nombre del paciente',
+                'professional_name' => 'Nombre público del psicólogo',
+                'appointment_date' => 'Fecha de la cita',
+                'appointment_time' => 'Hora de la cita',
+                'appointment_status' => 'Respuesta del paciente',
+                'agenda_url' => 'URL de la agenda',
+            ],
+        ],
         'appointment_rescheduled' => [
             'label' => 'Cita reprogramada',
             'description' => 'La fecha u hora de una cita cambia.',

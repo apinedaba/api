@@ -45,6 +45,15 @@ class NotificationPreferenceService
     public function enabled(object $notifiable, Notification $notification, string $channel): bool
     {
         $eventKey = $this->eventKey($notification);
+        return $this->eventEnabled($notifiable, $eventKey, $channel);
+    }
+
+    /**
+     * Permite respetar preferencias en automatizaciones que no usan una
+     * Notification de Laravel (por ejemplo, plantillas de Meta encoladas).
+     */
+    public function eventEnabled(object $notifiable, string $eventKey, string $channel): bool
+    {
         $definition = self::CATALOG[$eventKey] ?? null;
         if ($definition && !in_array($channel, $definition['channels'], true)) return false;
         if (($definition['critical'] ?? false) && in_array($channel, ['database', 'mail'], true)) return true;

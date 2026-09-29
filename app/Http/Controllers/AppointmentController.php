@@ -801,6 +801,7 @@ class AppointmentController extends Controller
         }
 
         $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+        $this->notifyProfessionalOfPatientResponse($appointment);
 
         return response()->json([
             'message' => match ($validated['status']) {
@@ -847,6 +848,7 @@ class AppointmentController extends Controller
         ])->save();
 
         $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+        $this->notifyProfessionalOfPatientResponse($appointment);
 
         return response()->json([
             'message' => 'Solicitud de reprogramacion enviada.',
@@ -1565,12 +1567,14 @@ class AppointmentController extends Controller
                 return response()->json(['rasson' => 'Cita no encontrada', 'message' => 'Appointment not found', 'type' => 'error'], 404);
             }
 
+            $originalAppointment = clone $appointment;
             $appointment->statusPatient = $status;
             if ($status === 'Confirmed') {
                 $appointment->state = 'Confirmada';
             }
             $appointment->save();
-            $this->sendNotificacionStatusEmail($appointment);
+            $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+            $this->notifyProfessionalOfPatientResponse($appointment);
 
             return response()->json(['rasson' => 'Cita confirmada', 'message' => 'Appointment confirmed', 'type' => 'success'], 200);
         } catch (\Throwable $th) {
@@ -1649,6 +1653,7 @@ class AppointmentController extends Controller
             ])->save();
 
             $this->sendNotificacionStatusEmail($appointment, $originalAppointment);
+            $this->notifyProfessionalOfPatientResponse($appointment);
 
             return response()->json([
                 'rasson' => 'Solicitud de reprogramacion recibida',
@@ -1659,6 +1664,24 @@ class AppointmentController extends Controller
             Log::error('publicReschedule error: '.$th->getMessage());
 
             return response()->json(['rasson' => 'Error interno', 'message' => 'Internal error', 'type' => 'error'], 500);
+        }
+    }
+
+    /**
+     * El correo y la campana se emiten en sendNotificacionStatusEmail().
+     * WhatsApp se delega a una regla configurable para evitar que una
+     * plantilla ausente bloquee o duplique esos avisos.
+     */
+    private function notifyProfessionalOfPatientResponse(Appointment $appointment): void
+    {
+        try {
+            app(\App\Services\WhatsApp\PatientAppointmentResponseNotifier::class)
+                ->send($appointment, (string) $appointment->statusPatient);
+        } catch (\Throwable $exception) {
+            Log::warning('Professional WhatsApp appointment response notification failed', [
+                'appointment_id' => $appointment->id,
+                'message' => $exception->getMessage(),
+            ]);
         }
     }
 

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\WhatsAppMessage;
+use App\Notifications\ProfessionalAppointmentStatusNotification;
+use App\Services\WhatsApp\PatientAppointmentResponseNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -121,6 +123,18 @@ class WhatsAppWebhookController extends Controller
                 'state' => 'Cancelada',
             ])->save(),
         };
+
+        // La respuesta desde Meta debe producir los mismos avisos que una
+        // respuesta desde el portal o desde el enlace público.
+        $appointment->loadMissing(['patient', 'user']);
+        if ($appointment->user) {
+            $appointment->user->notify(new ProfessionalAppointmentStatusNotification(
+                $appointment,
+                (string) $appointment->statusPatient,
+            ));
+        }
+        app(PatientAppointmentResponseNotifier::class)
+            ->send($appointment, (string) $appointment->statusPatient);
 
         Log::channel('whatsapp')->info('WhatsApp appointment action applied', [
             'appointment_id' => $appointment->id,

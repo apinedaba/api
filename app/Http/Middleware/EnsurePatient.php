@@ -33,8 +33,13 @@ class EnsurePatient
 
         if (auth()->guard('patient')->check()) {
             $patient = auth()->guard('patient')->user();
-            $request->setUserResolver(fn () => $patient);
-            return $next($request);
+            // Sanctum puede resolver un token válido de otro modelo (por ejemplo
+            // User). Nunca debe usarse su id como patient_id: users y patients
+            // tienen secuencias de ids independientes.
+            if ($patient instanceof Patient) {
+                $request->setUserResolver(fn () => $patient);
+                return $next($request);
+            }
         }
 
         if ($request->user() instanceof Patient) {

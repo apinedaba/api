@@ -41,7 +41,9 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            // Los frontends de MindMeet usan tokens Bearer de Sanctum. Mantener
+            // estas rutas stateless evita que Sanctum les exija CSRF por el
+            // dominio de origen aunque no estén autenticándose con cookies.
             \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],

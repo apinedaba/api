@@ -8,6 +8,8 @@ use App\Services\NotificationPayload;
 use Illuminate\Notifications\Events\NotificationSent;
 use App\Services\NotificationPreferenceService;
 use App\Models\NotificationDelivery;
+use Illuminate\Broadcasting\BroadcastException;
+use Illuminate\Support\Facades\Log;
 
 class BroadcastAndPushDatabaseNotification
 {
@@ -26,11 +28,21 @@ class BroadcastAndPushDatabaseNotification
             : null;
 
         if ($channel) {
-            broadcast(new NewNotification(
-                channel: $channel,
-                message: $payload['body'] ?: $payload['title'],
-                notification: $payload
-            ));
+            try {
+                broadcast(new NewNotification(
+                    channel: $channel,
+                    message: $payload['body'] ?: $payload['title'],
+                    notification: $payload
+                ));
+            } catch (BroadcastException $exception) {
+                // La notificación ya quedó persistida. Una caída temporal de
+                // Reverb no debe revertir la acción que originó el aviso.
+                Log::warning('No se pudo emitir una notificación en tiempo real.', [
+                    'channel' => $channel,
+                    'notification_id' => $payload['id'],
+                    'message' => $exception->getMessage(),
+                ]);
+            }
         }
 
         if (!method_exists($event->notifiable, 'deviceTokens') || !$this->preferences->enabled($event->notifiable, $event->notification, 'push')) {

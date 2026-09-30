@@ -2,24 +2,27 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import RichTextEditor from '@/Components/RichTextEditor';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
 const emptyPost = {
-    title: '', slug: '', excerpt: '', content: '', author_name: 'Equipo MindMeet',
+    title: '', slug: '', excerpt: '', content: '', author_name: 'Equipo MindMeet', author_user_id: '',
     category_id: '', tags: '', sources: '', cover_image_url: '', cover_image: null,
     cover_image_alt: '', meta_title: '', meta_description: '', status: 'draft',
     is_featured: false, published_at: '',
 };
 
-export default function BlogPosts({ auth, posts = [], categories = [] }) {
+export default function BlogPosts({ auth, posts = [], categories = [], blogAuthors = [] }) {
     const [editing, setEditing] = useState(null);
     const [showEditor, setShowEditor] = useState(false);
     const [showCategories, setShowCategories] = useState(false);
+    const [activeTab, setActiveTab] = useState('articles');
     const stats = useMemo(() => ({
         total: posts.length,
         published: posts.filter((post) => post.status === 'published').length,
         drafts: posts.filter((post) => post.status === 'draft').length,
+        pending: posts.filter((post) => post.status === 'pending_review').length,
+        changesRequested: posts.filter((post) => post.status === 'changes_requested').length,
         featured: posts.filter((post) => post.is_featured).length,
     }), [posts]);
 
@@ -34,6 +37,11 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
         }
     };
 
+    const disableBlogAccess = (psychologist) => {
+        if (!window.confirm(`¿Deshabilitar el acceso al Blog para ${psychologist.name}?`)) return;
+        router.patch(route('psicologo.blog-access', psychologist.id), {}, { preserveScroll: true });
+    };
+
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-gray-800">Blog</h2>}>
             <Head title="Blog" />
@@ -46,17 +54,25 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                                 <h1 className="mt-1 text-3xl font-black text-slate-950">Blog de MindMeet</h1>
                                 <p className="mt-2 max-w-2xl text-sm text-slate-600">Crea, programa y publica artículos que aparecerán automáticamente en el sitio público.</p>
                             </div>
-                            <div className="flex gap-3"><button type="button" onClick={() => setShowCategories(true)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">Categorías</button><PrimaryButton onClick={() => openEditor()}>Nuevo artículo</PrimaryButton></div>
+                            {activeTab === 'articles' && <div className="flex gap-3"><button type="button" onClick={() => setShowCategories(true)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">Categorías</button><PrimaryButton onClick={() => openEditor()}>Nuevo artículo</PrimaryButton></div>}
                         </div>
-                        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
                             <Metric label="Total" value={stats.total} />
                             <Metric label="Publicados" value={stats.published} tone="emerald" />
                             <Metric label="Borradores" value={stats.drafts} tone="amber" />
+                            <Metric label="Por revisar" value={stats.pending} tone="amber" />
+                            <Metric label="Con cambios" value={stats.changesRequested} tone="violet" />
                             <Metric label="Destacados" value={stats.featured} tone="violet" />
+                            <Metric label="Psicólogos activos" value={blogAuthors.length} tone="violet" />
                         </div>
                     </section>
 
-                    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <nav className="flex w-fit rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Secciones del Blog">
+                        <button type="button" onClick={() => setActiveTab('articles')} className={`rounded-xl px-5 py-3 text-sm font-black transition ${activeTab === 'articles' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>Artículos <span className="ml-1 opacity-75">{posts.length}</span></button>
+                        <button type="button" onClick={() => setActiveTab('psychologists')} className={`rounded-xl px-5 py-3 text-sm font-black transition ${activeTab === 'psychologists' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>Psicólogos activos <span className="ml-1 opacity-75">{blogAuthors.length}</span></button>
+                    </nav>
+
+                    {activeTab === 'articles' ? <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                         {posts.length ? posts.map((post) => (
                             <article key={post.id} className="flex flex-col gap-4 border-b border-slate-100 p-5 last:border-0 md:flex-row md:items-center">
                                 <div className="h-28 w-full shrink-0 overflow-hidden rounded-2xl bg-slate-100 md:w-44">
@@ -66,13 +82,14 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-                                        <span className={post.status === 'published' ? 'rounded-full bg-emerald-100 px-3 py-1 text-emerald-700' : 'rounded-full bg-amber-100 px-3 py-1 text-amber-700'}>
-                                            {post.status === 'published' ? 'Publicado' : 'Borrador'}
+                                        <span className={post.status === 'published' ? 'rounded-full bg-emerald-100 px-3 py-1 text-emerald-700' : post.status === 'pending_review' ? 'rounded-full bg-violet-100 px-3 py-1 text-violet-700' : post.status === 'changes_requested' ? 'rounded-full bg-rose-100 px-3 py-1 text-rose-700' : 'rounded-full bg-amber-100 px-3 py-1 text-amber-700'}>
+                                            {post.status === 'published' ? 'Publicado' : post.status === 'pending_review' ? 'En revisión' : post.status === 'changes_requested' ? 'Cambios solicitados' : 'Borrador'}
                                         </span>
                                         {post.is_featured && <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700">Destacado</span>}
                                         {post.category && <span className="text-slate-500">{post.category.name}</span>}
                                     </div>
                                     <h2 className="mt-2 truncate text-lg font-black text-slate-950">{post.title}</h2>
+                                    <p className="mt-1 text-xs font-bold text-violet-700">Por {post.author_name || 'Equipo MindMeet'}</p>
                                     <p className="mt-1 line-clamp-2 text-sm text-slate-600">{post.excerpt}</p>
                                     <p className="mt-2 text-xs text-slate-400">/blog/{post.slug} · Actualizado {post.updated_at}</p>
                                 </div>
@@ -82,12 +99,12 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
                                 </div>
                             </article>
                         )) : <div className="p-12 text-center text-slate-500">Todavía no hay artículos. Crea el primero para comenzar.</div>}
-                    </section>
+                    </section> : <BlogAuthors psychologists={blogAuthors} onDisable={disableBlogAccess} />}
                 </div>
             </div>
 
             <Modal show={showEditor} onClose={() => setShowEditor(false)} maxWidth="[1280px]">
-                <PostEditor post={editing} categories={categories} onClose={() => setShowEditor(false)} />
+                <PostEditor post={editing} categories={categories} blogAuthors={blogAuthors} onClose={() => setShowEditor(false)} />
             </Modal>
             <Modal show={showCategories} onClose={() => setShowCategories(false)} maxWidth="2xl">
                 <CategoryManager categories={categories} onClose={() => setShowCategories(false)} />
@@ -96,12 +113,40 @@ export default function BlogPosts({ auth, posts = [], categories = [] }) {
     );
 }
 
+function BlogAuthors({ psychologists, onDisable }) {
+    return (
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div>
+                <p className="text-xs font-black uppercase tracking-[.2em] text-violet-700">Colaboradores editoriales</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">Psicólogos con Blog activo</h2>
+                <p className="mt-1 text-sm text-slate-600">Estos profesionales tendrán acceso para crear artículos cuando habilitemos el editor en su panel.</p>
+            </div>
+
+            {psychologists.length ? <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {psychologists.map(psychologist => <article key={psychologist.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 p-4">
+                    {psychologist.image ? <img src={psychologist.image} alt={psychologist.name} className="h-14 w-14 shrink-0 rounded-full object-cover" /> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-violet-100 text-lg font-black text-violet-700">{psychologist.name?.charAt(0) || 'P'}</div>}
+                    <div className="min-w-0 flex-1">
+                        <h3 className="truncate font-black text-slate-950">{psychologist.name}</h3>
+                        {psychologist.legal_name !== psychologist.name && <p className="truncate text-xs text-slate-500">{psychologist.legal_name}</p>}
+                        <p className="truncate text-xs text-slate-500">{psychologist.email}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-violet-600">Activo desde {psychologist.enabled_at || 'hoy'}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-2">
+                        <Link href={route('psicologoShow', psychologist.id)} className="text-xs font-bold text-blue-700 hover:underline">Ver perfil</Link>
+                        <button type="button" onClick={() => onDisable(psychologist)} className="text-left text-xs font-bold text-red-600 hover:underline">Deshabilitar</button>
+                    </div>
+                </article>)}
+            </div> : <div className="mt-6 rounded-2xl border border-dashed border-violet-200 bg-violet-50 p-10 text-center"><p className="font-black text-violet-900">Todavía no hay psicólogos habilitados</p><p className="mt-2 text-sm text-violet-700">Ve a Psicólogos y utiliza el botón “Habilitar Blog”.</p></div>}
+        </section>
+    );
+}
+
 function Metric({ label, value, tone = 'blue' }) {
     const colors = { blue: 'bg-blue-50 text-blue-700', emerald: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700', violet: 'bg-violet-50 text-violet-700' };
     return <div className={`rounded-2xl p-4 ${colors[tone]}`}><p className="text-xs font-black uppercase tracking-wider">{label}</p><p className="mt-1 text-3xl font-black">{value}</p></div>;
 }
 
-function PostEditor({ post, categories, onClose }) {
+function PostEditor({ post, categories, blogAuthors, onClose }) {
     const { data, setData, errors, processing, reset } = useForm({ ...emptyPost, ...post, cover_image: null });
     const [showPreview, setShowPreview] = useState(false);
     const [autosaveStatus, setAutosaveStatus] = useState('');
@@ -167,12 +212,14 @@ function PostEditor({ post, categories, onClose }) {
                     </div>
                 </div>
                 <aside className="space-y-5">
-                    <Field label="Estado" error={errors.status}><select value={data.status} onChange={e => setData('status', e.target.value)} className="input"><option value="draft">Borrador</option><option value="published">Publicado</option></select></Field>
+                    <Field label="Estado editorial" error={errors.status} hint="Solo los artículos publicados aparecen en el sitio público."><select value={data.status} onChange={e => setData('status', e.target.value)} className="input"><option value="draft">Borrador</option><option value="pending_review">En revisión por MindMeet</option><option value="changes_requested">Solicitar cambios</option><option value="published">Aprobado y publicado</option></select></Field>
+                    {data.status === 'changes_requested' && <Field label="Motivo y cambios necesarios" error={errors.review_feedback} hint="El psicólogo verá este mensaje y podrá corregir el artículo."><textarea value={data.review_feedback || ''} onChange={e => setData('review_feedback', e.target.value)} rows="5" className="input" placeholder="Explica claramente qué debe corregir antes de reenviarlo..." /></Field>}
                     <Field label="Fecha de publicación" error={errors.published_at}><input type="datetime-local" value={data.published_at || ''} onChange={e => setData('published_at', e.target.value)} className="input" /></Field>
                     <Field label="Dirección pública del artículo" error={errors.slug} hint="Si dejas el slug vacío, se genera automáticamente desde el título."><div className="flex items-center rounded-xl border border-slate-200 bg-white"><span className="pl-3 text-sm text-slate-400">mindmeet.com.mx/blog/</span><input value={data.slug || ''} onChange={e => setData('slug', e.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm focus:ring-0" placeholder="mi-articulo" /></div></Field>
-                    <Field label="Autor" error={errors.author_name}><input value={data.author_name || ''} onChange={e => setData('author_name', e.target.value)} className="input" /></Field>
+                    <Field label="Psicólogo autor" error={errors.author_user_id} hint="Al elegirlo, el artículo público mostrará su nombre profesional."><select value={data.author_user_id || ''} onChange={e => setData('author_user_id', e.target.value)} className="input"><option value="">Equipo MindMeet / autor manual</option>{blogAuthors.map(author => <option key={author.id} value={author.id}>{author.name} · {author.email}</option>)}</select></Field>
+                    {!data.author_user_id && <Field label="Nombre del autor" error={errors.author_name}><input value={data.author_name || ''} onChange={e => setData('author_name', e.target.value)} className="input" /></Field>}
                     <Field label="Categoría" error={errors.category_id}><select value={data.category_id || ''} onChange={e => setData('category_id', e.target.value)} className="input"><option value="">Sin categoría</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
-                    <Field label="Etiquetas" error={errors.tags} hint="Separadas por comas."><input value={data.tags || ''} onChange={e => setData('tags', e.target.value)} className="input" placeholder="ansiedad, bienestar, terapia" /></Field>
+                    <Field label="Etiquetas" error={errors.tags} hint="Agrega una por una las etiquetas necesarias."><TagInput value={data.tags || ''} onChange={value => setData('tags', value)} /></Field>
                     <Field label="Fuentes bibliográficas" error={errors.sources} hint="Una referencia por línea. Ejemplo: Goleman, D. (1995). Inteligencia emocional. Kairós."><textarea value={data.sources || ''} onChange={e => setData('sources', e.target.value)} rows="5" className="input" placeholder="Apellido, N. (Año). Título del libro. Editorial." /></Field>
                     <Field label="Imagen de portada" error={errors.cover_image} hint="JPG, PNG o WebP. Máximo 8 MB."><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setData('cover_image', e.target.files?.[0] || null)} className="input" /></Field>
                     <Field label="URL externa de la imagen" error={errors.cover_image_url} hint="Opcional. Puedes pegar una URL de Cloudinary en lugar de subir un archivo."><input type="url" value={data.cover_image_url || ''} onChange={e => setData('cover_image_url', e.target.value)} className="input" placeholder="https://res.cloudinary.com/..." /></Field>
@@ -247,4 +294,21 @@ function CategoryManager({ categories, onClose }) {
 
 function Field({ label, error, hint, children }) {
     return <label className="block"><span className="mb-1 block text-xs font-black uppercase tracking-wider text-slate-500">{label}</span>{children}{hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}{error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}</label>;
+}
+
+function TagInput({ value, onChange }) {
+    const [draft, setDraft] = useState('');
+    const tags = String(value || '').split(',').map(tag => tag.trim()).filter(Boolean);
+    const add = () => {
+        const tag = draft.trim().replace(/^['"]|['"]$/g, '');
+        if (!tag || tags.some(item => item.toLowerCase() === tag.toLowerCase())) return setDraft('');
+        onChange([...tags, tag].join(', '));
+        setDraft('');
+    };
+    const remove = (tag) => onChange(tags.filter(item => item !== tag).join(', '));
+
+    return <div className="rounded-xl border border-slate-200 bg-white p-2">
+        <div className="flex gap-2"><input value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} className="min-w-0 flex-1 border-0 px-2 text-sm focus:ring-0" placeholder="Psicología" /><button type="button" onClick={add} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Agregar</button></div>
+        {tags.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{tags.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{tag}<button type="button" onClick={() => remove(tag)} aria-label={`Eliminar ${tag}`} className="text-blue-400 hover:text-red-600">×</button></span>)}</div>}
+    </div>;
 }

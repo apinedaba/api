@@ -12,6 +12,7 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // Las rutas web conservan protección CSRF. Las rutas API son stateless
+        // y se autentican mediante tokens Bearer en el grupo `api` del Kernel.
     ];
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
 use App\Models\BlogCategory;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -11,7 +12,7 @@ class BlogPostController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $posts = BlogPost::query()->with('categoryRelation')
+        $posts = BlogPost::query()->with(['categoryRelation', 'author'])
             ->published()
             ->when($request->filled('category'), fn ($query) => $query->whereHas('categoryRelation', fn ($categoryQuery) => $categoryQuery->where('slug', $request->string('category'))))
             ->when($request->filled('q'), function ($query) use ($request) {
@@ -35,9 +36,9 @@ class BlogPostController extends Controller
 
     public function show(string $slug): JsonResponse
     {
-        $post = BlogPost::query()->with('categoryRelation')->published()->where('slug', $slug)->firstOrFail();
+        $post = BlogPost::query()->with(['categoryRelation', 'author'])->published()->where('slug', $slug)->firstOrFail();
 
-        $related = BlogPost::query()->with('categoryRelation')
+        $related = BlogPost::query()->with(['categoryRelation', 'author'])
             ->published()
             ->whereKeyNot($post->id)
             ->where(function ($query) use ($post) {
@@ -50,25 +51,38 @@ class BlogPostController extends Controller
                 }
             })
             ->inRandomOrder()
-            ->limit(3)
+            ->limit(4)
             ->get()
             ->map(fn (BlogPost $relatedPost) => $this->serialize($relatedPost, false));
 
-        $suggested = BlogPost::query()
-            ->with('categoryRelation')
+        $trending = BlogPost::query()
+            ->with(['categoryRelation', 'author'])
             ->published()
             ->whereKeyNot($post->id)
-            ->whereNotIn('id', $related->pluck('id'))
-            ->inRandomOrder()
+            ->orderByDesc('views_count')
+            ->orderByDesc('published_at')
             ->limit(5)
             ->get()
-            ->map(fn (BlogPost $suggestedPost) => $this->serialize($suggestedPost, false));
+            ->map(fn (BlogPost $trendingPost) => $this->serialize($trendingPost, false));
+
+        $data = $this->serialize($post, true);
+        if ($post->author && User::query()->publiclyVisible()->whereKey($post->author->id)->exists()) {
+            $data['author']['profile_url'] = '/psicologos/'.$post->author->id.'/'.str($post->author_name)->slug();
+        }
 
         return response()->json([
-            'data' => $this->serialize($post, true),
+            'data' => $data,
             'related' => $related,
-            'suggested' => $suggested,
+            'trending' => $trending,
         ]);
+    }
+
+    public function recordView(string $slug): JsonResponse
+    {
+        $post = BlogPost::query()->published()->where('slug', $slug)->firstOrFail();
+        $post->increment('views_count');
+
+        return response()->json(['views_count' => $post->fresh()->views_count]);
     }
 
     private function serialize(BlogPost $post, bool $includeContent): array
@@ -80,6 +94,11 @@ class BlogPostController extends Controller
             'slug' => $post->slug,
             'excerpt' => $post->excerpt,
             'author_name' => $post->author_name,
+            'author' => $post->author ? [
+                'id' => $post->author->id,
+                'name' => $post->author_name,
+                'image' => $post->author->image,
+            ] : null,
             'category' => $post->categoryRelation ? $this->serializeCategory($post->categoryRelation) : null,
             'tags' => $post->tags ?? [],
             'sources' => $post->sources ?? [],
@@ -88,6 +107,7 @@ class BlogPostController extends Controller
             'meta_title' => $post->meta_title ?: $post->title,
             'meta_description' => $post->meta_description ?: $post->excerpt,
             'is_featured' => $post->is_featured,
+            'views_count' => $post->views_count,
             'published_at' => optional($post->published_at)->toIso8601String(),
             'reading_time' => max(1, (int) ceil($words / 220)),
         ];

@@ -48,6 +48,7 @@ use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\ProfessionalAnalyticsController;
 use App\Http\Controllers\PublicAudienceResponseController;
 use App\Http\Controllers\ProfessionalPayoutController;
+use App\Http\Controllers\PsychologistBlogPostController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PsychologistReviewController;
 use App\Http\Controllers\QuestionnaireController;
@@ -144,6 +145,10 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user'])->prefix('use
     Route::post('organizations/{organization}/switch', [OrganizationController::class, 'switch']);
     Route::get('organizations/{organization}/members', [OrganizationController::class, 'members']);
     Route::post('organizations/{organization}/members/invite', [OrganizationController::class, 'inviteMember']);
+    Route::get('blog-posts', [PsychologistBlogPostController::class, 'index']);
+    Route::post('blog-posts', [PsychologistBlogPostController::class, 'store']);
+    Route::put('blog-posts/{blogPost}', [PsychologistBlogPostController::class, 'update']);
+    Route::delete('blog-posts/{blogPost}', [PsychologistBlogPostController::class, 'destroy']);
 
     Route::get('clinics', [ClinicWorkspaceController::class, 'index']);
     Route::post('clinics', [ClinicWorkspaceController::class, 'store']);
@@ -406,6 +411,7 @@ Route::post('patient/enviar-consulta', [ConsultaContactoController::class, 'stor
 Route::get('patient/pages/home', [HomeController::class, 'getImages']);
 Route::get('public/blog', [\App\Http\Controllers\BlogPostController::class, 'index']);
 Route::get('public/blog/{slug}', [\App\Http\Controllers\BlogPostController::class, 'show']);
+Route::post('public/blog/{slug}/view', [\App\Http\Controllers\BlogPostController::class, 'recordView']);
 Route::get('patient/pages/buenfin', [HomeController::class, 'buenfin']);
 Route::get('patient/profesional/{id}/packages', [SessionPackageController::class, 'publicIndex']);
 

@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import FotoPerfil from '@/Components/FotoPerfil';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import DataTable from 'react-data-table-component';
 
@@ -52,7 +52,19 @@ const tableStyles = {
 
 export default function Psicologos({ auth, psicologos = [], summary = {}, filters = {} }) {
     const [search, setSearch] = useState('');
+    const [updatingBlogAccess, setUpdatingBlogAccess] = useState(null);
     const currentFilter = filters?.filter || 'all';
+
+    const toggleBlogAccess = (psychologist) => {
+        const action = psychologist.can_publish_blog ? 'deshabilitar' : 'habilitar';
+        if (!window.confirm(`¿Quieres ${action} el acceso al Blog para ${psychologist.name}?`)) return;
+
+        setUpdatingBlogAccess(psychologist.id);
+        router.patch(route('psicologo.blog-access', psychologist.id), {}, {
+            preserveScroll: true,
+            onFinish: () => setUpdatingBlogAccess(null),
+        });
+    };
 
     const rows = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -148,12 +160,22 @@ export default function Psicologos({ auth, psicologos = [], summary = {}, filter
             name: 'Acciones',
             right: true,
             cell: row => (
-                <Link
-                    href={route('psicologoShow', row.id)}
-                    className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-black uppercase text-sky-700 transition hover:bg-sky-50"
-                >
-                    Revisar
-                </Link>
+                <div className="flex flex-col items-end gap-2 py-2">
+                    <button
+                        type="button"
+                        disabled={updatingBlogAccess === row.id}
+                        onClick={() => toggleBlogAccess(row)}
+                        className={`rounded-lg px-3 py-2 text-xs font-black uppercase transition disabled:opacity-50 ${row.can_publish_blog ? 'bg-violet-100 text-violet-700 hover:bg-violet-200' : 'border border-violet-200 text-violet-700 hover:bg-violet-50'}`}
+                    >
+                        {row.can_publish_blog ? 'Blog activo' : 'Habilitar Blog'}
+                    </button>
+                    <Link
+                        href={route('psicologoShow', row.id)}
+                        className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-black uppercase text-sky-700 transition hover:bg-sky-50"
+                    >
+                        Revisar
+                    </Link>
+                </div>
             ),
         },
     ];

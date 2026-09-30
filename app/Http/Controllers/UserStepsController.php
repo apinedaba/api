@@ -125,8 +125,12 @@ class UserStepsController extends Controller
 
     private function profileSteps(): array
     {
-        $steps = json_decode(file_get_contents(storage_path('app/steps-profile.json')), true) ?: [];
-        $trackedSteps = json_decode(file_get_contents(app_path('steps-profile.json')), true) ?: [];
+        $trackedPath = app_path('steps-profile.json');
+        $storagePath = storage_path('app/steps-profile.json');
+        $sourcePath = is_file($storagePath) ? $storagePath : $trackedPath;
+
+        $steps = $this->readStepsFile($sourcePath);
+        $trackedSteps = $sourcePath === $trackedPath ? $steps : $this->readStepsFile($trackedPath);
         $quizStep = collect($trackedSteps)->firstWhere('id', 7);
 
         if ($quizStep && ! collect($steps)->contains('id', 7)) {
@@ -134,5 +138,16 @@ class UserStepsController extends Controller
         }
 
         return $steps;
+    }
+
+    private function readStepsFile(string $path): array
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            return [];
+        }
+
+        $steps = json_decode((string) file_get_contents($path), true);
+
+        return is_array($steps) ? $steps : [];
     }
 }

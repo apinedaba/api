@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Events\NewNotification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -41,7 +40,6 @@ class LoginController extends Controller
         }
 
         $user = User::where('email', $request->email)->first();
-        event(new NewNotification("user.{$user->id}", "Login correcto"));
         return response()->json([
             'message' => 'Login correcto',
             'token' => explode("|", $user->createToken("API ACCESS TOKEN")->plainTextToken)[1]

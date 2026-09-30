@@ -19,6 +19,7 @@ class BlogPost extends Model
         'excerpt',
         'content',
         'author_name',
+        'author_user_id',
         'category',
         'category_id',
         'tags',
@@ -29,7 +30,12 @@ class BlogPost extends Model
         'meta_title',
         'meta_description',
         'status',
+        'submitted_for_review_at',
+        'reviewed_at',
+        'review_feedback',
+        'changes_requested_at',
         'is_featured',
+        'views_count',
         'published_at',
     ];
 
@@ -37,7 +43,11 @@ class BlogPost extends Model
         'tags' => 'array',
         'sources' => 'array',
         'is_featured' => 'boolean',
+        'views_count' => 'integer',
         'published_at' => 'datetime',
+        'submitted_for_review_at' => 'datetime',
+        'reviewed_at' => 'datetime',
+        'changes_requested_at' => 'datetime',
     ];
 
     public function scopePublished(Builder $query): Builder
@@ -51,5 +61,10 @@ class BlogPost extends Model
     public function categoryRelation(): BelongsTo
     {
         return $this->belongsTo(BlogCategory::class, 'category_id');
+    }
+
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'author_user_id');
     }
 }

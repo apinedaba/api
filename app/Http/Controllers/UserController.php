@@ -156,6 +156,19 @@ class UserController extends Controller
         ]);
     }
 
+    public function toggleBlogAccess(User $user)
+    {
+        $enabled = ! $user->can_publish_blog;
+        $user->forceFill([
+            'can_publish_blog' => $enabled,
+            'blog_access_enabled_at' => $enabled ? now() : null,
+        ])->save();
+
+        return back()->with('success', $enabled
+            ? 'Acceso al Blog habilitado para el psicólogo.'
+            : 'Acceso al Blog deshabilitado para el psicólogo.');
+    }
+
     public function getAvailableSlots(Request $request)
     {
         $userId = $request->id;

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\BlogCategory;
+use App\Models\User;
+use App\Notifications\BlogPostReviewNotification;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
@@ -17,12 +19,24 @@ class AdminBlogPostController extends Controller
     public function index()
     {
         return Inertia::render('BlogPosts', [
-            'posts' => BlogPost::query()->with('categoryRelation')
+            'posts' => BlogPost::query()->with(['categoryRelation', 'author'])
                 ->latest('updated_at')
                 ->get()
                 ->map(fn (BlogPost $post) => $this->serialize($post)),
             'categories' => BlogCategory::query()->withCount('posts')->orderBy('name')->get()
                 ->map(fn (BlogCategory $category) => $this->serializeCategory($category)),
+            'blogAuthors' => User::query()
+                ->where('can_publish_blog', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'image', 'contacto', 'blog_access_enabled_at'])
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'name' => $user->contacto['publicName'] ?? $user->name,
+                    'legal_name' => $user->name,
+                    'email' => $user->email,
+                    'image' => $user->image,
+                    'enabled_at' => optional($user->blog_access_enabled_at)->format('d/m/Y H:i'),
+                ]),
         ]);
     }
 
@@ -38,10 +52,19 @@ class AdminBlogPostController extends Controller
 
     public function update(Request $request, BlogPost $blogPost)
     {
+        $previousStatus = $blogPost->status;
         $data = $this->validatedData($request, $blogPost);
         $this->normalize($data, $blogPost);
         $this->attachUploadedImage($request, $data);
         $blogPost->update($data);
+
+        if ($blogPost->author && $previousStatus !== $blogPost->status) {
+            if ($blogPost->status === 'published') {
+                $blogPost->author->notify(new BlogPostReviewNotification($blogPost, 'published'));
+            } elseif ($blogPost->status === 'changes_requested') {
+                $blogPost->author->notify(new BlogPostReviewNotification($blogPost, 'changes_requested'));
+            }
+        }
 
         return Redirect::route('blog-posts.index')->with('success', 'Artículo actualizado correctamente.');
     }
@@ -61,6 +84,7 @@ class AdminBlogPostController extends Controller
             'excerpt' => ['required', 'string', 'max:600'],
             'content' => ['required', 'string'],
             'author_name' => ['nullable', 'string', 'max:120'],
+            'author_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('can_publish_blog', true)],
             'category_id' => ['nullable', 'integer', Rule::exists('blog_categories', 'id')],
             'tags' => ['nullable', 'string', 'max:1000'],
             'sources' => ['nullable', 'string', 'max:5000'],
@@ -69,7 +93,8 @@ class AdminBlogPostController extends Controller
             'cover_image_alt' => ['nullable', 'string', 'max:180'],
             'meta_title' => ['nullable', 'string', 'max:70'],
             'meta_description' => ['nullable', 'string', 'max:170'],
-            'status' => ['required', Rule::in(['draft', 'published'])],
+            'status' => ['required', Rule::in(['draft', 'pending_review', 'changes_requested', 'published'])],
+            'review_feedback' => ['nullable', 'required_if:status,changes_requested', 'string', 'max:2000'],
             'is_featured' => ['boolean'],
             'published_at' => ['nullable', 'date'],
         ]);
@@ -88,7 +113,13 @@ class AdminBlogPostController extends Controller
             $data['slug'] = "{$baseSlug}-{$suffix}";
             $suffix++;
         }
-        $data['author_name'] = $data['author_name'] ?: 'Equipo MindMeet';
+        if (! empty($data['author_user_id'])) {
+            $author = User::findOrFail($data['author_user_id']);
+            $data['author_name'] = $author->contacto['publicName'] ?? $author->name;
+        } else {
+            $data['author_user_id'] = null;
+            $data['author_name'] = $data['author_name'] ?: 'Equipo MindMeet';
+        }
         $data['tags'] = collect(explode(',', (string) ($data['tags'] ?? '')))
             ->map(fn ($tag) => trim($tag))
             ->filter()
@@ -101,6 +132,22 @@ class AdminBlogPostController extends Controller
             ->unique()
             ->values()
             ->all();
+
+        if ($data['status'] === 'pending_review' && $blogPost?->status !== 'pending_review') {
+            $data['submitted_for_review_at'] = now();
+        }
+
+        if ($data['status'] === 'published') {
+            $data['reviewed_at'] = now();
+            $data['review_feedback'] = null;
+            $data['changes_requested_at'] = null;
+        }
+
+        if ($data['status'] === 'changes_requested') {
+            $data['changes_requested_at'] = now();
+            $data['reviewed_at'] = now();
+            $data['published_at'] = null;
+        }
 
         if ($data['status'] === 'published' && empty($data['published_at'])) {
             $data['published_at'] = $blogPost?->published_at ?? now();
@@ -131,6 +178,12 @@ class AdminBlogPostController extends Controller
             'excerpt' => $post->excerpt,
             'content' => $post->content,
             'author_name' => $post->author_name,
+            'author_user_id' => $post->author_user_id,
+            'author' => $post->author ? [
+                'id' => $post->author->id,
+                'name' => $post->author_name,
+                'image' => $post->author->image,
+            ] : null,
             'category' => $post->categoryRelation ? $this->serializeCategory($post->categoryRelation) : null,
             'category_id' => $post->category_id,
             'tags' => implode(', ', $post->tags ?? []),
@@ -140,6 +193,10 @@ class AdminBlogPostController extends Controller
             'meta_title' => $post->meta_title,
             'meta_description' => $post->meta_description,
             'status' => $post->status,
+            'submitted_for_review_at' => optional($post->submitted_for_review_at)->format('d/m/Y H:i'),
+            'reviewed_at' => optional($post->reviewed_at)->format('d/m/Y H:i'),
+            'review_feedback' => $post->review_feedback,
+            'changes_requested_at' => optional($post->changes_requested_at)->format('d/m/Y H:i'),
             'is_featured' => $post->is_featured,
             'published_at' => optional($post->published_at)->format('Y-m-d\TH:i'),
             'updated_at' => optional($post->updated_at)->format('d/m/Y H:i'),

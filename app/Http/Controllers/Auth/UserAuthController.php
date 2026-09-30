@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Events\NewNotification;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +34,6 @@ class UserAuthController extends Controller
                 'type' => "error",
             ], 401);
         }
-        event(new NewNotification("user.{$user->id}", "Login correcto"));
         $token = $user->createToken('user_token')->plainTextToken;
         if ($request->hasSession()) {
             Auth::guard('user_web')->login($user, true);

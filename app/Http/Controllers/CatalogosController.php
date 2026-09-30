@@ -105,6 +105,33 @@ class CatalogosController extends Controller
 
         return $response;
     }
+
+    public function tiposTerapia(): array
+    {
+        $catalog = config('therapy_types', []);
+        $professionals = User::query()
+            ->publiclyVisible()
+            ->with('activeSessionPackages:id,user_id,tipo_sesion')
+            ->get(['id', 'configurations']);
+
+        $selectedTypes = $professionals
+            ->flatMap(fn (User $user) => collect(data_get($user->configurations, 'sesiones', []))
+                ->pluck('tipoSesion')
+                ->merge($user->activeSessionPackages->pluck('tipo_sesion')))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        return [
+            'type' => 'autocomplete',
+            'values' => $selectedTypes
+                ->map(fn ($type) => ['value' => $type, 'label' => $catalog[$type] ?? $type])
+                ->values(),
+            'label' => 'Tipo de terapia',
+            'key' => 'tipos_terapia',
+        ];
+    }
     public function pais()
     {
         $catalogo = [
@@ -203,6 +230,7 @@ class CatalogosController extends Controller
             $this->modalidad(),
             $this->generos(),
             $this->enfoque(),
+            $this->tiposTerapia(),
             $this->especialidades(),
             $this->pais(),
             $this->estado(),

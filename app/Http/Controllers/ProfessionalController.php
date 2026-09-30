@@ -36,6 +36,7 @@ class ProfessionalController extends Controller
         $idioma = $this->firstQueryValue($params['idioma'] ?? null);
         $especialidades = $this->queryValues($params['especialidades'] ?? $params['especialidad'] ?? null);
         $modalidades = $this->queryValues($params['modalidad'] ?? $params['formato'] ?? null);
+        $tiposTerapia = $this->queryValues($params['tipos_terapia'] ?? $params['tipo_terapia'] ?? $params['tipoSesion'] ?? null);
         $cities = $this->queryValues($params['city'] ?? $params['ciudad'] ?? null);
         $lat = $this->normalizeCoordinate($params['lat'] ?? $params['latitude'] ?? null, -90, 90);
         $lng = $this->normalizeCoordinate($params['lng'] ?? $params['longitude'] ?? null, -180, 180);
@@ -140,6 +141,30 @@ class ProfessionalController extends Controller
                     })
                     ->orWhereHas('activeSessionPackages', function ($packageQuery) use ($compatibleFormats) {
                         $packageQuery->whereIn(DB::raw('LOWER(formato)'), $compatibleFormats);
+                    });
+            });
+        }
+
+        if (!empty($tiposTerapia)) {
+            $normalizedTypes = collect($tiposTerapia)->map(fn ($type) => Str::lower($type))->unique()->values()->all();
+
+            $q->where(function ($typeQuery) use ($normalizedTypes) {
+                $placeholders = implode(',', array_fill(0, count($normalizedTypes), '?'));
+
+                $typeQuery
+                    ->whereIn('users.id', function ($sq) use ($placeholders, $normalizedTypes) {
+                        $sq->select('u.id')
+                            ->from('users as u')
+                            ->join(
+                                DB::raw("JSON_TABLE(u.configurations, '$.sesiones[*]' COLUMNS (tipo_sesion VARCHAR(100) PATH '$.tipoSesion')) sesiones"),
+                                DB::raw('1'),
+                                DB::raw('1=1')
+                            )
+                            ->whereRaw("LOWER(sesiones.tipo_sesion) IN ({$placeholders})", $normalizedTypes)
+                            ->groupBy('u.id');
+                    })
+                    ->orWhereHas('activeSessionPackages', function ($packageQuery) use ($normalizedTypes) {
+                        $packageQuery->whereIn(DB::raw('LOWER(tipo_sesion)'), $normalizedTypes);
                     });
             });
         }

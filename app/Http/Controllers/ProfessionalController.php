@@ -498,6 +498,12 @@ class ProfessionalController extends Controller
                 'state' => data_get($user->address, 'state'),
                 'city' => data_get($user->activeOffice, 'city'),
             ],
+            'active_office' => $user->activeOffice ? [
+                'city' => $user->activeOffice->city,
+                'state' => $user->activeOffice->state,
+                'latitude' => $user->activeOffice->latitude,
+                'longitude' => $user->activeOffice->longitude,
+            ] : null,
             'contacto' => [
                 'publicName' => data_get($user->contacto, 'publicName'),
             ],

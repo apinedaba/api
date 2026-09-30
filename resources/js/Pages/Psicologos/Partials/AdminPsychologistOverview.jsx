@@ -29,6 +29,7 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
         psicologo?.membership_type || (psicologo?.has_lifetime_access ? 'lifetime' : 'none')
     );
     const [processing, setProcessing] = useState(false);
+    const [catalogProcessing, setCatalogProcessing] = useState(false);
     const [membershipProcessing, setMembershipProcessing] = useState(false);
     const [endingAction, setEndingAction] = useState(null);
     const [endProcessing, setEndProcessing] = useState(false);
@@ -42,6 +43,7 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
     const horarios = psicologo?.horarios || {};
     const subscription = psicologo?.subscription;
     const hasActiveAccess = publicVisibility?.has_billable_access;
+    const catalogPublished = Boolean(publicVisibility?.visible && publicVisibility?.catalog_visible);
 
     const sessionStats = useMemo(() => {
         const prices = sessions.map((session) => Number(session.precio || 0)).filter(Boolean);
@@ -61,6 +63,20 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                 onFinish: () => setProcessing(false),
             }
         );
+    };
+
+    const toggleCatalogVisibility = () => {
+        const nextVisible = !publicVisibility?.catalog_visible;
+        const action = nextVisible ? 'mostrar en el catálogo' : 'ocultar del catálogo';
+        if (!window.confirm(`¿Deseas ${action} a este psicólogo? Su cuenta y acceso permanecerán activos.`)) return;
+
+        setCatalogProcessing(true);
+        router.patch(route('psicologo.catalog-visibility', psicologo.id), {
+            is_catalog_visible: nextVisible,
+        }, {
+            preserveScroll: true,
+            onFinish: () => setCatalogProcessing(false),
+        });
     };
 
     const updateMembership = () => {
@@ -116,12 +132,12 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                 </div>
                 <span
                     className={`rounded-full px-4 py-2 text-xs font-bold uppercase ${
-                        publicVisibility?.visible
+                        catalogPublished
                             ? 'bg-green-100 text-green-700'
                             : 'bg-yellow-100 text-yellow-800'
                     }`}
                 >
-                    {publicVisibility?.visible ? 'Visible publicamente' : 'No visible aun'}
+                    {catalogPublished ? 'Visible en catálogo' : 'No visible en catálogo'}
                 </span>
             </header>
 
@@ -156,6 +172,18 @@ export default function AdminPsychologistOverview({ psicologo, publicVisibility 
                     <PrimaryButton onClick={ensureVisibility} disabled={processing || !hasActiveAccess}>
                         {processing ? 'Actualizando...' : 'Dejar visible'}
                     </PrimaryButton>
+                </div>
+            </div>
+
+            <div className={`rounded-xl border p-4 ${publicVisibility?.catalog_visible ? 'border-emerald-100 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold text-gray-900">Visibilidad en catálogo</h3>
+                        <p className="mt-1 text-sm text-gray-600">{publicVisibility?.catalog_visible ? 'Este psicólogo aparece en el catálogo público.' : 'Este psicólogo permanece activo, pero no aparece en el catálogo público.'}</p>
+                    </div>
+                    <button type="button" onClick={toggleCatalogVisibility} disabled={catalogProcessing} className={`rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50 ${publicVisibility?.catalog_visible ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-emerald-700 text-white hover:bg-emerald-800'}`}>
+                        {catalogProcessing ? 'Actualizando...' : publicVisibility?.catalog_visible ? 'Ocultar del catálogo' : 'Mostrar en catálogo'}
+                    </button>
                 </div>
             </div>
 

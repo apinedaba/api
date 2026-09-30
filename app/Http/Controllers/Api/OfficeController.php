@@ -92,7 +92,7 @@ class OfficeController extends Controller
         }
 
         $query = Office::with(['user' => function ($q) {
-            $q->publiclyVisible()
+            $q->catalogVisible()
                 ->select('id', 'name', 'email', 'image', 'personales', 'educacion');
         }])
             ->where('is_active', true);

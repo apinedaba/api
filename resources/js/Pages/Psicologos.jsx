@@ -53,6 +53,7 @@ const tableStyles = {
 export default function Psicologos({ auth, psicologos = [], summary = {}, filters = {} }) {
     const [search, setSearch] = useState('');
     const [updatingBlogAccess, setUpdatingBlogAccess] = useState(null);
+    const [updatingCatalogVisibility, setUpdatingCatalogVisibility] = useState(null);
     const currentFilter = filters?.filter || 'all';
 
     const toggleBlogAccess = (psychologist) => {
@@ -63,6 +64,18 @@ export default function Psicologos({ auth, psicologos = [], summary = {}, filter
         router.patch(route('psicologo.blog-access', psychologist.id), {}, {
             preserveScroll: true,
             onFinish: () => setUpdatingBlogAccess(null),
+        });
+    };
+
+    const toggleCatalogVisibility = (psychologist) => {
+        const nextVisible = !psychologist.is_catalog_visible;
+        const action = nextVisible ? 'mostrar en el catálogo' : 'ocultar del catálogo';
+        if (!window.confirm(`¿Quieres ${action} a ${psychologist.name}? Su cuenta permanecerá activa.`)) return;
+
+        setUpdatingCatalogVisibility(psychologist.id);
+        router.patch(route('psicologo.catalog-visibility', psychologist.id), { is_catalog_visible: nextVisible }, {
+            preserveScroll: true,
+            onFinish: () => setUpdatingCatalogVisibility(null),
         });
     };
 
@@ -168,6 +181,14 @@ export default function Psicologos({ auth, psicologos = [], summary = {}, filter
                         className={`rounded-lg px-3 py-2 text-xs font-black uppercase transition disabled:opacity-50 ${row.can_publish_blog ? 'bg-violet-100 text-violet-700 hover:bg-violet-200' : 'border border-violet-200 text-violet-700 hover:bg-violet-50'}`}
                     >
                         {row.can_publish_blog ? 'Blog activo' : 'Habilitar Blog'}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={updatingCatalogVisibility === row.id}
+                        onClick={() => toggleCatalogVisibility(row)}
+                        className={`rounded-lg px-3 py-2 text-xs font-black uppercase transition disabled:opacity-50 ${row.is_catalog_visible ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                    >
+                        {updatingCatalogVisibility === row.id ? 'Actualizando' : row.is_catalog_visible ? 'Ocultar catálogo' : 'Mostrar catálogo'}
                     </button>
                     <Link
                         href={route('psicologoShow', row.id)}

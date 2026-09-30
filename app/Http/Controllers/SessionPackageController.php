@@ -61,7 +61,7 @@ class SessionPackageController extends Controller
     public function publicIndex(int $professionalId): JsonResponse
     {
         $professional = User::query()
-            ->publiclyVisible()
+            ->catalogVisible()
             ->findOrFail($professionalId);
 
         $packages = $professional

@@ -79,7 +79,7 @@ class FacebookCatalogController extends Controller
                 'activeSessionPackages',
                 'activeOffice',
             ])
-            ->publiclyVisible()
+            ->catalogVisible()
             ->orderBy('name')
             ->get()
             ->map(fn (User $user) => $this->buildCatalogEntry($user))

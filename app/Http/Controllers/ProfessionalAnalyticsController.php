@@ -290,7 +290,7 @@ class ProfessionalAnalyticsController extends Controller
 
         $totalRegistered = User::query()->count();
         $totalActive = User::query()->where('activo', true)->count();
-        $totalVisible = User::query()->publiclyVisible()->count();
+        $totalVisible = User::query()->catalogVisible()->count();
         $totalPatients = Patient::query()->count();
         return [
             'granularity' => $granularity,

@@ -64,7 +64,7 @@ class HomeController extends Controller
     private function getProfessionalsByFilter($filterType = null, $filterValues = [], $limit = 6)
     {
         $query = User::query()
-            ->publiclyVisible()
+            ->catalogVisible()
             ->whereRaw("JSON_VALID(educacion)");
 
         if (!empty($filterType) && !empty($filterValues)) {

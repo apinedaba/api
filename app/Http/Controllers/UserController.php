@@ -58,7 +58,7 @@ class UserController extends Controller
 
         $summary = [
             'total' => (clone $baseQuery)->count(),
-            'public_visible' => User::query()->publiclyVisible()->count(),
+            'public_visible' => User::query()->catalogVisible()->count(),
             'active' => (clone $baseQuery)->where('identity_verification_status', 'approved')->count(),
             'identity_review' => (clone $baseQuery)
                 ->whereIn('identity_verification_status', ['pending', 'sending'])
@@ -76,7 +76,7 @@ class UserController extends Controller
         ];
 
         $users = User::with('subscription')
-            ->when($filter === 'public_visible', fn ($query) => $query->publiclyVisible())
+            ->when($filter === 'public_visible', fn ($query) => $query->catalogVisible())
             ->when($filter === 'active', fn ($query) => $query->where('identity_verification_status', 'approved'))
             ->when($filter === 'identity_review', function ($query) {
                 $query->whereIn('identity_verification_status', ['pending', 'sending'])
@@ -118,7 +118,7 @@ class UserController extends Controller
     public function getProfessionalById($id)
     {
         $allUser = User::query()
-            ->publiclyVisible()
+            ->catalogVisible()
             ->where('id', $id)
             ->with(['escuelas', 'activeSessionPackages', 'activeDiscountCoupons'])
             ->firstOrFail();
@@ -347,11 +347,30 @@ class UserController extends Controller
 
         $user->forceFill([
             'activo' => true,
+            'is_catalog_visible' => true,
         ])->save();
 
         return redirect()
             ->route('psicologoShow', $user->id)
             ->with('status', 'Psicologo listo para visibilidad publica.');
+    }
+
+    public function updateCatalogVisibility(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'is_catalog_visible' => ['required', 'boolean'],
+        ]);
+
+        $user = User::findOrFail($id);
+        $user->forceFill([
+            'is_catalog_visible' => $validated['is_catalog_visible'],
+        ])->save();
+
+        return redirect()
+            ->route('psicologoShow', $user->id)
+            ->with('status', $validated['is_catalog_visible']
+                ? 'El psicólogo volverá a aparecer en el catálogo.'
+                : 'El psicólogo sigue activo, pero fue ocultado del catálogo.');
     }
 
     public function updateMembership(Request $request, string $id)
@@ -538,6 +557,7 @@ class UserController extends Controller
 
         return [
             'visible' => collect($checks)->every(fn($check) => $check['ok']),
+            'catalog_visible' => (bool) $user->is_catalog_visible,
             'checks' => $checks,
             'subscription_status' => $subscriptionStatus,
             'has_billable_access' => $hasBillableAccess,

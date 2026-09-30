@@ -292,6 +292,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/psicologo/{id}', [UserController::class, 'active'])->name('psicologo.active');
     Route::put('/psicologo/{id}', [UserController::class, 'update'])->name('psicologo.update');
     Route::patch('/psicologo/{id}/ensure-public-visibility', [UserController::class, 'ensurePublicVisibility'])->name('psicologo.ensure-public-visibility');
+    Route::patch('/psicologo/{id}/catalog-visibility', [UserController::class, 'updateCatalogVisibility'])->name('psicologo.catalog-visibility');
     Route::patch('/psicologo/{user}/blog-access', [UserController::class, 'toggleBlogAccess'])->name('psicologo.blog-access');
     Route::patch('/psicologo/{id}/membership', [UserController::class, 'updateMembership'])->name('psicologo.membership.update');
     Route::post('/psicologo/{id}/membership/end', [UserController::class, 'endMembership'])->name('psicologo.membership.end');

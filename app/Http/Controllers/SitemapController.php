@@ -9,7 +9,7 @@ class SitemapController extends Controller
 {
     public function index()
     {
-        $psychologists = User::publiclyVisible()
+        $psychologists = User::catalogVisible()
             ->get();
 
         $baseUrl = 'https://mindmeet.com.mx'; // URL del sitio frontend

@@ -29,9 +29,9 @@ class CatalogosController extends Controller
 
     public function generos()
     {
-        $generos = User::whereNotNull('personales')
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
+        $generos = User::query()
+            ->catalogVisible()
+            ->whereNotNull('personales')
             ->pluck('personales')
             ->map(fn($p) => $p['genero'] ?? null)
             ->filter()
@@ -52,9 +52,9 @@ class CatalogosController extends Controller
 
     public function enfoque()
     {
-        $sesiones = User::whereNotNull('educacion')
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
+        $sesiones = User::query()
+            ->catalogVisible()
+            ->whereNotNull('educacion')
             ->pluck('educacion')
             ->map(fn($p) => $p['enfoque'] ?? null)
             ->filter()
@@ -80,9 +80,9 @@ class CatalogosController extends Controller
 
 
         // 2. Extraer todas las especialidades usadas por profesionales activos
-        $especialidades = User::whereNotNull('educacion')
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
+        $especialidades = User::query()
+            ->catalogVisible()
+            ->whereNotNull('educacion')
             ->pluck('educacion')
             ->flatMap(fn($educacion) => collect($educacion['especialidades'] ?? []))
             ->filter()
@@ -110,7 +110,7 @@ class CatalogosController extends Controller
     {
         $catalog = config('therapy_types', []);
         $professionals = User::query()
-            ->publiclyVisible()
+            ->catalogVisible()
             ->with('activeSessionPackages:id,user_id,tipo_sesion')
             ->get(['id', 'configurations']);
 
@@ -144,9 +144,9 @@ class CatalogosController extends Controller
             "EC" => "Ecuador",
             "BO" => "Bolivia"
         ];
-        $pais = User::whereNotNull('address')
-            ->where('isProfileComplete', 1)
-            ->where('activo', 1)
+        $pais = User::query()
+            ->catalogVisible()
+            ->whereNotNull('address')
             ->pluck('address')
             ->map(fn($p) => $p['pais'] ?? null)
             ->filter()
@@ -168,7 +168,7 @@ class CatalogosController extends Controller
     }
     public function estado()
     {
-        $base = User::query()->publiclyVisible();
+        $base = User::query()->catalogVisible();
 
         $addressStates = (clone $base)
             ->whereNotNull('address')
@@ -177,7 +177,7 @@ class CatalogosController extends Controller
 
         $officeStates = \App\Models\Office::query()
             ->where('is_active', true)
-            ->whereHas('user', fn($query) => $query->publiclyVisible())
+            ->whereHas('user', fn($query) => $query->catalogVisible())
             ->pluck('state');
 
         $states = $addressStates
@@ -205,7 +205,7 @@ class CatalogosController extends Controller
     {
         $cities = \App\Models\Office::query()
             ->where('is_active', true)
-            ->whereHas('user', fn($query) => $query->publiclyVisible())
+            ->whereHas('user', fn($query) => $query->catalogVisible())
             ->pluck('city')
             ->filter()
             ->unique()

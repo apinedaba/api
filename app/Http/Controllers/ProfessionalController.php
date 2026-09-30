@@ -65,7 +65,7 @@ class ProfessionalController extends Controller
         $q = User::query()
             ->with(['activeSessionPackages', 'activeDiscountCoupons', 'activeOffice'])
             ->select('users.*')
-            ->publiclyVisible();
+            ->catalogVisible();
 
         if ($hasGeoFilter || !empty($cities) || !empty($estados)) {
             $q->leftJoin('offices as active_offices', function ($join) {
@@ -279,7 +279,7 @@ class ProfessionalController extends Controller
      */
     public function filters(Request $request)
     {
-        $base = User::query()->publiclyVisible();
+        $base = User::query()->catalogVisible();
 
         // Distintos de campos string en JSON
         $generos = (clone $base)

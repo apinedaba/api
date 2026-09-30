@@ -52,6 +52,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'has_lifetime_access',
         'membership_type',
         'activo',
+        'is_catalog_visible',
         'can_publish_blog',
         'blog_access_enabled_at',
         'cedula_selfie_url',
@@ -87,6 +88,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'image' => 'string',
         'isProfileComplete' => 'boolean',
         'activo' => 'boolean',
+        'is_catalog_visible' => 'boolean',
         'can_publish_blog' => 'boolean',
         'blog_access_enabled_at' => 'datetime',
         'has_lifetime_access' => 'boolean',
@@ -475,5 +477,10 @@ class User extends Authenticatable implements MustVerifyEmail
                             });
                     });
             });
+    }
+
+    public function scopeCatalogVisible(Builder $query): Builder
+    {
+        return $query->publiclyVisible()->where('is_catalog_visible', true);
     }
 }

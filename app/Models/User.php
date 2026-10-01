@@ -28,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'recovery_phone',
         'provider_name',
         'provider_id',
         'avatar',

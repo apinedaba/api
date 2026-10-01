@@ -17,6 +17,7 @@ class DeepSeekClinicalGenerationTest extends TestCase
         config()->set('services.deepseek.api_key', 'test-key');
         config()->set('services.deepseek.base_url', 'https://deepseek.test');
         config()->set('services.deepseek.model', 'deepseek-chat');
+        config()->set('services.deepseek.summary_model', 'deepseek-chat');
         config()->set('services.deepseek.max_tokens', 2600);
     }
 
@@ -41,7 +42,13 @@ class DeepSeekClinicalGenerationTest extends TestCase
                 'usage' => ['prompt_tokens' => 120, 'completion_tokens' => 180],
                 'choices' => [['message' => ['content' => json_encode([
                     'title' => 'Resumen de evolución',
-                    'content' => $content,
+                    'summary' => 'Síntesis clínica elaborada exclusivamente con la información autorizada.',
+                    'sections' => [[
+                        'key' => 'evolution',
+                        'title' => 'Evolución y respuesta',
+                        'content' => $content,
+                    ]],
+                    'relevant_alerts' => [],
                 ])]]],
             ]),
         ]);
@@ -52,11 +59,12 @@ class DeepSeekClinicalGenerationTest extends TestCase
         );
 
         $this->assertSame('deepseek-chat', $result['model']);
-        $this->assertSame($content, $result['content']);
+        $this->assertStringContainsString($content, $result['content']);
+        $this->assertSame('evolution', $result['structured_content']['sections'][0]['key']);
         $this->assertNotNull($result['token_usage']);
 
         Http::assertSent(fn ($request) =>
-            str_contains(data_get($request->data(), 'messages.0.content', ''), 'No te limites a copiar')
+            str_contains(data_get($request->data(), 'messages.0.content', ''), 'Usa exclusivamente el contexto clínico anonimizado')
             && data_get($request->data(), 'response_format.type') === 'json_object'
         );
     }

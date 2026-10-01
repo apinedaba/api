@@ -7,6 +7,7 @@ use App\Http\Controllers\AppointmentCartController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentRequestController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\PhoneAccountRecoveryController;
 use App\Http\Controllers\Auth\PatientAuthController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialiteController;
@@ -117,6 +118,16 @@ Route::post('user/reset-password', [PasswordResetController::class, 'resetPasswo
 Route::post('patient/forgot-password', [PasswordResetController::class, 'sendResetCodePatient']);
 Route::post('patient/verify-code', [PasswordResetController::class, 'verifyCodePatient']);
 Route::post('patient/reset-password', [PasswordResetController::class, 'resetPasswordPatient']);
+Route::prefix('user/account-recovery')->middleware('throttle:6,1')->group(function () {
+    Route::post('request-code', [PhoneAccountRecoveryController::class, 'requestCode'])->defaults('accountType', 'user');
+    Route::post('verify-code', [PhoneAccountRecoveryController::class, 'verifyCode'])->defaults('accountType', 'user');
+    Route::post('complete', [PhoneAccountRecoveryController::class, 'complete'])->defaults('accountType', 'user');
+});
+Route::prefix('patient/account-recovery')->middleware('throttle:6,1')->group(function () {
+    Route::post('request-code', [PhoneAccountRecoveryController::class, 'requestCode'])->defaults('accountType', 'patient');
+    Route::post('verify-code', [PhoneAccountRecoveryController::class, 'verifyCode'])->defaults('accountType', 'patient');
+    Route::post('complete', [PhoneAccountRecoveryController::class, 'complete'])->defaults('accountType', 'patient');
+});
 Route::get('user/email/verify/{id}/{hash}', function ($id, $hash) {
     $user = User::findOrFail($id);
 

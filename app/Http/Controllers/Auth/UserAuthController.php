@@ -7,17 +7,34 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use App\Support\PatientIdentity;
 
 class UserAuthController extends Controller
 {
     public function login(Request $request)
     {
+        $request->merge(['identifier' => $request->input('identifier', $request->input('email'))]);
         $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'required|string|max:255',
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $identifier = trim((string) $request->input('identifier'));
+        $email = filter_var($identifier, FILTER_VALIDATE_EMAIL)
+            ? mb_strtolower($identifier)
+            : null;
+        $phone = PatientIdentity::normalizePhone($identifier);
+
+        $user = User::query()
+            ->where(function ($query) use ($email, $phone) {
+                if ($email) {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+                if ($phone && strlen($phone) === 10) {
+                    $query->orWhere('recovery_phone', $phone);
+                }
+            })
+            ->first();
 
         if (!$user) {
             return response()->json([

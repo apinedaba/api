@@ -11,12 +11,13 @@ class AiPatientSummary extends Model
     use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
-        'organization_id', 'user_id', 'patient_id', 'recipient', 'title', 'content',
-        'included_sections', 'instructions', 'model', 'token_usage',
+        'organization_id', 'user_id', 'patient_id', 'recipient', 'purpose', 'detail_level', 'title', 'content',
+        'structured_content', 'included_sections', 'instructions', 'status', 'model', 'token_usage',
     ];
 
     protected $casts = [
         'included_sections' => 'array',
+        'structured_content' => 'array',
         'token_usage' => 'array',
     ];
 }

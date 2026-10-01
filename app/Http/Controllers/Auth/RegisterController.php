@@ -32,7 +32,7 @@ class RegisterController extends Controller
     private $registerValidationRules = [
         'name' => 'required|string|max:255',
         'email' => ['required', 'string', 'max:255', 'regex:' . self::EMAIL_REGEX, 'unique:users,email'],
-        'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX],
+        'contacto.telefono' => ['required', 'regex:' . self::MX_PHONE_REGEX, 'unique:users,recovery_phone'],
         'account_type' => ['nullable', 'in:independent,clinic'],
         'clinic_name' => ['required_if:account_type,clinic', 'nullable', 'string', 'max:255'],
         'password' => 'required|string|min:6'
@@ -103,6 +103,7 @@ class RegisterController extends Controller
             $user = User::create([
                 'name' => trim((string) $request->name),
                 'email' => mb_strtolower(trim((string) $request->email)),
+                'recovery_phone' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
                 'contacto' => array_merge($request->contacto ?? [], [
                     'telefono' => preg_replace('/\D+/', '', (string) data_get($request->all(), 'contacto.telefono')),
                 ]),

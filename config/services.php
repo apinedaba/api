@@ -60,6 +60,7 @@ return [
         'api_key' => env('DEEPSEEK_API_KEY'),
         'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
         'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+        'summary_model' => env('DEEPSEEK_SUMMARY_MODEL', 'deepseek-v4-pro'),
         'timeout' => (int) env('DEEPSEEK_TIMEOUT', 35),
         'max_tokens' => (int) env('DEEPSEEK_MAX_TOKENS', 2600),
     ],

@@ -12,6 +12,10 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        // Los candados del scheduler deben sobrevivir a reinicios y no depender
+        // de los archivos temporales de storage/framework/cache.
+        $schedule->useCache('scheduler');
+
         // $schedule->command('inspire')->hourly();
         $schedule->command('app:expire-trials')->daily();
         $schedule->command('queue:work --stop-when-empty')
@@ -22,9 +26,11 @@ class Kernel extends ConsoleKernel
             ->timezone('America/Mexico_City');
         $schedule->command('sessions:daily-summary')->dailyAt('08:00')->timezone('America/Mexico_City');
         $schedule->command('appointments:send-daily-whatsapp')
-            ->dailyAt('08:00')
+            // Reintenta fallos transitorios; el comando omite a quien ya recibió el resumen.
+            ->everyFiveMinutes()
+            ->between('08:00', '08:30')
             ->timezone('America/Mexico_City')
-            ->withoutOverlapping();
+            ->withoutOverlapping(30);
         $schedule->command('appointments:request-confirmation')
             ->hourlyAt(0)
             ->between('07:00', '18:00')

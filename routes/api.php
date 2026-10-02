@@ -255,6 +255,7 @@ Route::middleware(['auth:sanctum', 'handle_invalid_token', 'user', 'active_organ
     Route::delete('user/coupons/{coupon}', [DiscountCouponController::class, 'destroy']);
     // Gestión de pacientes
     Route::resource('user/patient', PatientController::class);
+    Route::get('user/patients/{patient}/daily-summary', [PatientUserController::class, 'dailySummary']);
     Route::get('user/patients/{patient}/clinical-record/pdf', [ClinicalRecordPdfController::class, 'show']);
     Route::get('user/patients/{patient}/exercise-ai', [PatientExerciseAiController::class, 'index']);
     Route::post('user/patients/{patient}/exercise-ai/generate', [PatientExerciseAiController::class, 'generate']);

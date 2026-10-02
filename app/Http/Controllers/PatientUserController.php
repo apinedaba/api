@@ -23,6 +23,39 @@ class PatientUserController extends Controller
         return response()->json(data: PatientUser::with('patient')->with('expediente')->where('user', $user->id)->get(), status: 200);
     }
 
+    public function dailySummary(Request $request, Patient $patient): JsonResponse
+    {
+        $professionalId = (int) $request->user()->id;
+        $relation = PatientUser::query()
+            ->where('patient', $patient->id)
+            ->where('user', $professionalId)
+            ->with('expediente')
+            ->firstOrFail();
+
+        $appointments = Appointment::query()
+            ->where('patient', $patient->id)
+            ->where('user', $professionalId);
+        $lastAppointment = (clone $appointments)->latest('start')->first(['id', 'start', 'end', 'state', 'session_description', 'comments']);
+
+        return response()->json([
+            'patient' => [
+                'id' => $patient->id,
+                'name' => $patient->name,
+                'email' => $patient->email,
+                'image' => $patient->image,
+                'contacto' => $patient->contacto,
+            ],
+            'sessions_count' => $appointments->count(),
+            'diagnosis' => data_get($relation->expediente, 'diagnostico'),
+            'last_session' => $lastAppointment,
+            'consent' => [
+                'status' => data_get($patient->consentimiento, 'status', 'pending'),
+                'signed_at' => data_get($patient->consentimiento, 'signed_at'),
+                'document_kind' => data_get($patient->consentimiento, 'document_kind'),
+            ],
+        ]);
+    }
+
     public function archive($patient): JsonResponse
     {
         $relation = $this->resolveRelation($patient);

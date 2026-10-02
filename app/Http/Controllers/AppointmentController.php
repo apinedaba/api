@@ -58,8 +58,15 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
         $appointments = Appointment::with(['payments', 'cart', 'patient', 'user.googleAccount', 'participants.patient'])
             ->where('user', $user->id)
+            ->when($filters['from'] ?? null, fn ($query, $from) => $query->whereDate('start', '>=', $from))
+            ->when($filters['to'] ?? null, fn ($query, $to) => $query->whereDate('start', '<=', $to))
             ->orderBy('start')
             ->get();
 
@@ -632,8 +639,9 @@ class AppointmentController extends Controller
     public function show(Appointment $appointment): JsonResponse
     {
         $appointment = Appointment::where('id', $appointment->id)
-            ->with(['patient', 'payments', 'cart', 'user', 'participants.patient'])
-            ->first();
+            ->where('user', request()->user()->id)
+            ->with(['patient', 'payments', 'cart', 'user', 'participants.patient', 'notes' => fn ($query) => $query->latest()])
+            ->firstOrFail();
         $appointment->requires_start_code = app(SessionStartCodeService::class)->appliesTo($appointment);
 
         return response()->json(['appointment' => $appointment], 200);

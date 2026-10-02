@@ -49,6 +49,14 @@ return [
             'lock_connection' => null,
         ],
 
+        'scheduler' => [
+            'driver' => 'database',
+            'table' => 'scheduler_cache',
+            'lock_table' => 'scheduler_cache_locks',
+            'connection' => null,
+            'lock_connection' => null,
+        ],
+
         'file' => [
             'driver' => 'file',
             'path' => storage_path('framework/cache/data'),

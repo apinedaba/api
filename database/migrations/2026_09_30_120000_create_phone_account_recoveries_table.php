@@ -63,7 +63,7 @@ return new class extends Migration {
                 $table->string('recovery_token_hash')->nullable();
                 $table->unsignedTinyInteger('attempts')->default(0);
                 $table->timestamp('verified_at')->nullable();
-                $table->timestamp('expires_at');
+                $table->dateTime('expires_at');
                 $table->timestamps();
                 $table->index(['account_type', 'account_id']);
             });
